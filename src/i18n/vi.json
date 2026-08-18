@@ -1,0 +1,87 @@
+{
+  "app": {
+    "name": "Personal Schedule System",
+    "phase": "Phase 0 — Nền móng"
+  },
+  "nav": {
+    "dashboard": "Tổng quan",
+    "week": "Tuần",
+    "month": "Tháng",
+    "list": "Danh sách",
+    "statistics": "Thống kê",
+    "settings": "Cài đặt"
+  },
+  "category": {
+    "title": "Danh mục",
+    "name": "Tên danh mục",
+    "color": "Màu",
+    "incomeEligible": "Được tính vào thu nhập",
+    "notIncomeEligible": "Không tính thu nhập",
+    "defaultRate": "Đơn giá mặc định mỗi giờ",
+    "uncategorized": "Chưa phân loại"
+  },
+  "salary": {
+    "mode": "Chế độ lương",
+    "modeHourly": "Theo giờ",
+    "modeFixedMonthly": "Khoán tháng",
+    "ratePerHour": "Đơn giá mỗi giờ",
+    "baseSalary": "Lương tháng",
+    "standardHours": "Giờ công chuẩn mỗi tháng",
+    "shortfallPolicy": "Khi làm thiếu giờ",
+    "shortfallNone": "Vẫn nhận đủ lương",
+    "shortfallProRata": "Trừ theo số giờ thiếu",
+    "shortfallAsk": "Chọn cách tính khi thiếu giờ",
+    "effectiveFrom": "Áp dụng từ tháng",
+    "effectiveTo": "Đến hết tháng",
+    "overtimeMultiplier": "Hệ số tăng ca",
+    "nightShiftMultiplier": "Hệ số ca đêm"
+  },
+  "adjustment": {
+    "title": "Điều chỉnh lương",
+    "penalty": "Phạt",
+    "deduction": "Khấu trừ",
+    "bonus": "Thưởng",
+    "allowance": "Phụ cấp",
+    "amount": "Số tiền",
+    "amountHint": "Nhập số dương. Cộng hay trừ do loại quyết định.",
+    "label": "Lý do"
+  },
+  "payroll": {
+    "gross": "Lương gốc",
+    "totalBonus": "Cộng thưởng",
+    "totalPenalty": "Trừ phạt",
+    "net": "Thực nhận",
+    "hoursActual": "Giờ thực tế",
+    "hoursStandard": "Giờ chuẩn",
+    "notApplicable": "—",
+    "negativeWarning": "Thực nhận đang âm — kiểm tra lại các khoản phạt đã nhập."
+  },
+  "occurrence": {
+    "scheduled": "Đã lên lịch",
+    "completed": "Đã hoàn thành",
+    "cancelled": "Đã hủy",
+    "noShow": "Vắng mặt",
+    "conflict": "Trùng lịch",
+    "endsNextDay": "kết thúc hôm sau"
+  },
+  "phase0": {
+    "heading": "Phase 0 hoàn tất",
+    "subheading": "Nền móng đã dựng xong. Chưa có giao diện lịch — đó là đúng.",
+    "dbStatus": "Trạng thái IndexedDB",
+    "categoriesSeeded": "Danh mục đã seed",
+    "schemaVersion": "Phiên bản schema",
+    "nextPhase": "Phase 1 tiếp theo: Week View, Month View, CRUD Category và SingleEvent.",
+    "incomeYes": "có tính thu nhập",
+    "incomeNo": "không tính thu nhập",
+    "checklist": "Danh sách nghiệm thu"
+  },
+  "common": {
+    "save": "Lưu",
+    "cancel": "Hủy",
+    "delete": "Xóa",
+    "edit": "Sửa",
+    "add": "Thêm",
+    "hours": "giờ",
+    "loading": "Đang tải…"
+  }
+}
