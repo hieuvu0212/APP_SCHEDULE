@@ -14,15 +14,16 @@
 //     · Thu nhập  → màn hình đó tự nạp trọn tháng qua usePayroll
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useTranslation } from 'react-i18next';
-import type { DialogTarget, SubmitPayload } from './components/EventDialog';
+import type { DialogTarget, EditScope, SubmitPayload } from './components/EventDialog';
 import type { Occurrence, OccurrenceStatus, RecurringRule } from './types';
 import { addMonths, monthGridDates, todayKey, weekDates } from './core/calendar';
 import { calcOccurrenceIncome, resolveSalaryRule } from './core/income';
 import { addDays, monthBounds, monthOf } from './core/time';
 import { CategoryManager } from './components/CategoryManager';
+import { RuleManager } from './components/RuleManager';
 import { EventDialog } from './components/EventDialog';
 import { ListView } from './components/ListView';
 import { MonthView } from './components/MonthView';
@@ -54,18 +55,10 @@ type View =
   | 'list'
   | 'payroll'
   | 'stats'
-  | 'categories'
+  | 'manage'
   | 'settings';
 
-const VIEWS: View[] = [
-  'week',
-  'month',
-  'list',
-  'payroll',
-  'stats',
-  'categories',
-  'settings',
-];
+const VIEWS: View[] = ['week', 'month', 'list', 'payroll', 'stats', 'manage', 'settings'];
 /** Màn hình có thanh điều hướng thời gian */
 const TIME_VIEWS: View[] = ['week', 'month', 'payroll'];
 
@@ -80,6 +73,7 @@ export default function App() {
   const [month, setMonth] = useState<string>(() => monthOf(todayKey()));
   const [listRange, setListRange] = useState(() => monthBounds(monthOf(todayKey())));
   const [dialog, setDialog] = useState<DialogTarget | null>(null);
+  const [dialogScope, setDialogScope] = useState<EditScope>('OCCURRENCE');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   const categories = useCategories();
@@ -131,6 +125,63 @@ export default function App() {
       ? formatMonthLabel(month)
       : `${formatDayMonth(weekGrid[0])} – ${formatDayMonth(weekGrid[6])}`;
 
+  const openCreate = () =>
+    setDialog({
+      kind: 'create',
+      // Ở lịch tháng, `anchor` vẫn nằm ở tuần đang xem chứ không theo tháng
+      // đang lật, nên phải lấy ngày đầu tháng đang hiển thị.
+      date: view === 'month' ? `${month}-01` : anchor,
+      startTime: '08:00',
+    });
+
+  // ── Phím tắt ────────────────────────────────────────────────────────────
+  //
+  // Ba lớp bảo vệ, thiếu lớp nào cũng thành phiền toái:
+  //   · đang mở hộp thoại → không cướp phím của form
+  //   · con trỏ đang trong ô nhập → gõ chữ "n" trong tiêu đề không được mở
+  //     thêm một hộp thoại nữa
+  //   · có phím bổ trợ → Ctrl+N, Cmd+← là của trình duyệt, không đụng vào
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (dialog || selectedKey) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const el = e.target as HTMLElement | null;
+      if (
+        el &&
+        (el.tagName === 'INPUT' ||
+          el.tagName === 'TEXTAREA' ||
+          el.tagName === 'SELECT' ||
+          el.isContentEditable)
+      ) {
+        return;
+      }
+
+      switch (e.key) {
+        case 'ArrowLeft':
+          step(-1);
+          break;
+        case 'ArrowRight':
+          step(1);
+          break;
+        case 't':
+        case 'T':
+          goToday();
+          break;
+        case 'n':
+        case 'N':
+          if (view === 'week' || view === 'month') openCreate();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // `step` và `openCreate` được dựng lại mỗi lần render và đóng gói `view`,
+    // `anchor`, `month` hiện tại — nên phải nghe lại khi ba thứ đó đổi, nếu
+    // không phím tắt sẽ thao tác trên giá trị cũ.
+  }, [dialog, selectedKey, view, anchor, month]);
+
   // ── Thao tác ────────────────────────────────────────────────────────────
 
   /**
@@ -139,6 +190,7 @@ export default function App() {
    */
   const openEdit = async (o: Occurrence) => {
     setSelectedKey(null); // đóng bảng chi tiết, tránh hai lớp modal chồng nhau
+    setDialogScope('OCCURRENCE'); // mở từ lịch → mặc định ít phá hoại nhất
     if (o.sourceType === 'SINGLE') {
       const event = await getEvent(o.sourceId);
       if (event) setDialog({ kind: 'event', event });
@@ -194,6 +246,11 @@ export default function App() {
     toast(messageKey, { title: o.title }, undo);
   };
 
+  const handleDeleteRule = async (rule: RecurringRule) => {
+    const { messageKey, undo } = await deleteSeries(rule.id);
+    toast(messageKey, { title: rule.title }, undo);
+  };
+
   const handleMove = async (o: Occurrence, date: string, startTime: string) => {
     const { messageKey, undo } = await moveOccurrence(o, date, startTime);
     toast(messageKey, { title: o.title }, undo);
@@ -247,13 +304,23 @@ export default function App() {
 
           {TIME_VIEWS.includes(view) && (
             <div className="flex items-center gap-1">
-              <Button variant="ghost" onClick={() => step(-1)} aria-label={t('nav.previous')}>
+              <Button
+                variant="ghost"
+                onClick={() => step(-1)}
+                aria-label={t('nav.previous')}
+                title={t('shortcut.previous')}
+              >
                 ‹
               </Button>
-              <Button variant="outline" onClick={goToday}>
+              <Button variant="outline" onClick={goToday} title={t('shortcut.today')}>
                 {t('nav.today')}
               </Button>
-              <Button variant="ghost" onClick={() => step(1)} aria-label={t('nav.next')}>
+              <Button
+                variant="ghost"
+                onClick={() => step(1)}
+                aria-label={t('nav.next')}
+                title={t('shortcut.next')}
+              >
                 ›
               </Button>
               <span className="ml-2 text-sm font-medium capitalize text-slate-600">
@@ -267,16 +334,7 @@ export default function App() {
               <Button variant="outline" onClick={() => window.print()}>
                 {t('common.print')}
               </Button>
-              <Button
-                variant="primary"
-                onClick={() =>
-                  setDialog({
-                    kind: 'create',
-                    date: view === 'month' ? `${month}-01` : anchor,
-                    startTime: '08:00',
-                  })
-                }
-              >
+              <Button variant="primary" onClick={openCreate} title={t('shortcut.new')}>
                 + {t('event.add')}
               </Button>
             </span>
@@ -287,8 +345,20 @@ export default function App() {
           <p className="rounded-xl border border-slate-200 bg-white px-4 py-10 text-center text-slate-400">
             {t('common.loading')}
           </p>
-        ) : view === 'categories' ? (
-          <CategoryManager categories={categories} />
+        ) : view === 'manage' ? (
+          <div className="space-y-8">
+            <CategoryManager categories={categories} />
+            <RuleManager
+              categories={categories}
+              onOpenDate={openDay}
+              onEditRule={(rule, sample) => {
+                // Mở từ đây thì ý định là sửa CẢ CHUỖI, không phải một buổi.
+                setDialogScope('SERIES');
+                setDialog({ kind: 'rule', rule, occurrence: sample });
+              }}
+              onDeleteRule={(rule) => void handleDeleteRule(rule)}
+            />
+          </div>
         ) : view === 'settings' ? (
           <SettingsView />
         ) : view === 'stats' ? (
@@ -359,6 +429,7 @@ export default function App() {
         <EventDialog
           target={dialog}
           categories={categories}
+          defaultScope={dialogScope}
           onSubmit={submit}
           onClose={() => setDialog(null)}
         />

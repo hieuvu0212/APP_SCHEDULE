@@ -110,7 +110,11 @@ const STATUS_KEY: Record<OccurrenceStatus, string> = {
 
 // ───────────────────────────────────────────────────────────────────────────
 
-function initialState(target: DialogTarget, categories: Category[]): FormState {
+function initialState(
+  target: DialogTarget,
+  categories: Category[],
+  defaultScope: EditScope,
+): FormState {
   const fallbackCategory = categories[0]?.id ?? '';
 
   const base: FormState = {
@@ -192,7 +196,7 @@ function initialState(target: DialogTarget, categories: Category[]): FormState {
     endMode: rule.endDate ? 'until' : rule.count != null ? 'count' : 'never',
     endDate: rule.endDate ?? '',
     count: rule.count != null ? String(rule.count) : '10',
-    scope: 'OCCURRENCE',
+    scope: defaultScope,
   };
 }
 
@@ -208,16 +212,27 @@ function parseMoney(raw: string): number | undefined {
 export function EventDialog({
   target,
   categories,
+  /**
+   * Phạm vi chọn sẵn khi mở form cho một buổi của lịch lặp.
+   *
+   * Mặc định 'OCCURRENCE' — mở từ lịch thì ít phá hoại nhất. Nhưng mở từ màn
+   * hình quản lý lịch lặp thì ý định rõ ràng là sửa CẢ CHUỖI, và buổi hiển
+   * thị ở đó chỉ là buổi đại diện được dựng ra để form có chỗ đọc.
+   */
+  defaultScope = 'OCCURRENCE',
   onSubmit,
   onClose,
 }: {
   target: DialogTarget;
   categories: Category[];
+  defaultScope?: EditScope;
   onSubmit: (payload: SubmitPayload) => Promise<void> | void;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const [form, setForm] = useState<FormState>(() => initialState(target, categories));
+  const [form, setForm] = useState<FormState>(() =>
+    initialState(target, categories, defaultScope),
+  );
   const [saving, setSaving] = useState(false);
   const [touched, setTouched] = useState(false);
 
@@ -616,19 +631,36 @@ function RecurrenceSection({
             <span className="block text-xs font-medium text-slate-500">
               {t('recurrence.ends')}
             </span>
+            {/* ⚠️ Ô ngày và ô số buổi phải nằm NGOÀI thẻ <label>, là anh em
+                của nó chứ không phải con.
+
+                Một <label> không có thuộc tính `for` sẽ gắn với thẻ nhập
+                ĐẦU TIÊN nằm trong nó — ở đây là cái radio. Đặt ô số vào
+                trong cùng label đó thì mọi cú bấm vào ô số đều bị chuyển
+                thành cú bấm lên radio, tiêu điểm nhảy đi, và người dùng gõ
+                số vào chỗ không nhận.
+
+                Hậu quả rất khó lần: form vẫn lưu bình thường, chỉ là lưu
+                giá trị mặc định "10" thay vì con số người dùng vừa gõ. Rồi
+                màn hình Quản lý báo chuỗi "3 buổi" vẫn đang chạy — và người
+                ta sẽ đi tìm lỗi trong thuật toán tính lịch lặp. */}
             <div className="mt-1 space-y-1.5 text-sm">
               {(['never', 'until', 'count'] as EndMode[]).map((mode) => (
-                <label key={mode} className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="end-mode"
-                    checked={form.endMode === mode}
-                    onChange={() => set('endMode', mode)}
-                  />
-                  <span className="text-slate-700">{t(`recurrence.end.${mode}`)}</span>
+                <div key={mode} className="flex items-center gap-2">
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input
+                      type="radio"
+                      name="end-mode"
+                      checked={form.endMode === mode}
+                      onChange={() => set('endMode', mode)}
+                    />
+                    <span className="text-slate-700">{t(`recurrence.end.${mode}`)}</span>
+                  </label>
+
                   {mode === 'until' && form.endMode === 'until' && (
                     <input
                       type="date"
+                      aria-label={t('recurrence.end.until')}
                       className={`${inputClass} max-w-44`}
                       value={form.endDate}
                       onChange={(e) => set('endDate', e.target.value)}
@@ -638,12 +670,13 @@ function RecurrenceSection({
                     <input
                       type="number"
                       min={1}
+                      aria-label={t('recurrence.end.count')}
                       className={`${inputClass} max-w-24`}
                       value={form.count}
                       onChange={(e) => set('count', e.target.value)}
                     />
                   )}
-                </label>
+                </div>
               ))}
             </div>
           </div>

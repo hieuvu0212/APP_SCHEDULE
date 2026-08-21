@@ -42,6 +42,28 @@ describe('normalizeText', () => {
   it('hạ chữ thường và cắt khoảng trắng thừa', () => {
     expect(normalizeText('  ROSSI  ')).toBe('rossi');
   });
+
+  it('trả chữ Hán, Kana, Hangul về nguyên dạng', () => {
+    // Chữ Hán không tách được nên qua thẳng. Hangul và kana có dakuten thì
+    // NFD CÓ tách — `한` thành ba jamo, `が` thành `か` + U+3099 — và bước NFC
+    // cuối hàm là thứ ghép chúng lại. Thiếu bước đó, chuỗi trả về trông y hệt
+    // trên màn hình nhưng không bằng nhau khi so bằng `===`.
+    expect(normalizeText('中文课')).toBe('中文课');
+    expect(normalizeText('日本語')).toBe('日本語');
+    expect(normalizeText('한국어')).toBe('한국어');
+    expect(normalizeText('がぎ')).toBe('がぎ');
+  });
+
+  it('chuỗi NFC và NFD của cùng một nội dung cho ra kết quả giống nhau', () => {
+    // Dữ liệu dán từ nơi khác vào có thể ở dạng đã tách sẵn. Hai dạng phải
+    // quy về một, nếu không tìm kiếm sẽ trượt mà không ai hiểu vì sao.
+    expect(normalizeText('한국'.normalize('NFD'))).toBe(normalizeText('한국'));
+    expect(normalizeText('Đại'.normalize('NFD'))).toBe(normalizeText('Đại'));
+  });
+
+  it('giữ nguyên emoji', () => {
+    expect(normalizeText('Họp 📌')).toBe('hop 📌');
+  });
 });
 
 describe('filterOccurrences', () => {
@@ -94,6 +116,23 @@ describe('filterOccurrences', () => {
   it('các điều kiện là VÀ với nhau', () => {
     const out = filterOccurrences(list, { categoryIds: ['rossi'], query: 'chieu' });
     expect(out.map((o) => o.key)).toEqual(['d']);
+  });
+
+  it('tìm được tiêu đề tiếng Trung, và lẫn lộn Việt–Trung', () => {
+    // Tiếng Trung không có khoảng trắng nên cả cụm là MỘT từ khóa; phép tách
+    // theo khoảng trắng vẫn cho kết quả đúng.
+    const mixed = [
+      occ({ key: 'zh', title: '中文课 HSK4', clientName: '王老师' }),
+      occ({ key: 'vi', title: 'Học tiếng Trung' }),
+    ];
+    expect(filterOccurrences(mixed, { query: '中文' }).map((o) => o.key)).toEqual(['zh']);
+    expect(filterOccurrences(mixed, { query: '王老师' }).map((o) => o.key)).toEqual(['zh']);
+    // Bỏ dấu vẫn hoạt động trên phần tiếng Việt của cùng tập dữ liệu
+    expect(filterOccurrences(mixed, { query: 'hoc tieng' }).map((o) => o.key)).toEqual([
+      'vi',
+    ]);
+    // Chữ Latin trong tiêu đề tiếng Trung vẫn hạ chữ thường bình thường
+    expect(filterOccurrences(mixed, { query: 'hsk4' }).map((o) => o.key)).toEqual(['zh']);
   });
 });
 

@@ -105,6 +105,38 @@ export function occurrenceDates(rule: RecurringRule, from: string, to: string): 
   return out;
 }
 
+/**
+ * Ngày có buổi kế tiếp kể từ `from` (bao gồm chính ngày đó), hoặc `null`.
+ *
+ * `horizonDays` là cần thiết chứ không phải tối ưu hóa: rule không có
+ * `endDate` sinh occurrence vô hạn, nên phải có mốc dừng. Một năm là đủ để
+ * trả lời câu "buổi tới là khi nào" — không tìm thấy trong 366 ngày thì với
+ * mục đích hiển thị, coi như không có.
+ */
+export function nextOccurrenceDate(
+  rule: RecurringRule,
+  from: string,
+  horizonDays = 366,
+): string | null {
+  const start = from > rule.startDate ? from : rule.startDate;
+  return occurrenceDates(rule, start, addDays(start, horizonDays))[0] ?? null;
+}
+
+export type RuleStatus = 'upcoming' | 'active' | 'ended';
+
+/**
+ * Rule này đang chạy, chưa tới, hay đã hết.
+ *
+ * ⚠️ KHÔNG chỉ so `endDate`. Rule giới hạn bằng `count` không có `endDate`
+ * nào cả — nó hết khi đã sinh đủ số buổi. Chỉ nhìn `endDate` sẽ báo một
+ * chuỗi "10 buổi" đã dùng hết từ năm ngoái là vẫn đang chạy.
+ */
+export function ruleStatus(rule: RecurringRule, today: string): RuleStatus {
+  if (today < rule.startDate) return 'upcoming';
+  if (rule.endDate && today > rule.endDate) return 'ended';
+  return nextOccurrenceDate(rule, today) == null ? 'ended' : 'active';
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 
 function makeOccurrence(args: {

@@ -29,6 +29,19 @@ const COMBINING_MARKS = new RegExp('[\\u0300-\\u036F]', 'g');
  *
  * Thứ tự quan trọng: hạ chữ thường TRƯỚC rồi mới đổi đ→d, nhờ vậy chỉ cần
  * xử lý một dạng chữ.
+ *
+ * ⚠️ BƯỚC NFC CUỐI CÙNG KHÔNG THỪA.
+ *
+ * NFD không chỉ tách dấu thanh Latin. Âm tiết Hangul cũng tách: `한` (U+D55C)
+ * thành ba jamo `ᄒ` + `ᅡ` + `ᆫ` ở dải U+1100–U+11FF. Kana có dakuten cũng
+ * vậy: `が` thành `か` + U+3099. Cả hai dải đó KHÔNG nằm trong U+0300–U+036F
+ * nên bộ lọc phía trên không đụng tới, và chuỗi trả về sẽ ở dạng đã tách —
+ * trông y hệt trên màn hình nhưng khác hẳn khi so bằng `===`.
+ *
+ * Tìm kiếm vẫn chạy đúng vì hai vế đều đi qua đây nên cùng bị tách. Nhưng
+ * hàm sẽ trả về thứ khác với thứ nó hứa, và người dùng nó cho việc gì ngoài
+ * `includes` sẽ dính bẫy. NFC ghép lại, và là phép rỗng với tiếng Việt đã bỏ
+ * dấu lẫn với chữ Hán.
  */
 export function normalizeText(input: string): string {
   return input
@@ -36,6 +49,7 @@ export function normalizeText(input: string): string {
     .replace(COMBINING_MARKS, '')
     .toLowerCase()
     .replace(/đ/g, 'd')
+    .normalize('NFC')
     .trim();
 }
 

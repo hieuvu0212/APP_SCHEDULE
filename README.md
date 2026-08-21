@@ -2,7 +2,11 @@
 
 Quản lý lịch cá nhân đa loại (học, làm ca, gia sư, nghiên cứu) kèm theo dõi thu nhập. Chạy hoàn toàn ở client, dữ liệu trong IndexedDB.
 
-Bảy màn hình: lịch tuần có kéo–thả, lịch tháng, danh sách có lọc và tìm kiếm, bảng lương tháng, thống kê, quản lý danh mục, cài đặt.
+Bảy màn hình: lịch tuần có kéo–thả, lịch tháng, danh sách có lọc và tìm kiếm, bảng lương tháng, thống kê, quản lý (danh mục + lịch lặp), cài đặt.
+
+Phím tắt: `←` `→` đổi tuần/tháng, `T` về hôm nay, `N` thêm sự kiện.
+
+Tiêu đề và ghi chú là **dữ liệu người dùng**, không đi qua i18n — gõ 中文 thì hiện 中文. Font stack khai báo sẵn CJK để không rơi vào font dự phòng tùy máy, và tìm kiếm bỏ dấu vẫn hoạt động trên chuỗi trộn Việt–Trung (có test).
 
 ## Chạy
 
@@ -108,6 +112,8 @@ Kéo–thả trên lưới tuần luôn dùng phạm vi **chỉ buổi này** �
 | Chỗ | Nếu phá thì hỏng gì |
 |---|---|
 | `getExceptionsInWindow` truy vấn hai chiều (`originalDate` ∪ `newDate`) | Bỏ vế `newDate` → buổi dời sang tuần khác BIẾN MẤT, loại `ADD` không bao giờ hiển thị |
+| `ruleStatus` xét cả `count`, không chỉ `endDate` | Chỉ so `endDate` → chuỗi "10 buổi" đã dùng hết từ năm ngoái vẫn báo đang chạy |
+| Màn hình Quản lý liệt kê MỌI rule | Bỏ đi → rule đã hết hạn không sinh buổi nào trên lịch, nên không còn đường nào sửa hay xóa nó |
 | `expandSchedule` bước 4 (kéo `MOVE` từ ngoài cửa sổ vào) | Bỏ đi → cùng lỗi trên |
 | `overlaps` dùng `<` chứ không phải `<=` | Đổi thành `<=` → mọi ca liền nhau (10–12h và 12–14h) đều bị báo trùng |
 | Index `&[recurringRuleId+originalDate]` (dấu `&` = unique) | Bỏ `&` → hai exception chọi nhau trên cùng một buổi |

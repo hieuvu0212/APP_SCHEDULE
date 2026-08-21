@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { RecurringRule, ScheduleException, SingleEvent } from '../../types';
-import { expandSchedule, occurrenceDates, ruleMatchesDate } from '../expand';
+import {
+  expandSchedule,
+  nextOccurrenceDate,
+  occurrenceDates,
+  ruleMatchesDate,
+  ruleStatus,
+} from '../expand';
 import { detectConflicts } from '../conflict';
 
 const meta = { createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
@@ -84,6 +90,115 @@ describe('occurrenceDates', () => {
     // Tháng 8/2026: T2 rơi vào 03, 10, 17, 24, 31
     const dates = occurrenceDates(rule(), '2026-08-01', '2026-08-31');
     expect(dates).toHaveLength(5);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+
+describe('nextOccurrenceDate / ruleStatus', () => {
+  it('tìm được buổi kế tiếp, tính cả chính ngày hôm nay', () => {
+    const r = rule({ startDate: '2026-08-03', daysOfWeek: [1] }); // Thứ hai
+    expect(nextOccurrenceDate(r, '2026-08-17')).toBe('2026-08-17');
+    expect(nextOccurrenceDate(r, '2026-08-18')).toBe('2026-08-24');
+  });
+
+  it('hỏi từ trước startDate thì trả về buổi đầu tiên', () => {
+    const r = rule({ startDate: '2026-09-07', daysOfWeek: [1] });
+    expect(nextOccurrenceDate(r, '2026-01-01')).toBe('2026-09-07');
+  });
+
+  it('rule đã hết hạn thì không còn buổi nào', () => {
+    const r = rule({ startDate: '2026-08-03', endDate: '2026-08-10', daysOfWeek: [1] });
+    expect(nextOccurrenceDate(r, '2026-09-01')).toBeNull();
+  });
+
+  it('chưa bắt đầu / đang chạy / đã kết thúc', () => {
+    const r = rule({ startDate: '2026-08-03', endDate: '2026-08-31', daysOfWeek: [1] });
+    expect(ruleStatus(r, '2026-07-01')).toBe('upcoming');
+    expect(ruleStatus(r, '2026-08-17')).toBe('active');
+    expect(ruleStatus(r, '2026-09-01')).toBe('ended');
+  });
+
+  it('rule giới hạn bằng COUNT vẫn báo đã kết thúc dù không có endDate', () => {
+    // Chỉ so endDate sẽ báo một chuỗi "2 buổi" dùng hết từ lâu là vẫn đang
+    // chạy — và người dùng không bao giờ hiểu vì sao nó không sinh buổi nào.
+    const r = rule({ startDate: '2026-08-03', count: 2, daysOfWeek: [1] });
+    expect(ruleStatus(r, '2026-08-03')).toBe('active');
+    expect(ruleStatus(r, '2026-09-01')).toBe('ended');
+  });
+
+  it('rule không có ngày kết thúc thì luôn đang chạy', () => {
+    const r = rule({ startDate: '2020-01-06', daysOfWeek: [1] });
+    expect(ruleStatus(r, '2026-08-21')).toBe('active');
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+
+describe('giới hạn bằng COUNT — chuỗi phải tắt sau đúng số buổi', () => {
+  // Hàng tuần Thứ Sáu, bắt đầu 31/07/2026, giới hạn 3 buổi.
+  // Ba buổi hợp lệ: 31/07 · 07/08 · 14/08. Ngày 21/08 rơi đúng Thứ Sáu và
+  // nằm trong mọi cửa sổ hiển thị, nên nếu chỗ nào quên xét `count` thì buổi
+  // thứ tư sẽ lọt ra — và lọt ra ở nơi rất khó nhận biết là sai.
+  const counted = () =>
+    rule({ id: 'r-count', title: 'TEST COUNT', startDate: '2026-07-31', daysOfWeek: [5], count: 3 });
+
+  it('sinh đúng ba ngày, không có ngày thứ tư', () => {
+    const dates = occurrenceDates(counted(), '2026-07-01', '2026-12-31');
+    expect(dates).toEqual(['2026-07-31', '2026-08-07', '2026-08-14']);
+    expect(dates).not.toContain('2026-08-21');
+  });
+
+  it('cửa sổ bắt đầu SAU buổi thứ ba trả về rỗng', () => {
+    // `count` đếm từ startDate chứ không đếm trong cửa sổ, nên hàm vẫn phải
+    // đi bộ qua ba buổi đã dùng rồi mới biết là đã hết.
+    expect(occurrenceDates(counted(), '2026-08-15', '2027-08-15')).toEqual([]);
+  });
+
+  it('nextOccurrenceDate trả null sau buổi thứ ba', () => {
+    expect(nextOccurrenceDate(counted(), '2026-08-15')).toBeNull();
+    expect(nextOccurrenceDate(counted(), '2026-08-21')).toBeNull();
+  });
+
+  it('ruleStatus: đang chạy tới hết buổi thứ ba, sau đó là đã kết thúc', () => {
+    const r = counted();
+    expect(ruleStatus(r, '2026-07-30')).toBe('upcoming');
+    expect(ruleStatus(r, '2026-07-31')).toBe('active');
+    expect(ruleStatus(r, '2026-08-14')).toBe('active'); // buổi cuối là hôm nay
+    expect(ruleStatus(r, '2026-08-15')).toBe('ended');
+    expect(ruleStatus(r, '2026-08-21')).toBe('ended');
+  });
+
+  it('expandSchedule KHÔNG vẽ buổi thứ tư lên tuần 17–23/08', () => {
+    // Cùng một nguồn sự thật với màn hình Quản lý. Nếu lịch tuần vẽ ra buổi
+    // 21/08 thì lỗi nằm ở occurrenceDates, không phải ở tầng hiển thị.
+    const out = expandSchedule({
+      rules: [counted()],
+      exceptions: [],
+      events: [],
+      windowStart: '2026-08-17',
+      windowEnd: '2026-08-23',
+      ...NO_AUTO,
+    });
+    expect(out).toEqual([]);
+  });
+
+  it('expandSchedule vẽ đúng ba buổi khi cửa sổ phủ cả chuỗi', () => {
+    const out = expandSchedule({
+      rules: [counted()],
+      exceptions: [],
+      events: [],
+      windowStart: '2026-07-01',
+      windowEnd: '2026-09-30',
+      ...NO_AUTO,
+    });
+    expect(out.map((o) => o.date)).toEqual(['2026-07-31', '2026-08-07', '2026-08-14']);
+  });
+
+  it('count = 1 chỉ sinh đúng buổi đầu tiên', () => {
+    const r = rule({ startDate: '2026-07-31', daysOfWeek: [5], count: 1 });
+    expect(occurrenceDates(r, '2026-07-01', '2026-12-31')).toEqual(['2026-07-31']);
+    expect(ruleStatus(r, '2026-08-01')).toBe('ended');
   });
 });
 

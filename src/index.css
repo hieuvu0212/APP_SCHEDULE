@@ -1,8 +1,16 @@
 @import "tailwindcss";
 
 :root {
+  /* Tiêu đề sự kiện là dữ liệu người dùng nhập, nên có thể là bất kỳ thứ
+     tiếng nào — lịch học tiếng Trung, tên lớp tiếng Nhật, ghi chú tiếng Hàn.
+     Các font Latin phía trước KHÔNG chứa glyph CJK, nên trình duyệt tự rơi
+     xuống các font phía sau.
+     Khai báo rõ thay vì phó mặc cho font dự phòng của hệ điều hành: bỏ trống
+     thì Chrome trên Windows hay chọn một font nét mảnh khác hẳn phần chữ
+     Latin bên cạnh, nhìn rất lệch. */
   font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, "Noto Sans", sans-serif;
+    Arial, "Noto Sans", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB",
+    "Noto Sans SC", "Noto Sans CJK SC", "Malgun Gothic", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 

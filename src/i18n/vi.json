@@ -9,11 +9,35 @@
     "list": "Danh sách",
     "payroll": "Thu nhập",
     "stats": "Thống kê",
-    "categories": "Danh mục",
+    "manage": "Quản lý",
     "settings": "Cài đặt",
     "today": "Hôm nay",
     "previous": "Lùi",
     "next": "Tiến"
+  },
+  "shortcut": {
+    "previous": "Phím ←",
+    "next": "Phím →",
+    "today": "Phím T",
+    "new": "Phím N"
+  },
+  "rules": {
+    "title": "Lịch lặp",
+    "hint": "Mọi chuỗi lặp đều nằm ở đây, kể cả chuỗi đã kết thúc hoặc chưa bắt đầu — những chuỗi không sinh buổi nào trên tuần đang xem.",
+    "empty": "Chưa có lịch lặp nào.",
+    "statusActive": "đang chạy",
+    "statusUpcoming": "chưa bắt đầu",
+    "statusEnded": "đã kết thúc",
+    "next": "Buổi tới: {{date}}",
+    "noNext": "Không còn buổi nào",
+    "openNext": "Mở buổi tới ở lịch tuần",
+    "showEnded": "Hiện {{n}} chuỗi đã kết thúc",
+    "hideEnded": "Ẩn chuỗi đã kết thúc",
+    "everyDay": "Mỗi {{every}}ngày",
+    "everyWeek": "Mỗi {{every}}tuần vào {{days}}",
+    "everyMonth": "Mỗi {{every}}tháng vào ngày {{day}}",
+    "until": "đến {{date}}",
+    "countLimit": "giới hạn {{n}} buổi"
   },
   "weekday": {
     "s0": "CN",
