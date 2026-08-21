@@ -2,7 +2,7 @@
 
 Quản lý lịch cá nhân đa loại (học, làm ca, gia sư, nghiên cứu) kèm theo dõi thu nhập. Chạy hoàn toàn ở client, dữ liệu trong IndexedDB.
 
-Sáu màn hình: lịch tuần có kéo–thả, lịch tháng, danh sách có lọc và tìm kiếm, bảng lương tháng, quản lý danh mục, cài đặt.
+Bảy màn hình: lịch tuần có kéo–thả, lịch tháng, danh sách có lọc và tìm kiếm, bảng lương tháng, thống kê, quản lý danh mục, cài đặt.
 
 ## Chạy
 
@@ -32,6 +32,7 @@ src/
 │   ├── expand.ts        Mở rộng lịch lặp + hợp nhất ngoại lệ
 │   ├── conflict.ts      Phát hiện trùng lịch
 │   ├── filter.ts        Lọc và tìm kiếm (bỏ dấu tiếng Việt)
+│   ├── stats.ts         Thống kê kế hoạch vs thực tế
 │   ├── backup.ts        Kiểm tra file sao lưu + quy tắc trộn theo updatedAt
 │   ├── income.ts        TẦNG 1 — tiền của một buổi
 │   ├── payroll.ts       TẦNG 2 — tiền của một tháng (con số chính thức)
@@ -152,13 +153,40 @@ Sao lưu giữ nguyên cả bản ghi đã xóa mềm. Bỏ tombstone đi thì k
 
 Hai loại lớp phải xử lý riêng, đã ghi rõ trong `index.css`: lớp phủ (`bg-black/50` thay vì `bg-slate-900/40`, vì `--color-black` cố ý không bị đảo) và chữ nằm trên bề mặt đảo ngược (toast).
 
+## Thống kê — bốn cách đếm "giờ"
+
+Trộn lẫn bốn con số này là ra số vô nghĩa, nên `core/stats.ts` định nghĩa rõ:
+
+| Tên | Nghĩa |
+|---|---|
+| `planned` | Mọi buổi trên lịch, **bất kể trạng thái** — thứ bạn định làm |
+| `completed` | Chỉ buổi đã đánh dấu hoàn thành — thứ bạn thật sự đã làm |
+| `cancelled` / `noShow` | Phần chênh lệch |
+| `scheduled` | Buổi chưa xảy ra hoặc chưa đánh dấu |
+
+Bất biến `completed + cancelled + noShow + scheduled === planned` có test riêng: thêm một trạng thái mới mà quên cập nhật `statsByCategory` sẽ làm test đỏ, thay vì để số liệu lệch âm thầm.
+
+Lưu ý `completed` ở đây **khác** `hoursActual` trong `core/payroll.ts`. Bảng lương tính tiền trên mọi buổi không bị hủy kể cả buổi chưa tới (lương phải dự tính được); thống kê chỉ đếm cái đã thật sự xảy ra.
+
+Màn hình này là lý do `ExceptionType='STATUS'` được thêm ở Phase 0 để vá lỗi B1. Nếu bật "tự đánh dấu buổi đã qua" trong Cài đặt thì mọi buổi quá khứ tự thành `COMPLETED` và tỷ lệ luôn đẹp — màn hình có nhắc chuyện đó ngay dưới biểu đồ.
+
+## Hoàn tác
+
+Phủ **mọi** thao tác ghi: tạo, sửa qua form (cả bảy nhánh của `applySubmit`), kéo–thả, co giãn, xóa buổi, xóa chuỗi, xóa danh mục, xóa cấu hình lương, xóa khoản điều chỉnh.
+
+Nguyên tắc: hàm ghi trả về kèm cách hoàn nguyên, không có undo stack toàn cục. Hai chỗ khó:
+
+`splitRuleFrom` phải đảo **ba** việc — bỏ rule mới, trả `endDate`/`count` của rule cũ, khôi phục exception đã dọn. Chỉ làm việc đầu thì chuỗi cũ vẫn bị đóng ở ngày cắt và mọi buổi sau đó biến mất vĩnh viễn.
+
+`upsertExceptionUndoable` chụp trạng thái cũ **trước** khi ghi đè, vì index unique chỉ cho một exception mỗi buổi. Hoàn tác kiểu "xóa bản vừa ghi" sẽ đưa buổi về ngày gốc thay vì ngày đã dời — hoàn tác sai còn tệ hơn không có hoàn tác.
+
+Ngoại lệ duy nhất: **nhập file sao lưu** không hoàn tác được, và hộp thoại nói thẳng điều đó.
+
 ## Còn treo
 
 | Việc | Ghi chú |
 |---|---|
-| Hoàn tác cho thao tác SỬA qua form | Kéo–thả và mọi thao tác xóa đã có hoàn tác. Sửa qua form thì chưa. |
 | Xuất PNG | Đã in được PDF qua `window.print()`. Muốn xuất ảnh bitmap thì dùng `html2canvas-pro`, KHÔNG dùng `html2canvas` 1.4.1 — bản đó crash với Tailwind v4 vì `oklch()`. |
-| Màn hình thống kê | Giờ theo danh mục, thu nhập qua các tháng. Dữ liệu đã sẵn trong `core/payroll.ts`, chỉ thiếu phần vẽ. |
 | Xóa hẳn rate của riêng một buổi | Exception dùng `??` để nối tiếp giá trị gốc, nên không phân biệt được "để trống" với "xóa đi". |
 | "Copy Week" | Chưa định nghĩa lại. Với kiến trúc rule-based, copy tuần sẽ nhân đôi sự kiện. |
 | Bộ ngôn ngữ en/zh | `i18n/` đã sẵn sàng, chỉ cần thêm file JSON. Không component nào phải sửa. |

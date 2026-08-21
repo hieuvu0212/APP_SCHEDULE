@@ -30,7 +30,6 @@ import {
   setOccurrenceStatus,
   softDeleteException,
   updateException,
-  upsertException,
   upsertExceptionUndoable,
 } from '../db/repo/exceptions';
 
@@ -74,7 +73,7 @@ export interface Undoable {
 export async function applySubmit(
   payload: SubmitPayload,
   target: DialogTarget,
-): Promise<void> {
+): Promise<Undoable> {
   const common = {
     title: payload.title,
     categoryId: payload.categoryId,
@@ -88,48 +87,68 @@ export async function applySubmit(
   // ── Tạo mới ─────────────────────────────────────────────────────────────
   if (target.kind === 'create') {
     if (payload.recurrence) {
-      await createRule({
+      const ruleId = await createRule({
         ...common,
         ...payload.recurrence,
         startDate: payload.date,
         startTime: payload.startTime,
         durationMinutes: payload.durationMinutes,
       });
-    } else {
-      await createEvent({
-        ...common,
-        date: payload.date,
-        startTime: payload.startTime,
-        durationMinutes: payload.durationMinutes,
-        status: payload.status,
-      });
+      return {
+        messageKey: 'toast.created',
+        undo: async () => void (await softDeleteRule(ruleId)),
+      };
     }
-    return;
-  }
 
-  // ── Sửa sự kiện đơn ─────────────────────────────────────────────────────
-  if (target.kind === 'event') {
-    if (payload.recurrence) {
-      // Bật lặp cho một sự kiện đơn = chuyển nó thành lịch lặp. Hai loại này
-      // nằm ở hai bảng khác nhau nên phải tạo mới rồi xóa cũ, không sửa tại chỗ.
-      await createRule({
-        ...common,
-        ...payload.recurrence,
-        startDate: payload.date,
-        startTime: payload.startTime,
-        durationMinutes: payload.durationMinutes,
-      });
-      await softDeleteEvent(target.event.id);
-      return;
-    }
-    await updateEvent(target.event.id, {
+    const eventId = await createEvent({
       ...common,
       date: payload.date,
       startTime: payload.startTime,
       durationMinutes: payload.durationMinutes,
       status: payload.status,
     });
-    return;
+    return { messageKey: 'toast.created', undo: () => softDeleteEvent(eventId) };
+  }
+
+  // ── Sửa sự kiện đơn ─────────────────────────────────────────────────────
+  if (target.kind === 'event') {
+    const event = target.event;
+
+    if (payload.recurrence) {
+      // Bật lặp cho một sự kiện đơn = chuyển nó thành lịch lặp. Hai loại này
+      // nằm ở hai bảng khác nhau nên phải tạo mới rồi xóa cũ, không sửa tại chỗ.
+      const ruleId = await createRule({
+        ...common,
+        ...payload.recurrence,
+        startDate: payload.date,
+        startTime: payload.startTime,
+        durationMinutes: payload.durationMinutes,
+      });
+      await softDeleteEvent(event.id);
+      return {
+        messageKey: 'toast.updated',
+        // Hoàn tác phải đảo CẢ HAI nửa. Chỉ xóa rule mới thì sự kiện gốc vẫn
+        // nằm trong thùng rác và người dùng mất trắng.
+        undo: async () => {
+          await softDeleteRule(ruleId);
+          await restoreEvent(event.id);
+        },
+      };
+    }
+
+    const eventPatch = {
+      ...common,
+      date: payload.date,
+      startTime: payload.startTime,
+      durationMinutes: payload.durationMinutes,
+      status: payload.status,
+    };
+    const before = pick(event, eventPatch);
+    await updateEvent(event.id, eventPatch);
+    return {
+      messageKey: 'toast.updated',
+      undo: () => updateEvent(event.id, before),
+    };
   }
 
   // ── Sửa buổi của lịch lặp ───────────────────────────────────────────────
@@ -138,7 +157,20 @@ export async function applySubmit(
 
   // Buổi loại ADD không thuộc rule nào — sửa thẳng chính exception đó.
   if (occurrence.exceptionId) {
-    await updateException(occurrence.exceptionId, {
+    const exceptionId = occurrence.exceptionId;
+    // Buổi ADD được định nghĩa TRỌN VẸN bởi chính exception của nó, nên trạng
+    // thái đang hiển thị chính là trạng thái cần khôi phục — không phải đọc DB.
+    const before = {
+      newDate: occurrence.date,
+      newStartTime: occurrence.startTime,
+      newDurationMinutes: occurrence.durationMinutes,
+      newTitle: occurrence.title,
+      newCategoryId: occurrence.categoryId,
+      newRatePerHour: occurrence.ratePerHour,
+      newFixedAmount: occurrence.fixedAmount,
+      status: occurrence.status,
+    };
+    await updateException(exceptionId, {
       newDate: payload.date,
       newStartTime: payload.startTime,
       newDurationMinutes: payload.durationMinutes,
@@ -148,7 +180,10 @@ export async function applySubmit(
       newFixedAmount: payload.fixedAmount,
       status: payload.status,
     });
-    return;
+    return {
+      messageKey: 'toast.updated',
+      undo: () => updateException(exceptionId, before),
+    };
   }
 
   if (payload.scope === 'OCCURRENCE') {
@@ -157,7 +192,7 @@ export async function applySubmit(
     //
     // `newDate` vẫn được ghi cả khi không dời, để truy vấn hai chiều
     // (originalDate ∪ newDate) bắt được exception này từ cả hai phía.
-    await upsertException({
+    const { revert } = await upsertExceptionUndoable({
       type: payload.date !== originalDate ? 'MOVE' : 'REPLACE',
       recurringRuleId: rule.id,
       originalDate,
@@ -170,7 +205,7 @@ export async function applySubmit(
       newFixedAmount: payload.fixedAmount,
       status: payload.status,
     });
-    return;
+    return { messageKey: 'toast.updated', undo: revert };
   }
 
   const rulePatch = {
@@ -181,25 +216,55 @@ export async function applySubmit(
   };
 
   if (payload.scope === 'FOLLOWING') {
-    await splitRuleFrom(rule.id, originalDate, rulePatch);
-    return;
+    const { revert } = await splitRuleFrom(rule.id, originalDate, rulePatch);
+    return { messageKey: 'toast.seriesSplit', undo: revert };
   }
 
   // SERIES — startDate giữ nguyên, xem chú thích đầu hàm.
   if (!payload.recurrence) {
     // Tắt lặp ở mức cả chuỗi = chuỗi này không còn lý do tồn tại. Chuyển
     // thành một sự kiện đơn tại đúng ngày đang xem.
-    await createEvent({
+    const eventId = await createEvent({
       ...common,
       date: payload.date,
       startTime: payload.startTime,
       durationMinutes: payload.durationMinutes,
       status: payload.status,
     });
-    await softDeleteRule(rule.id);
-    return;
+    const deletedAt = await softDeleteRule(rule.id);
+    return {
+      messageKey: 'toast.updated',
+      undo: async () => {
+        await softDeleteEvent(eventId);
+        await restoreRule(rule.id, deletedAt);
+      },
+    };
   }
+
+  const beforeRule = pick(rule, rulePatch);
   await updateRule(rule.id, rulePatch);
+  return {
+    messageKey: 'toast.updated',
+    undo: () => updateRule(rule.id, beforeRule),
+  };
+}
+
+/**
+ * Chụp giá trị HIỆN TẠI của đúng những trường sắp bị `patch` ghi đè.
+ *
+ * Chỉ lấy các khóa có trong patch, không chụp cả bản ghi: chụp cả bản ghi rồi
+ * ghi ngược lại sẽ đè luôn `updatedAt` và những thay đổi khác xảy ra trong
+ * lúc chờ người dùng bấm Hoàn tác.
+ *
+ * Trường vốn không tồn tại sẽ được chụp là `undefined`, và Dexie hiểu đó là
+ * lệnh xóa thuộc tính — đúng thứ ta cần để quay về trạng thái cũ.
+ */
+function pick<T extends object, P extends object>(source: T, patch: P): Partial<P> {
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(patch)) {
+    out[key] = (source as unknown as Record<string, unknown>)[key];
+  }
+  return out as Partial<P>;
 }
 
 // ─── Thao tác nhanh ────────────────────────────────────────────────────────

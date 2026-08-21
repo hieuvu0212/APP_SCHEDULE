@@ -29,6 +29,7 @@ import { MonthView } from './components/MonthView';
 import { OccurrenceDetail } from './components/OccurrenceDetail';
 import { PayrollView } from './components/PayrollView';
 import { SettingsView } from './components/SettingsView';
+import { StatsView } from './components/StatsView';
 import { WeekView } from './components/WeekView';
 import { Button } from './components/ui';
 import { listSalaryRules } from './db/repo/salary';
@@ -47,9 +48,24 @@ import {
 } from './actions/schedule';
 import { useUndo } from './undo/UndoProvider';
 
-type View = 'week' | 'month' | 'list' | 'payroll' | 'categories' | 'settings';
+type View =
+  | 'week'
+  | 'month'
+  | 'list'
+  | 'payroll'
+  | 'stats'
+  | 'categories'
+  | 'settings';
 
-const VIEWS: View[] = ['week', 'month', 'list', 'payroll', 'categories', 'settings'];
+const VIEWS: View[] = [
+  'week',
+  'month',
+  'list',
+  'payroll',
+  'stats',
+  'categories',
+  'settings',
+];
 /** Màn hình có thanh điều hướng thời gian */
 const TIME_VIEWS: View[] = ['week', 'month', 'payroll'];
 
@@ -152,15 +168,19 @@ export default function App() {
     }
   };
 
+  const toast = (
+    messageKey: string,
+    params: Record<string, unknown>,
+    undo: () => Promise<void>,
+  ) => pushUndo(t(messageKey, params), undo);
+
   const submit = async (payload: SubmitPayload) => {
     if (!dialog) return;
-    await applySubmit(payload, dialog);
+    const { messageKey, undo } = await applySubmit(payload, dialog);
     setDialog(null);
     setSelectedKey(null);
+    toast(messageKey, { title: payload.title }, undo);
   };
-
-  const toast = (messageKey: string, params: Record<string, unknown>, undo: () => Promise<void>) =>
-    pushUndo(t(messageKey, params), undo);
 
   const handleRemove = async (o: Occurrence) => {
     setSelectedKey(null);
@@ -271,6 +291,8 @@ export default function App() {
           <CategoryManager categories={categories} />
         ) : view === 'settings' ? (
           <SettingsView />
+        ) : view === 'stats' ? (
+          <StatsView />
         ) : view === 'payroll' ? (
           <PayrollView month={month} />
         ) : view === 'list' ? (

@@ -8,6 +8,7 @@
     "month": "Tháng",
     "list": "Danh sách",
     "payroll": "Thu nhập",
+    "stats": "Thống kê",
     "categories": "Danh mục",
     "settings": "Cài đặt",
     "today": "Hôm nay",
@@ -230,6 +231,21 @@
     "showConflicts": "Cảnh báo trùng lịch",
     "showConflictsHint": "Hiện dấu ⚠ trên buổi bị chồng giờ. Chỉ cảnh báo, không bao giờ chặn — đôi khi bạn cố ý xếp trùng."
   },
+  "stats": {
+    "lastMonths": "{{n}} tháng",
+    "totalIncome": "Tổng thu nhập",
+    "completedHours": "Giờ đã làm",
+    "ofPlanned": "trên {{hours}} giờ kế hoạch",
+    "completionRate": "Tỷ lệ thực hiện",
+    "sessionsDone": "{{done}}/{{planned}} buổi",
+    "conflicts": "Vụ trùng lịch",
+    "conflictsHint": "Mở màn hình Danh sách và lọc theo trùng lịch để xem cụ thể.",
+    "incomeByMonth": "Thu nhập theo tháng",
+    "plannedVsActual": "Kế hoạch và thực tế",
+    "byWeekday": "Giờ theo thứ trong tuần",
+    "empty": "Chưa có buổi nào trong khoảng này.",
+    "autoCompleteCaveat": "Bạn đang bật “tự đánh dấu buổi đã qua là hoàn thành”, nên mọi buổi trong quá khứ tự thành đã hoàn thành và tỷ lệ ở đây luôn đẹp. Muốn con số phản ánh thực tế thì tắt tùy chọn đó trong Cài đặt và tự đánh dấu từng buổi."
+  },
   "backup": {
     "title": "Sao lưu và khôi phục",
     "why": "Toàn bộ dữ liệu nằm trong IndexedDB của riêng trình duyệt này. Bấm “xóa dữ liệu duyệt web”, cài lại máy, hay đổi trình duyệt là mất trắng — không có máy chủ nào giữ hộ. Xuất file định kỳ và cất ở nơi khác.",
@@ -275,6 +291,9 @@
     "countPositive": "Số buổi phải lớn hơn 0"
   },
   "toast": {
+    "created": "Đã tạo “{{title}}”",
+    "updated": "Đã lưu “{{title}}”",
+    "seriesSplit": "Đã tách chuỗi từ buổi này trở đi",
     "eventDeleted": "Đã xóa “{{title}}”",
     "occurrenceRemoved": "Đã gỡ buổi “{{title}}” khỏi lịch",
     "occurrenceMoved": "Đã dời “{{title}}”",

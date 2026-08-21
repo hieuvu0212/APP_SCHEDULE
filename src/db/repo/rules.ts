@@ -79,13 +79,15 @@ export async function splitRuleFrom(
   id: string,
   fromDate: string,
   patch: Partial<NewRecurringRule>,
-): Promise<string> {
+): Promise<{ ruleId: string; revert: () => Promise<void> }> {
   const original = await db.rules.get(id);
   if (!original) throw new Error(`Không tìm thấy lịch lặp: ${id}`);
+
   if (fromDate <= original.startDate) {
     // Mốc cắt nằm ở hoặc trước buổi đầu tiên → không có gì để giữ lại.
+    const before = pickRuleFields(original, patch);
     await updateRule(id, patch);
-    return id;
+    return { ruleId: id, revert: () => updateRule(id, before) };
   }
 
   const t = nowISO();
@@ -118,7 +120,41 @@ export async function splitRuleFrom(
     });
   });
 
-  return newRuleId;
+  return {
+    ruleId: newRuleId,
+    /**
+     * Hoàn nguyên phép tách chuỗi — phải làm đủ BA việc, thiếu việc nào cũng
+     * để lại dữ liệu sai:
+     *   1. bỏ rule mới sinh ra
+     *   2. trả `endDate`/`count` của rule cũ về như trước khi cắt
+     *   3. khôi phục các exception bị dọn vì nằm sau mốc cắt
+     * Chỉ làm việc 1 thì chuỗi cũ vẫn bị đóng lại ở ngày cắt, và mọi buổi
+     * sau đó biến mất vĩnh viễn.
+     */
+    revert: async () => {
+      await db.transaction('rw', [db.rules, db.exceptions], async () => {
+        await db.rules.update(newRuleId, { deletedAt: nowISO(), updatedAt: nowISO() });
+        await db.rules.update(id, {
+          endDate: original.endDate,
+          count: original.count,
+          updatedAt: nowISO(),
+        });
+        await restoreExceptionsOfRule(id, t);
+      });
+    },
+  };
+}
+
+/** Chụp lại giá trị HIỆN TẠI của đúng những trường sắp bị patch ghi đè */
+function pickRuleFields(
+  rule: RecurringRule,
+  patch: Partial<NewRecurringRule>,
+): Partial<NewRecurringRule> {
+  const before: Record<string, unknown> = {};
+  for (const key of Object.keys(patch)) {
+    before[key] = (rule as unknown as Record<string, unknown>)[key];
+  }
+  return before as Partial<NewRecurringRule>;
 }
 
 /** Cộng/trừ ngày cho khóa "YYYY-MM-DD" mà không kéo core/time vào tầng db */
