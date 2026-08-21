@@ -17,10 +17,21 @@
 
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { AdjustmentKind, Category, PayrollAdjustment, SalaryRule } from '../types';
+import type {
+  AdjustmentKind,
+  AdjustmentTemplate,
+  Category,
+  PayrollAdjustment,
+  SalaryRule,
+} from '../types';
 import type { PayrollRow } from '../hooks/usePayroll';
 import { usePayroll } from '../hooks/usePayroll';
-import { softDeleteAdjustment, softDeleteSalaryRule } from '../db/repo/salary';
+import {
+  createAdjustment,
+  softDeleteAdjustment,
+  softDeleteAdjustmentTemplate,
+  softDeleteSalaryRule,
+} from '../db/repo/salary';
 import { formatHours, formatMoney, formatMonthLabel } from '../i18n';
 import { useUndo } from '../undo/UndoProvider';
 import { AdjustmentForm, signOf } from './AdjustmentForm';
@@ -73,6 +84,25 @@ export function PayrollView({ month }: { month: string }) {
     pushUndo(t('toast.salaryRuleDeleted', { name: category.name }), undo);
   };
 
+  /** Bấm một mẫu là sinh thẳng khoản điều chỉnh cho tháng đang xem */
+  const applyTemplate = async (template: AdjustmentTemplate) => {
+    const id = await createAdjustment({
+      categoryId: template.categoryId,
+      month,
+      kind: template.kind,
+      label: template.label,
+      amount: template.defaultAmount,
+    });
+    pushUndo(t('toast.adjustmentAdded', { label: template.label }), async () => {
+      await softDeleteAdjustment(id);
+    });
+  };
+
+  const removeTemplate = async (template: AdjustmentTemplate) => {
+    const undo = await softDeleteAdjustmentTemplate(template.id);
+    pushUndo(t('toast.templateDeleted', { label: template.label }), undo);
+  };
+
   return (
     <div className="space-y-4">
       {/* ── Tổng thực nhận ── */}
@@ -107,6 +137,9 @@ export function PayrollView({ month }: { month: string }) {
           key={row.category.id}
           row={row}
           adjustments={data.adjustments.filter((a) => a.categoryId === row.category.id)}
+          templates={data.templates.filter((x) => x.categoryId === row.category.id)}
+          onApplyTemplate={(x) => void applyTemplate(x)}
+          onRemoveTemplate={(x) => void removeTemplate(x)}
           onEditSalary={() =>
             setSalaryDialog({ rule: row.salaryRule ?? null, categoryId: row.category.id })
           }
@@ -160,19 +193,25 @@ export function PayrollView({ month }: { month: string }) {
 function PayrollCard({
   row,
   adjustments,
+  templates,
   onEditSalary,
   onDeleteSalary,
   onAddAdjustment,
   onEditAdjustment,
   onDeleteAdjustment,
+  onApplyTemplate,
+  onRemoveTemplate,
 }: {
   row: PayrollRow;
   adjustments: PayrollAdjustment[];
+  templates: AdjustmentTemplate[];
   onEditSalary: () => void;
   onDeleteSalary: () => void;
   onAddAdjustment: () => void;
   onEditAdjustment: (a: PayrollAdjustment) => void;
   onDeleteAdjustment: (a: PayrollAdjustment) => void;
+  onApplyTemplate: (x: AdjustmentTemplate) => void;
+  onRemoveTemplate: (x: AdjustmentTemplate) => void;
 }) {
   const { t } = useTranslation();
   const { payroll: p, category, hoursCompleted, hoursScheduled, salaryRule } = row;
@@ -274,6 +313,44 @@ function PayrollCard({
             + {t('common.add')}
           </Button>
         </div>
+
+        {/* Mẫu bấm nhanh. "Đi muộn − 50.000" là thứ lặp lại hàng tháng; gõ
+            lại từ đầu mỗi lần rất dễ nhập lệch số tiền giữa các tháng, mà
+            lệch kiểu đó nhìn bảng lương không phát hiện ra được. */}
+        {templates.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {templates.map((x) => {
+              const positive = signOf(x.kind) === 1;
+              return (
+                <span
+                  key={x.id}
+                  className={`inline-flex items-center rounded-full text-xs ${
+                    positive
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-red-50 text-red-700'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => onApplyTemplate(x)}
+                    className="rounded-l-full py-1 pl-2.5 pr-1 transition hover:brightness-95"
+                    title={t('adjustment.applyTemplate')}
+                  >
+                    {positive ? '+' : '−'} {x.label} · {formatMoney(x.defaultAmount, cur)}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveTemplate(x)}
+                    aria-label={t('common.delete')}
+                    className="rounded-r-full py-1 pl-1 pr-2 opacity-50 transition hover:opacity-100"
+                  >
+                    ×
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        )}
 
         {adjustments.length === 0 ? (
           <p className="mt-1 text-xs text-slate-400">{t('adjustment.empty')}</p>

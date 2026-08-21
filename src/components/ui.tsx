@@ -111,7 +111,10 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 sm:items-center"
+      // `bg-black/50` chứ KHÔNG phải `bg-slate-900/40`: ở chế độ tối, biến
+      // --color-slate-900 bị đảo thành màu sáng nên lớp phủ sẽ biến thành một
+      // màn sương trắng. --color-black cố ý không bị đảo.
+      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/50 p-4 print:hidden sm:items-center"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

@@ -186,7 +186,10 @@
     "dateHint": "Không bắt buộc. Chỉ để tra cứu.",
     "month": "Tính vào tháng",
     "monthHint": "Theo tháng đang xem.",
-    "empty": "Chưa có khoản nào."
+    "empty": "Chưa có khoản nào.",
+    "saveTemplate": "Lưu thành mẫu",
+    "saveTemplateHint": "Lần sau bấm một cái là sinh lại khoản này, khỏi gõ lại số tiền.",
+    "applyTemplate": "Bấm để thêm khoản này vào tháng đang xem"
   },
   "payroll": {
     "gross": "Lương gốc",
@@ -213,6 +216,11 @@
   },
   "settings": {
     "hint": "Cấu hình lưu trong trình duyệt này, không đồng bộ sang máy khác.",
+    "themeLabel": "Giao diện",
+    "themeLight": "Sáng",
+    "themeDark": "Tối",
+    "themeSystem": "Theo hệ thống",
+    "themeHint": "Bản in luôn dùng nền trắng chữ đen, kể cả khi màn hình đang ở chế độ tối.",
     "weekStartsOn": "Tuần bắt đầu từ",
     "weekStartsOnHint": "Chỉ đổi thứ tự cột khi hiển thị. Không ảnh hưởng tới quy tắc lặp đã tạo.",
     "currency": "Tiền tệ",
@@ -220,8 +228,28 @@
     "autoComplete": "Tự đánh dấu buổi đã qua là hoàn thành",
     "autoCompleteHint": "Buổi đã kết thúc trước thời điểm hiện tại được coi là đã đi làm, trừ khi bạn tự đặt trạng thái khác. Tắt đi thì phải đánh dấu tay từng buổi.",
     "showConflicts": "Cảnh báo trùng lịch",
-    "showConflictsHint": "Hiện dấu ⚠ trên buổi bị chồng giờ. Chỉ cảnh báo, không bao giờ chặn — đôi khi bạn cố ý xếp trùng.",
-    "storageNote": "Toàn bộ dữ liệu nằm trong IndexedDB của trình duyệt này. Xóa dữ liệu duyệt web là mất hết."
+    "showConflictsHint": "Hiện dấu ⚠ trên buổi bị chồng giờ. Chỉ cảnh báo, không bao giờ chặn — đôi khi bạn cố ý xếp trùng."
+  },
+  "backup": {
+    "title": "Sao lưu và khôi phục",
+    "why": "Toàn bộ dữ liệu nằm trong IndexedDB của riêng trình duyệt này. Bấm “xóa dữ liệu duyệt web”, cài lại máy, hay đổi trình duyệt là mất trắng — không có máy chủ nào giữ hộ. Xuất file định kỳ và cất ở nơi khác.",
+    "export": "Xuất file sao lưu",
+    "import": "Nhập từ file",
+    "importTitle": "Nhập dữ liệu",
+    "fileSummary": "File chứa {{total}} bản ghi, xuất ngày {{date}}.",
+    "unknownTables": "File có bảng mà bản này chưa biết ({{tables}}). Phần đó sẽ không được nhập.",
+    "modeMerge": "Trộn vào dữ liệu đang có",
+    "modeMergeHint": "Giữ nguyên mọi thứ đang có. Bản ghi trùng thì bản sửa gần đây hơn thắng. Không xóa gì.",
+    "modeReplace": "Ghi đè toàn bộ",
+    "modeReplaceHint": "Xóa sạch dữ liệu hiện tại rồi khôi phục từ file. Máy sẽ giống hệt lúc xuất file.",
+    "noUndoWarning": "Thao tác này không có nút Hoàn tác. Nếu chưa chắc, xuất một file sao lưu của dữ liệu hiện tại trước đã.",
+    "done": "Xong. Thêm mới {{added}}, cập nhật {{updated}}, giữ nguyên {{kept}}.",
+    "errorNotJson": "File không phải JSON hợp lệ.",
+    "errorNotObject": "Nội dung file không đúng dạng.",
+    "errorWrongFormat": "Đây không phải file sao lưu của ứng dụng này.",
+    "errorMissingData": "File thiếu khối dữ liệu.",
+    "errorNewerSchema": "File được tạo bởi một phiên bản mới hơn. Nhập vào sẽ làm mất những trường bản này chưa biết — cập nhật ứng dụng trước đã.",
+    "errorTableNotArray": "Cấu trúc dữ liệu trong file bị hỏng."
   },
   "occurrence": {
     "scheduled": "Đã lên lịch",
@@ -254,6 +282,8 @@
     "seriesDeleted": "Đã xóa cả chuỗi “{{title}}”",
     "categoryDeleted": "Đã xóa danh mục “{{name}}”",
     "adjustmentDeleted": "Đã xóa khoản “{{label}}”",
+    "adjustmentAdded": "Đã thêm khoản “{{label}}”",
+    "templateDeleted": "Đã xóa mẫu “{{label}}”",
     "salaryRuleDeleted": "Đã xóa cấu hình lương của “{{name}}”"
   },
   "common": {
@@ -265,6 +295,7 @@
     "add": "Thêm",
     "undo": "Hoàn tác",
     "dismiss": "Bỏ qua",
+    "print": "In",
     "hour": "giờ",
     "hours": "giờ",
     "hourShort": "g",

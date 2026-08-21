@@ -32,6 +32,7 @@ src/
 │   ├── expand.ts        Mở rộng lịch lặp + hợp nhất ngoại lệ
 │   ├── conflict.ts      Phát hiện trùng lịch
 │   ├── filter.ts        Lọc và tìm kiếm (bỏ dấu tiếng Việt)
+│   ├── backup.ts        Kiểm tra file sao lưu + quy tắc trộn theo updatedAt
 │   ├── income.ts        TẦNG 1 — tiền của một buổi
 │   ├── payroll.ts       TẦNG 2 — tiền của một tháng (con số chính thức)
 │   └── __tests__/
@@ -39,6 +40,7 @@ src/
 ├── db/
 │   ├── schema.ts        Lớp Dexie + chuỗi version()
 │   ├── seed.ts          Danh mục mặc định
+│   ├── backup.ts        Xuất/nhập toàn bộ DB
 │   └── repo/            CRUD — nơi DUY NHẤT được đụng vào db
 │
 ├── hooks/
@@ -129,17 +131,38 @@ Mỗi mục đều có test tương ứng trong `src/core/__tests__/`. Sửa mà
 | Dexie `version()` | Chỉ được THÊM `version(2)`, `version(3)`… KHÔNG BAO GIỜ sửa `version(1)`. |
 | i18n | Viết `t('...')` ngay từ đầu, chỉ điền bộ `vi`. Không hard-code chuỗi tiếng Việt vào component. |
 
+## Sao lưu
+
+Toàn bộ dữ liệu nằm trong IndexedDB của **một** trình duyệt. Xóa dữ liệu duyệt web, cài lại máy, hay đổi trình duyệt là mất trắng — không có máy chủ nào giữ hộ. Cài đặt → Sao lưu và khôi phục → Xuất file sao lưu.
+
+Nhập có hai chế độ:
+
+| Chế độ | Làm gì |
+|---|---|
+| Trộn | Giữ nguyên dữ liệu đang có. Bản ghi trùng `id` thì bản có `updatedAt` **muộn hơn** thắng. Không xóa gì. |
+| Ghi đè | Xóa sạch rồi khôi phục từ file. Máy sẽ giống hệt lúc xuất. |
+
+Quy tắc trộn cố tình **dùng chung với Phase đồng bộ Cloud** — `mergeById()` trong `core/backup.ts` chính là hàm giải quyết xung đột sau này, và nó có test ngay từ bây giờ.
+
+Sao lưu giữ nguyên cả bản ghi đã xóa mềm. Bỏ tombstone đi thì khôi phục xong, mọi thứ người dùng đã cố ý dọn đi sẽ hiện về.
+
+## Chế độ tối
+
+Đảo **bảng màu** qua biến CSS của Tailwind v4 (`index.css`), không thêm biến thể `dark:` vào từng lớp. Tailwind v4 biên dịch mọi lớp màu thành `var(--color-…)`, nên gán lại các biến đó dưới `.dark` là toàn bộ giao diện tự lật.
+
+Hai loại lớp phải xử lý riêng, đã ghi rõ trong `index.css`: lớp phủ (`bg-black/50` thay vì `bg-slate-900/40`, vì `--color-black` cố ý không bị đảo) và chữ nằm trên bề mặt đảo ngược (toast).
+
 ## Còn treo
 
 | Việc | Ghi chú |
 |---|---|
-| Chế độ tối | `SystemSettings.theme` có trong schema nhưng chưa có công tắc. Làm đúng phải thêm biến `dark:` vào từng lớp Tailwind của mọi component. |
-| `AdjustmentTemplate` | Có trong schema, chưa có UI. Để bấm một nút là sinh sẵn một khoản phạt/thưởng lặp lại. |
 | Hoàn tác cho thao tác SỬA qua form | Kéo–thả và mọi thao tác xóa đã có hoàn tác. Sửa qua form thì chưa. |
-| Xuất PDF / ảnh | Dùng `html2canvas-pro`, KHÔNG dùng `html2canvas` 1.4.1 — bản đó crash với Tailwind v4 vì `oklch()`. Với PDF A4 cân nhắc `window.print()` + `@media print`: chữ giữ dạng vector, ít code hơn hẳn. |
+| Xuất PNG | Đã in được PDF qua `window.print()`. Muốn xuất ảnh bitmap thì dùng `html2canvas-pro`, KHÔNG dùng `html2canvas` 1.4.1 — bản đó crash với Tailwind v4 vì `oklch()`. |
+| Màn hình thống kê | Giờ theo danh mục, thu nhập qua các tháng. Dữ liệu đã sẵn trong `core/payroll.ts`, chỉ thiếu phần vẽ. |
 | Xóa hẳn rate của riêng một buổi | Exception dùng `??` để nối tiếp giá trị gốc, nên không phân biệt được "để trống" với "xóa đi". |
 | "Copy Week" | Chưa định nghĩa lại. Với kiến trúc rule-based, copy tuần sẽ nhân đôi sự kiện. |
-| Đồng bộ Cloud | `BaseEntity` đã có `createdAt`/`updatedAt`/`deletedAt` sẵn cho việc này. Chỉ phải viết lại `db/`. |
+| Bộ ngôn ngữ en/zh | `i18n/` đã sẵn sàng, chỉ cần thêm file JSON. Không component nào phải sửa. |
+| Đồng bộ Cloud | `BaseEntity` đã có `createdAt`/`updatedAt`/`deletedAt`, và `mergeById()` đã là quy tắc giải quyết xung đột. Chỉ phải viết lại `db/`. |
 
 ## Tài liệu kèm theo
 

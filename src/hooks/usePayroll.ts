@@ -13,6 +13,7 @@
 
 import { useLiveQuery } from 'dexie-react-hooks';
 import type {
+  AdjustmentTemplate,
   Category,
   MonthlyPayroll,
   Occurrence,
@@ -27,7 +28,11 @@ import { listCategories } from '../db/repo/categories';
 import { getExceptionsInWindow } from '../db/repo/exceptions';
 import { listEventsInWindow } from '../db/repo/events';
 import { listRules } from '../db/repo/rules';
-import { listAdjustments, listSalaryRules } from '../db/repo/salary';
+import {
+  listAdjustmentTemplates,
+  listAdjustments,
+  listSalaryRules,
+} from '../db/repo/salary';
 import { useSettings } from './useSettings';
 
 export interface PayrollRow {
@@ -46,6 +51,7 @@ export interface PayrollData {
   categories: Category[];
   salaryRules: SalaryRule[];
   adjustments: PayrollAdjustment[];
+  templates: AdjustmentTemplate[];
   totalNet: number;
   /**
    * Các công việc đang dùng nhiều loại tiền tệ khác nhau.
@@ -65,7 +71,7 @@ export function usePayroll(month: string): PayrollData | undefined {
   return useLiveQuery(async () => {
     const { start, end } = monthBounds(month);
 
-    const [categories, rules, exceptions, events, salaryRules, adjustments] =
+    const [categories, rules, exceptions, events, salaryRules, adjustments, templates] =
       await Promise.all([
         listCategories(),
         listRules(),
@@ -73,6 +79,7 @@ export function usePayroll(month: string): PayrollData | undefined {
         listEventsInWindow(start, end),
         listSalaryRules(),
         listAdjustments(month),
+        listAdjustmentTemplates(),
       ]);
 
     // Không gọi detectConflicts ở đây: trùng lịch là chuyện hiển thị, không
@@ -124,6 +131,7 @@ export function usePayroll(month: string): PayrollData | undefined {
       categories,
       salaryRules,
       adjustments,
+      templates,
       totalNet: rows.reduce((sum, r) => sum + r.payroll.net, 0),
       mixedCurrency: new Set(rows.map((r) => r.payroll.currency)).size > 1,
       hasUnconfigured: rows.some((r) => !r.salaryRule),

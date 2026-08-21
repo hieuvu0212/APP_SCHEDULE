@@ -84,7 +84,7 @@ export function UndoProvider({ children }: { children: ReactNode }) {
         <div
           role="status"
           aria-live="polite"
-          className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4"
+          className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4 print:hidden"
         >
           <div className="pointer-events-auto flex max-w-md items-center gap-4 rounded-xl bg-slate-900 py-3 pl-4 pr-2 text-sm text-white shadow-lg">
             <span className="min-w-0 flex-1 truncate">{entry.message}</span>

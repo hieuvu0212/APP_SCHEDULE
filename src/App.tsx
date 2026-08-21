@@ -35,7 +35,7 @@ import { listSalaryRules } from './db/repo/salary';
 import { getRule } from './db/repo/rules';
 import { getEvent } from './db/repo/events';
 import { categoryMap, useCategories, useSchedule } from './hooks/useSchedule';
-import { useSettings } from './hooks/useSettings';
+import { useApplyTheme, useSettings } from './hooks/useSettings';
 import { formatDayMonth, formatMonthLabel } from './i18n';
 import {
   applySubmit,
@@ -57,6 +57,7 @@ export default function App() {
   const { t } = useTranslation();
   const { pushUndo } = useUndo();
   const settings = useSettings();
+  useApplyTheme(settings.theme);
 
   const [view, setView] = useState<View>('week');
   const [anchor, setAnchor] = useState<string>(() => todayKey());
@@ -196,7 +197,15 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-        <header className="mb-5 flex flex-wrap items-center gap-3">
+        {/* Tiêu đề chỉ xuất hiện trên bản in — trên màn hình đã có thanh
+            điều hướng, nhưng thanh đó bị ẩn lúc in nên bản in sẽ không còn
+            gì cho biết đây là lịch của khoảng thời gian nào. */}
+        <div className="mb-4 hidden print:block">
+          <h1 className="text-xl font-semibold">{t('app.name')}</h1>
+          <p className="text-sm capitalize text-slate-600">{rangeLabel}</p>
+        </div>
+
+        <header className="mb-5 flex flex-wrap items-center gap-3 print:hidden">
           <h1 className="text-lg font-semibold">{t('app.name')}</h1>
 
           <nav className="flex flex-wrap gap-1 rounded-lg bg-slate-200/60 p-1">
@@ -234,19 +243,23 @@ export default function App() {
           )}
 
           {(view === 'week' || view === 'month') && (
-            <Button
-              variant="primary"
-              className="ml-auto"
-              onClick={() =>
-                setDialog({
-                  kind: 'create',
-                  date: view === 'month' ? `${month}-01` : anchor,
-                  startTime: '08:00',
-                })
-              }
-            >
-              + {t('event.add')}
-            </Button>
+            <span className="ml-auto flex gap-2">
+              <Button variant="outline" onClick={() => window.print()}>
+                {t('common.print')}
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() =>
+                  setDialog({
+                    kind: 'create',
+                    date: view === 'month' ? `${month}-01` : anchor,
+                    startTime: '08:00',
+                  })
+                }
+              >
+                + {t('event.add')}
+              </Button>
+            </span>
           )}
         </header>
 

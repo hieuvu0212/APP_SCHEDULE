@@ -15,7 +15,11 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AdjustmentKind, Category, PayrollAdjustment } from '../types';
-import { createAdjustment, updateAdjustment } from '../db/repo/salary';
+import {
+  createAdjustment,
+  createAdjustmentTemplate,
+  updateAdjustment,
+} from '../db/repo/salary';
 import { formatMoney } from '../i18n';
 import { Button, Field, Modal, inputClass } from './ui';
 
@@ -58,6 +62,7 @@ export function AdjustmentForm({
   );
   const [date, setDate] = useState(adjustment?.date ?? '');
   const [note, setNote] = useState(adjustment?.note ?? '');
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [saving, setSaving] = useState(false);
   const [touched, setTouched] = useState(false);
 
@@ -82,6 +87,15 @@ export function AdjustmentForm({
       };
       if (adjustment) await updateAdjustment(adjustment.id, payload);
       else await createAdjustment(payload);
+
+      if (saveAsTemplate) {
+        await createAdjustmentTemplate({
+          categoryId,
+          kind,
+          label: label.trim(),
+          defaultAmount: value,
+        });
+      }
       onClose();
     } finally {
       setSaving(false);
@@ -236,6 +250,25 @@ export function AdjustmentForm({
             />
           )}
         </Field>
+
+        {/* Chỉ hiện khi TẠO MỚI. Sửa một khoản đã có mà lại sinh thêm mẫu là
+            hành vi không ai mong đợi. */}
+        {!adjustment && (
+          <label className="flex cursor-pointer items-start gap-2">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={saveAsTemplate}
+              onChange={(e) => setSaveAsTemplate(e.target.checked)}
+            />
+            <span className="text-sm">
+              <span className="font-medium text-slate-800">{t('adjustment.saveTemplate')}</span>
+              <span className="block text-xs text-slate-500">
+                {t('adjustment.saveTemplateHint')}
+              </span>
+            </span>
+          </label>
+        )}
       </div>
     </Modal>
   );

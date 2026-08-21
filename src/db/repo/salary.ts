@@ -15,7 +15,7 @@
 //  hay đoạn script chạy tay không đi qua form.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import type { PayrollAdjustment, SalaryRule } from '../../types';
+import type { AdjustmentTemplate, PayrollAdjustment, SalaryRule } from '../../types';
 import { db, newId, nowISO } from '../schema';
 
 export type NewSalaryRule = Omit<SalaryRule, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'>;
@@ -133,5 +133,46 @@ export async function softDeleteAdjustment(id: string): Promise<() => Promise<vo
   await db.adjustments.update(id, { deletedAt: t, updatedAt: t });
   return async () => {
     await db.adjustments.update(id, { deletedAt: undefined, updatedAt: nowISO() });
+  };
+}
+
+// ─── AdjustmentTemplate ────────────────────────────────────────────────────
+//
+//  Biểu phạt/thưởng lặp lại. "Đi muộn − 50.000" là thứ xảy ra hàng tháng; gõ
+//  lại từ đầu mỗi lần vừa mất công vừa dễ nhập lệch số tiền giữa các tháng,
+//  mà lệch kiểu đó thì nhìn bảng lương không tài nào phát hiện ra.
+
+export type NewAdjustmentTemplate = Omit<
+  AdjustmentTemplate,
+  'id' | 'createdAt' | 'updatedAt' | 'deletedAt'
+>;
+
+export async function listAdjustmentTemplates(): Promise<AdjustmentTemplate[]> {
+  const rows = await db.adjustmentTemplates.toArray();
+  return rows.filter((x) => !x.deletedAt).sort((a, b) => a.label.localeCompare(b.label));
+}
+
+export async function createAdjustmentTemplate(
+  input: NewAdjustmentTemplate,
+): Promise<string> {
+  const t = nowISO();
+  const id = newId();
+  await db.adjustmentTemplates.add({
+    ...input,
+    defaultAmount: normalizeAmount(input.defaultAmount),
+    id,
+    createdAt: t,
+    updatedAt: t,
+  });
+  return id;
+}
+
+export async function softDeleteAdjustmentTemplate(
+  id: string,
+): Promise<() => Promise<void>> {
+  const t = nowISO();
+  await db.adjustmentTemplates.update(id, { deletedAt: t, updatedAt: t });
+  return async () => {
+    await db.adjustmentTemplates.update(id, { deletedAt: undefined, updatedAt: nowISO() });
   };
 }

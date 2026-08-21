@@ -225,7 +225,9 @@ export function WeekView({
         })}
       </div>
 
-      <div className="max-h-[calc(100vh-15rem)] overflow-y-auto">
+      {/* Khi in phải bỏ giới hạn chiều cao, nếu không bản in chỉ ra đúng phần
+          đang nhìn thấy trên màn hình và cắt cụt phần còn lại của ngày. */}
+      <div className="max-h-[calc(100vh-15rem)] overflow-y-auto print:max-h-none print:overflow-visible">
         <div
           ref={gridRef}
           className={`relative grid ${drag?.active ? 'select-none' : ''}`}
