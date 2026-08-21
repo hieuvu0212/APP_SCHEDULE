@@ -1,15 +1,14 @@
 {
   "app": {
     "name": "Personal Schedule System",
-    "phase": "Phase 1 — Lịch tuần, lịch tháng"
+    "phase": "Lịch cá nhân và thu nhập"
   },
   "nav": {
-    "dashboard": "Tổng quan",
     "week": "Tuần",
     "month": "Tháng",
-    "categories": "Danh mục",
     "list": "Danh sách",
-    "statistics": "Thống kê",
+    "payroll": "Thu nhập",
+    "categories": "Danh mục",
     "settings": "Cài đặt",
     "today": "Hôm nay",
     "previous": "Lùi",
@@ -26,11 +25,22 @@
   },
   "week": {
     "clickToAdd": "Bấm vào chỗ trống để thêm sự kiện",
-    "empty": "Chưa có buổi nào trong khoảng này."
+    "empty": "Chưa có buổi nào trong khoảng này.",
+    "dragHint": "Thả để dời · Esc để hủy",
+    "resizeHint": "Kéo để đổi thời lượng"
   },
   "month": {
     "openDay": "Mở ngày này ở lịch tuần",
     "more": "+{{n}} nữa"
+  },
+  "list": {
+    "from": "Từ ngày",
+    "to": "Đến ngày",
+    "search": "Tìm kiếm",
+    "searchPlaceholder": "Gõ không dấu cũng được: gia su, dai hoc…",
+    "clearFilters": "Xóa bộ lọc",
+    "summary": "{{n}} buổi · {{hours}} giờ",
+    "empty": "Không có buổi nào khớp bộ lọc."
   },
   "category": {
     "title": "Danh mục",
@@ -59,7 +69,7 @@
     "createTitle": "Sự kiện mới",
     "editTitle": "Sửa sự kiện",
     "title": "Tiêu đề",
-    "titlePlaceholder": "Ca sáng Rossi, Giải tích 2, dạy Minh…",
+    "titlePlaceholder": "Ca sáng, Giải tích 2, dạy Minh…",
     "date": "Ngày",
     "startTime": "Bắt đầu",
     "endTime": "Kết thúc",
@@ -118,7 +128,7 @@
     "time": "Giờ",
     "duration": "Thời lượng",
     "estimatedIncome": "Thu nhập buổi",
-    "fixedMonthlyHint": "Công việc này trả khoán theo tháng, nên thu nhập của riêng một buổi không quy đổi được. Con số chính thức nằm ở bảng lương tháng.",
+    "fixedMonthlyHint": "Công việc này trả khoán theo tháng, nên thu nhập của riêng một buổi không quy đổi được. Con số chính thức nằm ở màn hình Thu nhập.",
     "fromSeries": "Thuộc lịch lặp",
     "singleEvent": "Sự kiện đơn",
     "conflictsWith": "Trùng giờ với",
@@ -126,40 +136,92 @@
     "deleteSeries": "Xóa cả chuỗi"
   },
   "salary": {
+    "addTitle": "Cấu hình lương",
+    "editTitle": "Sửa cấu hình lương",
     "mode": "Chế độ lương",
     "modeHourly": "Theo giờ",
     "modeFixedMonthly": "Khoán tháng",
+    "modePickHint": "Chọn một chế độ. Không có mặc định — cùng một bộ dữ liệu, hai chế độ cho ra hai con số chênh nhau cả triệu đồng.",
+    "modeHourlyHint": "Lương = số giờ đã làm × đơn giá. Nghỉ buổi nào mất tiền buổi đó.",
+    "modeFixedHint": "Lương cố định mỗi tháng, không phụ thuộc số buổi — trừ khi bạn chọn trừ theo giờ thiếu ở dưới.",
+    "mustPickMode": "Phải chọn chế độ lương",
+    "mustPickShortfall": "Phải chọn cách tính khi thiếu giờ",
     "ratePerHour": "Đơn giá mỗi giờ",
     "baseSalary": "Lương tháng",
     "standardHours": "Giờ công chuẩn mỗi tháng",
+    "standardHoursHint": "Ví dụ 176 giờ. Dùng để quy đổi đơn giá khi trừ thiếu giờ hoặc tính tăng ca.",
+    "standardHoursRequired": "Phải nhập giờ công chuẩn lớn hơn 0 khi dùng trừ theo giờ thiếu hoặc hệ số tăng ca",
     "shortfallPolicy": "Khi làm thiếu giờ",
     "shortfallNone": "Vẫn nhận đủ lương",
+    "shortfallNoneHint": "Lương khoán đúng nghĩa. Nghỉ có phép vẫn nhận nguyên tháng.",
     "shortfallProRata": "Trừ theo số giờ thiếu",
-    "shortfallAsk": "Chọn cách tính khi thiếu giờ",
+    "shortfallProRataHint": "Thiếu giờ nào trừ giờ đó theo đơn giá quy đổi từ lương tháng chia giờ công chuẩn.",
     "effectiveFrom": "Áp dụng từ tháng",
     "effectiveTo": "Đến hết tháng",
+    "effectiveToHint": "Bỏ trống nghĩa là còn hiệu lực. Lương đổi thì tạo bản mới, đừng sửa bản cũ.",
+    "advanced": "Tăng ca và ca đêm",
     "overtimeMultiplier": "Hệ số tăng ca",
-    "nightShiftMultiplier": "Hệ số ca đêm"
+    "overtimeHint": "Ví dụ 1.5. Áp cho phần giờ vượt giờ công chuẩn. Bỏ trống là không tính tăng ca.",
+    "nightShiftMultiplier": "Hệ số ca đêm",
+    "nightShiftStart": "Đêm từ",
+    "nightShiftEnd": "Đêm đến",
+    "nightShiftHint": "Chỉ phần giờ rơi vào khung đêm được nhân hệ số. Khung vắt qua nửa đêm (22:00 → 06:00) vẫn tính đúng.",
+    "noEligibleCategory": "Chưa có danh mục nào được tính vào thu nhập. Sang màn hình Danh mục bật cờ “Được tính vào thu nhập” trước đã."
   },
   "adjustment": {
     "title": "Điều chỉnh lương",
+    "addTitle": "Thêm khoản điều chỉnh",
+    "editTitle": "Sửa khoản điều chỉnh",
+    "kind": "Loại",
     "penalty": "Phạt",
     "deduction": "Khấu trừ",
     "bonus": "Thưởng",
     "allowance": "Phụ cấp",
     "amount": "Số tiền",
-    "amountHint": "Nhập số dương. Cộng hay trừ do loại quyết định.",
-    "label": "Lý do"
+    "amountHint": "Nhập số dương. Cộng hay trừ do loại quyết định — ô này không nhận dấu trừ.",
+    "label": "Lý do",
+    "labelHint": "Ghi cụ thể để vài tháng sau còn tra lại được.",
+    "labelPlaceholder": "Đi muộn 15/09, Thưởng chuyên cần…",
+    "date": "Ngày xảy ra",
+    "dateHint": "Không bắt buộc. Chỉ để tra cứu.",
+    "month": "Tính vào tháng",
+    "monthHint": "Theo tháng đang xem.",
+    "empty": "Chưa có khoản nào."
   },
   "payroll": {
     "gross": "Lương gốc",
     "totalBonus": "Cộng thưởng",
     "totalPenalty": "Trừ phạt",
     "net": "Thực nhận",
+    "hours": "Giờ làm",
     "hoursActual": "Giờ thực tế",
+    "hoursCompleted": "Đã hoàn thành",
+    "hoursScheduled": "Mới lên lịch",
     "hoursStandard": "Giờ chuẩn",
+    "breakdown": "Bóc tách",
+    "projectionNote": "Số tiền bên cạnh đã tính cả phần giờ chưa diễn ra. Đánh dấu buổi là “đã hoàn thành” để con số bám sát thực tế hơn.",
+    "totalFor": "Tổng thực nhận {{month}}",
+    "mixedCurrency": "Các công việc đang dùng nhiều loại tiền khác nhau nên không cộng gộp được. Xem từng mục bên dưới.",
+    "unconfiguredWarning": "Có công việc chưa cấu hình lương. Chưa cấu hình thì hệ thống mặc định tính theo giờ, và nếu không có đơn giá ở đâu cả thì ra 0.",
+    "noSalaryRule": "chưa cấu hình lương",
+    "setupSalary": "Cấu hình lương",
+    "editSalary": "Sửa lương",
+    "noEligibleCategory": "Chưa có công việc nào được tính vào thu nhập.",
+    "noEligibleHint": "Sang màn hình Danh mục và bật cờ “Được tính vào thu nhập” cho công việc của bạn.",
     "notApplicable": "—",
-    "negativeWarning": "Thực nhận đang âm — kiểm tra lại các khoản phạt đã nhập."
+    "negativeWarning": "Thực nhận đang âm — kiểm tra lại các khoản phạt đã nhập. Hệ thống cố tình KHÔNG kẹp con số này về 0, vì kẹp là che mất lỗi nhập liệu."
+  },
+  "settings": {
+    "hint": "Cấu hình lưu trong trình duyệt này, không đồng bộ sang máy khác.",
+    "weekStartsOn": "Tuần bắt đầu từ",
+    "weekStartsOnHint": "Chỉ đổi thứ tự cột khi hiển thị. Không ảnh hưởng tới quy tắc lặp đã tạo.",
+    "currency": "Tiền tệ",
+    "currencyHint": "Dùng khi một công việc chưa khai riêng loại tiền.",
+    "autoComplete": "Tự đánh dấu buổi đã qua là hoàn thành",
+    "autoCompleteHint": "Buổi đã kết thúc trước thời điểm hiện tại được coi là đã đi làm, trừ khi bạn tự đặt trạng thái khác. Tắt đi thì phải đánh dấu tay từng buổi.",
+    "showConflicts": "Cảnh báo trùng lịch",
+    "showConflictsHint": "Hiện dấu ⚠ trên buổi bị chồng giờ. Chỉ cảnh báo, không bao giờ chặn — đôi khi bạn cố ý xếp trùng.",
+    "storageNote": "Toàn bộ dữ liệu nằm trong IndexedDB của trình duyệt này. Xóa dữ liệu duyệt web là mất hết."
   },
   "occurrence": {
     "scheduled": "Đã lên lịch",
@@ -172,8 +234,12 @@
   "validation": {
     "required": "Không được để trống",
     "dateRequired": "Chọn một ngày hợp lệ",
+    "monthRequired": "Chọn một tháng hợp lệ",
     "timeRequired": "Nhập giờ dạng HH:mm",
     "durationPositive": "Thời lượng phải lớn hơn 0",
+    "amountPositive": "Số tiền phải lớn hơn 0",
+    "multiplierPositive": "Hệ số phải lớn hơn 0",
+    "effectiveToBeforeFrom": "Tháng kết thúc không được trước tháng bắt đầu",
     "pickWeekday": "Chọn ít nhất một thứ trong tuần",
     "dayOfMonthRange": "Ngày trong tháng phải từ 1 đến 31",
     "endDateRequired": "Chọn ngày kết thúc",
@@ -183,8 +249,12 @@
   "toast": {
     "eventDeleted": "Đã xóa “{{title}}”",
     "occurrenceRemoved": "Đã gỡ buổi “{{title}}” khỏi lịch",
+    "occurrenceMoved": "Đã dời “{{title}}”",
+    "occurrenceResized": "Đã đổi thời lượng “{{title}}”",
     "seriesDeleted": "Đã xóa cả chuỗi “{{title}}”",
-    "categoryDeleted": "Đã xóa danh mục “{{name}}”"
+    "categoryDeleted": "Đã xóa danh mục “{{name}}”",
+    "adjustmentDeleted": "Đã xóa khoản “{{label}}”",
+    "salaryRuleDeleted": "Đã xóa cấu hình lương của “{{name}}”"
   },
   "common": {
     "save": "Lưu",
@@ -197,6 +267,7 @@
     "dismiss": "Bỏ qua",
     "hour": "giờ",
     "hours": "giờ",
+    "hourShort": "g",
     "loading": "Đang tải…"
   }
 }

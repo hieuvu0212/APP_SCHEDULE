@@ -258,6 +258,109 @@ export async function removeOccurrence(occurrence: Occurrence): Promise<Undoable
   }
 }
 
+// ─── Kéo–thả ───────────────────────────────────────────────────────────────
+
+/**
+ * Dời một buổi sang ngày/giờ khác — dùng cho thao tác kéo trên lưới tuần.
+ *
+ * Phạm vi luôn là CHỈ BUỔI NÀY. Kéo một khối trên lưới có nghĩa rõ ràng là
+ * "dời buổi này", không ai kéo một khối mà mong cả chuỗi sáu tháng dịch theo.
+ * Muốn đổi cả chuỗi thì mở form, ở đó phạm vi được hỏi thẳng.
+ *
+ * Có hoàn tác vì đây là chỗ dễ thả nhầm nhất trong toàn ứng dụng — lệch một
+ * cột là buổi sang hẳn ngày khác mà mắt không kịp nhận ra.
+ */
+export async function moveOccurrence(
+  occurrence: Occurrence,
+  newDate: string,
+  newStartTime: string,
+): Promise<Undoable> {
+  const ref = refOf(occurrence);
+
+  switch (ref.kind) {
+    case 'SINGLE': {
+      const before = { date: occurrence.date, startTime: occurrence.startTime };
+      await updateEvent(ref.eventId, { date: newDate, startTime: newStartTime });
+      return {
+        messageKey: 'toast.occurrenceMoved',
+        undo: () => updateEvent(ref.eventId, before),
+      };
+    }
+
+    case 'ADD': {
+      const before = { newDate: occurrence.date, newStartTime: occurrence.startTime };
+      await updateException(ref.exceptionId, { newDate, newStartTime });
+      return {
+        messageKey: 'toast.occurrenceMoved',
+        undo: () => updateException(ref.exceptionId, before),
+      };
+    }
+
+    case 'RULE': {
+      // Chỉ type='MOVE' mới khiến expandSchedule đọc `newDate`. Nếu kéo mà
+      // ngày không đổi (chỉ đổi giờ) thì dùng REPLACE — ghi MOVE với newDate
+      // trùng originalDate cũng chạy, nhưng làm sai nghĩa của bản ghi.
+      const { revert } = await upsertExceptionUndoable({
+        type: newDate !== ref.originalDate ? 'MOVE' : 'REPLACE',
+        recurringRuleId: ref.ruleId,
+        originalDate: ref.originalDate,
+        newDate,
+        newStartTime,
+        newDurationMinutes: occurrence.durationMinutes,
+        status: occurrence.status,
+      });
+      return { messageKey: 'toast.occurrenceMoved', undo: revert };
+    }
+  }
+}
+
+/** Đổi thời lượng một buổi — dùng cho thao tác kéo mép dưới của khối */
+export async function resizeOccurrence(
+  occurrence: Occurrence,
+  newDurationMinutes: number,
+): Promise<Undoable> {
+  const ref = refOf(occurrence);
+
+  switch (ref.kind) {
+    case 'SINGLE': {
+      const before = { durationMinutes: occurrence.durationMinutes };
+      await updateEvent(ref.eventId, { durationMinutes: newDurationMinutes });
+      return {
+        messageKey: 'toast.occurrenceResized',
+        undo: () => updateEvent(ref.eventId, before),
+      };
+    }
+
+    case 'ADD': {
+      const before = { newDurationMinutes: occurrence.durationMinutes };
+      await updateException(ref.exceptionId, { newDurationMinutes });
+      return {
+        messageKey: 'toast.occurrenceResized',
+        undo: () => updateException(ref.exceptionId, before),
+      };
+    }
+
+    case 'RULE': {
+      // ⚠️ Buổi này có thể ĐANG mang exception loại MOVE. Ghi đè `type` thành
+      // 'RESIZE' sẽ khiến expandSchedule bỏ qua `newDate` (chỉ MOVE mới đọc
+      // trường đó) và buổi nhảy ngược về ngày gốc — co giãn một cái mà ca
+      // chạy sang ngày khác.
+      const wasMoved = occurrence.date !== ref.originalDate;
+
+      const { revert } = await upsertExceptionUndoable({
+        type: wasMoved ? 'MOVE' : 'RESIZE',
+        recurringRuleId: ref.ruleId,
+        originalDate: ref.originalDate,
+        newDate: occurrence.date,
+        newStartTime: occurrence.startTime,
+        newDurationMinutes,
+        status: occurrence.status,
+      });
+      return { messageKey: 'toast.occurrenceResized', undo: revert };
+    }
+  }
+}
+
 /** Xóa CẢ CHUỖI lịch lặp, kèm toàn bộ ngoại lệ của nó */
 export async function deleteSeries(ruleId: string): Promise<Undoable> {
   const deletedAt = await softDeleteRule(ruleId);

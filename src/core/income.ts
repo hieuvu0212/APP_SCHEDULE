@@ -91,6 +91,31 @@ export function sumHours(occurrences: Occurrence[]): number {
     .reduce((acc, o) => acc + hoursOf(o.durationMinutes), 0);
 }
 
+/**
+ * Tách giờ ĐÃ ĐI LÀM khỏi giờ MỚI NẰM TRÊN LỊCH.
+ *
+ * `sumHours` gộp cả hai, nên xem bảng lương giữa tháng sẽ thấy một con số
+ * trông như đã kiếm được nhưng thực ra phần lớn còn nằm ở tương lai. Với chế
+ * độ PRO_RATA thì càng dễ hiểu nhầm: đầu tháng nhìn vào chỉ thấy thiếu giờ
+ * trầm trọng, trong khi đơn giản là tháng chưa trôi qua.
+ *
+ * Bất biến: completed + scheduled === sumHours(occurrences).
+ */
+export function splitHours(occurrences: Occurrence[]): {
+  completed: number;
+  scheduled: number;
+} {
+  let completed = 0;
+  let scheduled = 0;
+  for (const o of occurrences) {
+    if (o.status === 'CANCELLED' || o.status === 'NO_SHOW') continue;
+    const h = hoursOf(o.durationMinutes);
+    if (o.status === 'COMPLETED') completed += h;
+    else scheduled += h;
+  }
+  return { completed, scheduled };
+}
+
 /** Tổng giờ nhóm theo categoryId */
 export function sumHoursByCategory(occurrences: Occurrence[]): Record<string, number> {
   const out: Record<string, number> = {};

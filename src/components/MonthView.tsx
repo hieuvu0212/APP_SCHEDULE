@@ -23,6 +23,7 @@ export interface MonthViewProps {
   occurrences: Occurrence[];
   categories: Map<string, Category>;
   weekStartsOn: 0 | 1;
+  showConflicts: boolean;
   onPick: (occurrence: Occurrence) => void;
   onOpenDay: (date: string) => void;
 }
@@ -33,6 +34,7 @@ export function MonthView({
   occurrences,
   categories,
   weekStartsOn,
+  showConflicts,
   onPick,
   onOpenDay,
 }: MonthViewProps) {
@@ -88,6 +90,7 @@ export function MonthView({
                     key={o.key}
                     occurrence={o}
                     category={categories.get(o.categoryId)}
+                    showConflicts={showConflicts}
                     onPick={onPick}
                   />
                 ))}
@@ -112,10 +115,12 @@ export function MonthView({
 function Chip({
   occurrence: o,
   category,
+  showConflicts,
   onPick,
 }: {
   occurrence: Occurrence;
   category: Category | undefined;
+  showConflicts: boolean;
   onPick: (o: Occurrence) => void;
 }) {
   const color = category?.color ?? '#94a3b8';
@@ -143,7 +148,9 @@ function Chip({
       >
         {o.title}
       </span>
-      {o.hasConflict && !cancelled && <span className="shrink-0 text-red-500">⚠</span>}
+      {o.hasConflict && showConflicts && !cancelled && (
+        <span className="shrink-0 text-red-500">⚠</span>
+      )}
     </button>
   );
 }
