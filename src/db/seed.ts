@@ -11,7 +11,17 @@ import { db, newId, nowISO } from './schema';
  *
  * Chú ý cờ isIncomeEligible:
  *   Đại học, Nghiên cứu  → false  (đi học không tính thu nhập)
- *   Rossi, Gia sư        → true   (đi làm mới tính thu nhập)
+ *   Đi làm, Gia sư       → true   (đi làm mới tính thu nhập)
+ *
+ * ⚠️ MỖI NGUỒN THU NHẬP MỘT DANH MỤC RIÊNG — đừng gộp.
+ *
+ * `SalaryRule` gắn vào `categoryId`, và mỗi danh mục chỉ có MỘT chế độ lương
+ * tại một thời điểm. Gộp một chỗ trả khoán tháng với một chỗ trả theo giờ vào
+ * chung "Đi làm" thì `calcMonthlyPayroll` không còn cách nào phân biệt, và bạn
+ * buộc phải chọn một chế độ cho cả hai — con số ra sai cả hai chiều.
+ *
+ * Vì thế "Đi làm" ở đây là MỘT chỗ làm, không phải nhóm gộp mọi chỗ làm. Có
+ * chỗ làm thứ hai thì tạo danh mục thứ hai.
  */
 export async function seedIfEmpty(): Promise<boolean> {
   const count = await db.categories.count();
@@ -31,7 +41,7 @@ export async function seedIfEmpty(): Promise<boolean> {
       sortOrder: 999,
     },
     { ...base, id: newId(), name: 'Đại học', color: '#3b82f6', isIncomeEligible: false, sortOrder: 1 },
-    { ...base, id: newId(), name: 'Rossi', color: '#f59e0b', isIncomeEligible: true, sortOrder: 2 },
+    { ...base, id: newId(), name: 'Đi làm', color: '#f59e0b', isIncomeEligible: true, sortOrder: 2 },
     { ...base, id: newId(), name: 'Gia sư', color: '#10b981', isIncomeEligible: true, sortOrder: 3 },
     { ...base, id: newId(), name: 'Nghiên cứu', color: '#8b5cf6', isIncomeEligible: false, sortOrder: 4 },
     { ...base, id: newId(), name: 'Cá nhân', color: '#ec4899', isIncomeEligible: false, sortOrder: 5 },

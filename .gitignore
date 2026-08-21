@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Ảnh chụp mã nguồn đóng gói tay. Git đã giữ lịch sử rồi, ném thêm zip vào
+# repo chỉ làm phình dung lượng mà không thêm thông tin gì.
+*.zip
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

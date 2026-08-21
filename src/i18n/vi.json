@@ -1,24 +1,129 @@
 {
   "app": {
     "name": "Personal Schedule System",
-    "phase": "Phase 0 — Nền móng"
+    "phase": "Phase 1 — Lịch tuần, lịch tháng"
   },
   "nav": {
     "dashboard": "Tổng quan",
     "week": "Tuần",
     "month": "Tháng",
+    "categories": "Danh mục",
     "list": "Danh sách",
     "statistics": "Thống kê",
-    "settings": "Cài đặt"
+    "settings": "Cài đặt",
+    "today": "Hôm nay",
+    "previous": "Lùi",
+    "next": "Tiến"
+  },
+  "weekday": {
+    "s0": "CN",
+    "s1": "T2",
+    "s2": "T3",
+    "s3": "T4",
+    "s4": "T5",
+    "s5": "T6",
+    "s6": "T7"
+  },
+  "week": {
+    "clickToAdd": "Bấm vào chỗ trống để thêm sự kiện",
+    "empty": "Chưa có buổi nào trong khoảng này."
+  },
+  "month": {
+    "openDay": "Mở ngày này ở lịch tuần",
+    "more": "+{{n}} nữa"
   },
   "category": {
     "title": "Danh mục",
+    "manage": "Quản lý danh mục",
+    "manageHint": "Danh mục quyết định màu sắc trên lịch và việc buổi đó có được tính vào thu nhập hay không.",
+    "add": "Thêm danh mục",
+    "addTitle": "Danh mục mới",
+    "editTitle": "Sửa danh mục",
     "name": "Tên danh mục",
     "color": "Màu",
+    "customColor": "Chọn màu khác",
+    "system": "hệ thống",
     "incomeEligible": "Được tính vào thu nhập",
+    "incomeEligibleHint": "Tắt đi thì mọi buổi thuộc danh mục này có thu nhập bằng 0, kể cả buổi đã nhập đơn giá riêng. Thưởng và phạt của tháng cũng bị bỏ qua.",
     "notIncomeEligible": "Không tính thu nhập",
+    "turningOffWarning": "Có {{n}} bản ghi đang mang đơn giá trong danh mục này. Tắt đi thì chúng ngừng sinh thu nhập, nhưng dữ liệu vẫn còn nguyên — bật lại là số liệu quay về.",
     "defaultRate": "Đơn giá mặc định mỗi giờ",
+    "defaultRateHint": "Dùng khi buổi không tự khai đơn giá.",
+    "deleteTitle": "Xóa danh mục?",
+    "deleteMessage": "Lịch và sự kiện của “{{name}}” sẽ chuyển về “Chưa phân loại”. Bảng lương và các khoản điều chỉnh của danh mục này bị ẩn đi. Bấm Hoàn tác trên thông báo là mọi thứ trở lại như cũ.",
+    "cannotDeleteSystem": "Không thể xóa danh mục hệ thống",
     "uncategorized": "Chưa phân loại"
+  },
+  "event": {
+    "add": "Thêm",
+    "createTitle": "Sự kiện mới",
+    "editTitle": "Sửa sự kiện",
+    "title": "Tiêu đề",
+    "titlePlaceholder": "Ca sáng Rossi, Giải tích 2, dạy Minh…",
+    "date": "Ngày",
+    "startTime": "Bắt đầu",
+    "endTime": "Kết thúc",
+    "durationHint": "Dài {{hours}} giờ",
+    "longDurationWarning": "Ca này dài {{hours}} giờ. Ô Kết thúc nhận giờ treo tường, nên {{endTime}} được hiểu là của ngày HÔM SAU. Nếu bạn định nhập giờ trong ngày thì sửa lại.",
+    "location": "Địa điểm",
+    "clientName": "Học sinh / lớp",
+    "clientHint": "Để trống nếu không phải lịch dạy.",
+    "status": "Trạng thái",
+    "notes": "Ghi chú",
+    "income": "Thu nhập",
+    "noIncomeCategory": "Danh mục “{{name}}” không tính vào thu nhập, nên buổi này không có ô nhập tiền. Đổi ở màn hình Danh mục nếu cần.",
+    "fixErrors": "Còn chỗ chưa hợp lệ",
+    "money": {
+      "none": "Theo danh mục",
+      "hourly": "Đơn giá riêng",
+      "fixed": "Số tiền cố định",
+      "noneHint": "Sẽ dùng đơn giá mặc định của danh mục: {{rate}}",
+      "fixedLabel": "Tiền cả buổi",
+      "fixedHint": "Số tiền này KHÔNG nhân với số giờ — dùng cho buổi trả trọn gói."
+    }
+  },
+  "scope": {
+    "legend": "Sửa cái gì?",
+    "occurrence": "Chỉ buổi này",
+    "occurrenceHint": "Ghi một ngoại lệ. Các buổi khác trong chuỗi giữ nguyên.",
+    "following": "Buổi này và các buổi sau",
+    "followingHint": "Tách chuỗi làm hai. Buổi đã qua giữ nguyên, nên bảng lương tháng cũ không nhảy số.",
+    "series": "Toàn bộ chuỗi",
+    "seriesHint": "Đổi cả buổi đã diễn ra. Ngày bắt đầu của chuỗi KHÔNG đổi theo ô Ngày ở trên."
+  },
+  "recurrence": {
+    "legend": "Lặp lại",
+    "lockedHint": "Phạm vi “chỉ buổi này” không đổi được quy tắc lặp.",
+    "none": "Không lặp",
+    "daily": "Hàng ngày",
+    "weekly": "Hàng tuần",
+    "monthly": "Hàng tháng",
+    "interval": "Cách quãng",
+    "intervalHint": {
+      "daily": "1 = mỗi ngày, 2 = cách một ngày.",
+      "weekly": "1 = mỗi tuần, 2 = tuần chẵn/lẻ.",
+      "monthly": "1 = mỗi tháng, 3 = mỗi quý."
+    },
+    "daysOfWeek": "Vào những thứ",
+    "dayOfMonth": "Ngày trong tháng",
+    "dayOfMonthHint": "Tháng không có ngày này thì bỏ qua tháng đó — chọn 31 nghĩa là tháng 2 không có buổi nào.",
+    "ends": "Kết thúc",
+    "end": {
+      "never": "Không giới hạn",
+      "until": "Đến hết ngày",
+      "count": "Sau số buổi"
+    }
+  },
+  "detail": {
+    "time": "Giờ",
+    "duration": "Thời lượng",
+    "estimatedIncome": "Thu nhập buổi",
+    "fixedMonthlyHint": "Công việc này trả khoán theo tháng, nên thu nhập của riêng một buổi không quy đổi được. Con số chính thức nằm ở bảng lương tháng.",
+    "fromSeries": "Thuộc lịch lặp",
+    "singleEvent": "Sự kiện đơn",
+    "conflictsWith": "Trùng giờ với",
+    "removeOccurrence": "Gỡ buổi này",
+    "deleteSeries": "Xóa cả chuỗi"
   },
   "salary": {
     "mode": "Chế độ lương",
@@ -64,23 +169,33 @@
     "conflict": "Trùng lịch",
     "endsNextDay": "kết thúc hôm sau"
   },
-  "phase0": {
-    "heading": "Phase 0 hoàn tất",
-    "subheading": "Nền móng đã dựng xong. Chưa có giao diện lịch — đó là đúng.",
-    "dbStatus": "Trạng thái IndexedDB",
-    "categoriesSeeded": "Danh mục đã seed",
-    "schemaVersion": "Phiên bản schema",
-    "nextPhase": "Phase 1 tiếp theo: Week View, Month View, CRUD Category và SingleEvent.",
-    "incomeYes": "có tính thu nhập",
-    "incomeNo": "không tính thu nhập",
-    "checklist": "Danh sách nghiệm thu"
+  "validation": {
+    "required": "Không được để trống",
+    "dateRequired": "Chọn một ngày hợp lệ",
+    "timeRequired": "Nhập giờ dạng HH:mm",
+    "durationPositive": "Thời lượng phải lớn hơn 0",
+    "pickWeekday": "Chọn ít nhất một thứ trong tuần",
+    "dayOfMonthRange": "Ngày trong tháng phải từ 1 đến 31",
+    "endDateRequired": "Chọn ngày kết thúc",
+    "endDateAfterStart": "Ngày kết thúc không được trước ngày bắt đầu",
+    "countPositive": "Số buổi phải lớn hơn 0"
+  },
+  "toast": {
+    "eventDeleted": "Đã xóa “{{title}}”",
+    "occurrenceRemoved": "Đã gỡ buổi “{{title}}” khỏi lịch",
+    "seriesDeleted": "Đã xóa cả chuỗi “{{title}}”",
+    "categoryDeleted": "Đã xóa danh mục “{{name}}”"
   },
   "common": {
     "save": "Lưu",
     "cancel": "Hủy",
+    "close": "Đóng",
     "delete": "Xóa",
     "edit": "Sửa",
     "add": "Thêm",
+    "undo": "Hoàn tác",
+    "dismiss": "Bỏ qua",
+    "hour": "giờ",
     "hours": "giờ",
     "loading": "Đang tải…"
   }

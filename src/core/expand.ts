@@ -296,6 +296,9 @@ export function expandSchedule(input: ExpandInput): Occurrence[] {
       notes: e.reason ?? base?.notes,
     });
     o.status = resolveStatus(e.status, o.endAbs, now, autoCompletePast);
+    // Buổi ADD tự nó là một exception — ghi lại id để tầng thao tác sửa/xóa
+    // đúng bản ghi, thay vì đi ghi exception cho một rule không sinh ra nó.
+    o.exceptionId = e.id;
     out.push(o);
   }
 

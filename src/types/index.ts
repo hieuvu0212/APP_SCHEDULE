@@ -243,6 +243,15 @@ export interface Occurrence {
   sourceId: string;
   /** Ngày occurrence gốc do rule sinh ra — dùng khi cần ghi exception */
   ruleOriginalDate?: string;
+  /**
+   * CHỈ có với occurrence sinh từ exception loại 'ADD'.
+   *
+   * Buổi loại ADD trông giống buổi của rule (sourceType='RULE') nhưng không
+   * có `ruleOriginalDate`, nên không thể ghi exception cho nó — bản thân nó
+   * ĐÃ LÀ một exception. Trường này cho tầng thao tác biết phải sửa/xóa
+   * thẳng bản ghi nào, thay vì phải bóc tách chuỗi `key`.
+   */
+  exceptionId?: string;
 
   title: string;
   categoryId: string;

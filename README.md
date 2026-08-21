@@ -1,8 +1,6 @@
-# Personal Schedule System — Phase 0
+# Personal Schedule System — Phase 1
 
-Nền móng: mô hình dữ liệu, IndexedDB, và toàn bộ logic nghiệp vụ dạng hàm thuần.
-
-**Chưa có giao diện lịch — đó là đúng.** Mở lên chỉ thấy màn hình nghiệm thu trạng thái. Week View bắt đầu ở Phase 1.
+Lịch tuần, lịch tháng, CRUD danh mục, CRUD sự kiện đơn lẻ và lịch lặp, kèm hoàn tác cho thao tác xóa.
 
 ## Chạy
 
@@ -13,7 +11,7 @@ npm run dev          # http://localhost:5173
 
 | Lệnh | Việc |
 |---|---|
-| `npm test` | Chạy 61 test (Vitest) |
+| `npm test` | Chạy bộ test (Vitest) |
 | `npm run test:watch` | Test ở chế độ theo dõi |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run check:core` | Kiểm tra ranh giới `core/` |
@@ -27,6 +25,8 @@ src/
 │
 ├── core/                HÀM THUẦN — KHÔNG import React, KHÔNG import Dexie
 │   ├── time.ts          Nền thời gian; xử lý ca qua đêm
+│   ├── calendar.ts      Khung ngày tháng cho lưới tuần / lưới tháng
+│   ├── layout.ts        Xếp cột cho khối chồng lấn trong Week View
 │   ├── expand.ts        Mở rộng lịch lặp + hợp nhất ngoại lệ
 │   ├── conflict.ts      Phát hiện trùng lịch
 │   ├── income.ts        TẦNG 1 — tiền của một buổi
@@ -38,9 +38,30 @@ src/
 │   ├── seed.ts          Danh mục mặc định
 │   └── repo/            CRUD — nơi DUY NHẤT được đụng vào db
 │
+├── hooks/useSchedule.ts CHỖ DUY NHẤT nối db/ với core/
+├── actions/schedule.ts  Dịch thao tác người dùng thành lệnh ghi DB
+├── undo/                Toast "Hoàn tác" cho thao tác xóa
+├── components/          Week View, Month View, form, danh mục
 ├── i18n/                i18next + bộ vi (en/zh thêm ở Phase 5)
-└── App.tsx              Màn hình nghiệm thu Phase 0
+└── App.tsx              Vỏ ứng dụng, điều hướng ba màn hình
 ```
+
+### Luồng dữ liệu
+
+```
+db/repo  ──►  useSchedule()  ──►  expandSchedule()  ──►  detectConflicts()  ──►  view
+                                  (rule + exception + event → Occurrence)
+```
+
+Component KHÔNG tự gọi `expandSchedule`. Chúng nhận Occurrence đã hợp nhất và đã gắn cờ trùng lịch.
+
+### Ba phạm vi khi sửa một buổi của lịch lặp
+
+| Phạm vi | Ghi gì | Hệ quả |
+|---|---|---|
+| Chỉ buổi này | Một `ScheduleException` (`MOVE` nếu đổi ngày, `REPLACE` nếu không) | Các buổi khác giữ nguyên |
+| Buổi này và các buổi sau | Đặt `endDate` cho rule cũ + tạo rule mới từ mốc cắt | Buổi đã qua giữ nguyên → bảng lương tháng cũ không nhảy số |
+| Toàn bộ chuỗi | Sửa thẳng rule | Đổi cả quá khứ. `startDate` cố tình KHÔNG đổi theo ô Ngày |
 
 ### Quy tắc bất di bất dịch
 
@@ -66,7 +87,7 @@ Nhờ đó: test chạy trong mili-giây không cần DOM, và Phase 7 lên Clou
 | **B7a** | Xóa Category không có nơi gom sự kiện | Seed "Chưa phân loại", `isSystem: true`, không cho xóa. |
 | **B7c/d** | Trùng lịch dùng sai bất đẳng thức, chỉ so trong ngày | So trên epoch ms, `aStart < bEnd && bStart < aEnd`. |
 | **C2** | i18n để tới Phase 5 | Cài ngay Phase 0 — Phase 5 chỉ còn việc dịch, không phải refactor. |
-| **C4** | Không có test ở phase nào | 61 test, phủ hết các ca biên trên. |
+| **C4** | Không có test ở phase nào | Test phủ hết các ca biên trên, chạy trong mili-giây vì `core/` không cần DOM. |
 | **D1** | `html2canvas` crash với Tailwind v4 (`oklch`) | Dùng `html2canvas-pro` khi tới Phase 4. |
 
 ## Hai chế độ lương
@@ -94,6 +115,16 @@ Cùng dữ liệu 160 giờ (chuẩn 176), phạt 100k, thưởng 300k:
 
 Ba con số khác nhau — nên `mode` và `shortfallPolicy` phải nhập rõ khi tạo, không có mặc định nào an toàn.
 
-## Phase 1 tiếp theo
+## Còn treo sau Phase 1
 
-Week View + Month View, CRUD Category và SingleEvent. Toàn bộ logic đã sẵn trong `core/` — Phase 1 chủ yếu là việc vẽ.
+| Việc | Ghi chú |
+|---|---|
+| `shortfallPolicy` mặc định | Vẫn chưa chốt. Form SalaryRule thuộc Phase 3 và phải bắt chọn rõ — không có mặc định nào an toàn. |
+| Kéo–thả để dời buổi | Phase 2. Hạ tầng đã sẵn: dời một buổi chỉ là ghi exception `MOVE`. |
+| Hoàn tác cho thao tác SỬA | Phase 1 chỉ phủ thao tác XÓA. Sửa còn nhìn thấy kết quả trên màn hình nên tự sửa lại được. |
+| "Copy Week" | Chưa định nghĩa lại. Với kiến trúc rule-based, copy tuần sẽ nhân đôi sự kiện. |
+| Xóa hẳn rate của riêng một buổi | Exception dùng `??` để nối tiếp giá trị gốc, nên không phân biệt được "để trống" với "xóa đi". |
+
+## Phase 2 tiếp theo
+
+Kéo–thả trong Week View, danh sách phẳng có bộ lọc, và tìm kiếm.

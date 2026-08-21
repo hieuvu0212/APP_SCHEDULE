@@ -53,3 +53,19 @@ export function formatDate(date: string, lang = 'vi'): string {
     weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric',
   }).format(new Date(y, m - 1, d));
 }
+
+/** "2026-08-18" → "18/08" — nhãn gọn cho thanh điều hướng */
+export function formatDayMonth(date: string, lang = 'vi'): string {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Intl.DateTimeFormat(LOCALE[lang] ?? 'vi-VN', {
+    day: '2-digit', month: '2-digit',
+  }).format(new Date(y, m - 1, d));
+}
+
+/** "2026-08" → "tháng 8 năm 2026" */
+export function formatMonthLabel(month: string, lang = 'vi'): string {
+  const [y, m] = month.split('-').map(Number);
+  return new Intl.DateTimeFormat(LOCALE[lang] ?? 'vi-VN', {
+    month: 'long', year: 'numeric',
+  }).format(new Date(y, m - 1, 1));
+}

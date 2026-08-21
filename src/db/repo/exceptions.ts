@@ -1,4 +1,4 @@
-import type { ScheduleException } from '../../types';
+import type { OccurrenceStatus, ScheduleException } from '../../types';
 import { db, newId, nowISO } from '../schema';
 
 /**
@@ -67,20 +67,122 @@ export async function upsertException(
   return id;
 }
 
+/**
+ * Như upsertException, nhưng trả kèm cách HOÀN NGUYÊN chính xác.
+ *
+ * Cần thiết vì upsert là phá hủy: index unique [recurringRuleId+originalDate]
+ * chỉ cho một exception mỗi buổi, nên ghi CANCEL đè lên một MOVE có sẵn là
+ * mất luôn thông tin đã dời. "Hoàn tác" mà chỉ xóa bản ghi vừa ghi thì buổi
+ * đó về lại ngày gốc chứ không về ngày đã dời — đúng kiểu hoàn tác sai còn
+ * tệ hơn không có hoàn tác.
+ *
+ * Nên ở đây chụp lại nguyên trạng thái cũ trước khi ghi đè.
+ */
+export async function upsertExceptionUndoable(
+  input: Omit<ScheduleException, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<{ id: string; revert: () => Promise<void> }> {
+  const snapshot =
+    input.recurringRuleId && input.originalDate && input.type !== 'ADD'
+      ? await db.exceptions
+          .where('[recurringRuleId+originalDate]')
+          .equals([input.recurringRuleId, input.originalDate])
+          .first()
+      : undefined;
+
+  const id = await upsertException(input);
+
+  return {
+    id,
+    revert: async () => {
+      if (snapshot) await db.exceptions.put({ ...snapshot, updatedAt: nowISO() });
+      // Chưa từng có exception nào ở buổi này → xóa mềm chứ không xóa cứng,
+      // để tombstone vẫn tồn tại cho Phase 7 đồng bộ.
+      else await softDeleteException(id);
+    },
+  };
+}
+
+/**
+ * Đổi TRẠNG THÁI của một buổi lặp mà KHÔNG đụng tới các thay đổi khác.
+ *
+ * Không gọi thẳng upsertException với type='STATUS': nếu buổi này đang mang
+ * exception loại MOVE, ghi đè `type` sẽ khiến expandSchedule bỏ qua `newDate`
+ * và buổi nhảy ngược về ngày gốc. Đánh dấu "đã đi làm" mà làm ca dời chỗ là
+ * hỏng theo cách rất khó lần ra.
+ */
+export async function setOccurrenceStatus(
+  recurringRuleId: string,
+  originalDate: string,
+  status: OccurrenceStatus,
+): Promise<string> {
+  const existing = await db.exceptions
+    .where('[recurringRuleId+originalDate]')
+    .equals([recurringRuleId, originalDate])
+    .first();
+
+  if (existing && !existing.deletedAt) {
+    await db.exceptions.update(existing.id, { status, updatedAt: nowISO() });
+    return existing.id;
+  }
+  return upsertException({ type: 'STATUS', recurringRuleId, originalDate, status });
+}
+
 /** Xóa mềm — giữ tombstone để Phase 7 đồng bộ được thao tác xóa */
 export async function softDeleteException(id: string): Promise<void> {
-  await db.exceptions.update(id, { deletedAt: nowISO(), updatedAt: nowISO() });
+  const t = nowISO();
+  await db.exceptions.update(id, { deletedAt: t, updatedAt: t });
+}
+
+/** Gỡ tombstone — nền của nút "Hoàn tác" */
+export async function restoreException(id: string): Promise<void> {
+  await db.exceptions.update(id, { deletedAt: undefined, updatedAt: nowISO() });
+}
+
+/** Đổi trạng thái của một exception đã biết id (dùng cho buổi loại ADD) */
+export async function setExceptionStatus(
+  id: string,
+  status: OccurrenceStatus,
+): Promise<void> {
+  await db.exceptions.update(id, { status, updatedAt: nowISO() });
+}
+
+/** Sửa nội dung một buổi loại ADD — nó không neo vào rule nào để ghi đè */
+export async function updateException(
+  id: string,
+  patch: Partial<Omit<ScheduleException, 'id' | 'createdAt' | 'updatedAt'>>,
+): Promise<void> {
+  await db.exceptions.update(id, { ...patch, updatedAt: nowISO() });
 }
 
 /**
  * Dọn exception khi xóa một RecurringRule (yêu cầu ở mục 8.1).
  * Bỏ sót bước này sẽ để lại exception mồ côi, không bao giờ hiển thị và
  * cũng không xóa được qua giao diện.
+ *
+ * `at` cho phép người gọi ĐÓNG DẤU CÙNG MỘT MỐC cho rule và toàn bộ exception
+ * của nó. Nhờ vậy lúc hoàn tác chỉ cần khôi phục đúng những bản ghi mang dấu
+ * đó — không đụng tới exception vốn đã bị xóa từ trước, thứ mà người dùng
+ * không hề muốn thấy quay lại.
  */
-export async function softDeleteExceptionsOfRule(ruleId: string): Promise<number> {
-  const t = nowISO();
+export async function softDeleteExceptionsOfRule(
+  ruleId: string,
+  at: string = nowISO(),
+): Promise<number> {
   return db.exceptions
     .where('recurringRuleId')
     .equals(ruleId)
-    .modify({ deletedAt: t, updatedAt: t });
+    .filter((e) => !e.deletedAt)
+    .modify({ deletedAt: at, updatedAt: at });
+}
+
+/** Khôi phục đúng những exception bị xóa cùng lúc với rule */
+export async function restoreExceptionsOfRule(
+  ruleId: string,
+  deletedAt: string,
+): Promise<number> {
+  return db.exceptions
+    .where('recurringRuleId')
+    .equals(ruleId)
+    .filter((e) => e.deletedAt === deletedAt)
+    .modify({ deletedAt: undefined, updatedAt: nowISO() });
 }

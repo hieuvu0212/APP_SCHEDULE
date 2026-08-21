@@ -33,11 +33,15 @@ export async function updateCategory(
  * nhận các sự kiện mồ côi.
  */
 export async function softDeleteCategory(id: string): Promise<void> {
+  await softDeleteCategoryAt(id, nowISO());
+}
+
+/** Như softDeleteCategory nhưng đóng dấu thời gian do người gọi chỉ định */
+async function softDeleteCategoryAt(id: string, t: string): Promise<void> {
   if (id === UNCATEGORIZED_ID) {
     throw new Error('Không thể xóa danh mục hệ thống "Chưa phân loại".');
   }
 
-  const t = nowISO();
   await db.transaction(
     'rw',
     [db.categories, db.rules, db.events, db.salaryRules, db.adjustments],
@@ -50,14 +54,68 @@ export async function softDeleteCategory(id: string): Promise<void> {
       // SalaryRule và adjustment gắn chặt với công việc cụ thể — chuyển sang
       // "Chưa phân loại" là vô nghĩa (danh mục đó isIncomeEligible=false).
       // Xóa mềm để còn khôi phục được nếu người dùng lỡ tay.
+      //
+      // Bỏ qua bản ghi ĐÃ xóa từ trước: đóng lại dấu `t` lên chúng sẽ khiến
+      // thao tác hoàn tác kéo cả những thứ người dùng đã cố ý xóa quay lại.
       await db.salaryRules.where('categoryId').equals(id)
+        .filter((r) => !r.deletedAt)
         .modify({ deletedAt: t, updatedAt: t });
       await db.adjustments.where('categoryId').equals(id)
+        .filter((a) => !a.deletedAt)
         .modify({ deletedAt: t, updatedAt: t });
 
       await db.categories.update(id, { deletedAt: t, updatedAt: t });
     },
   );
+}
+
+/**
+ * Xóa Category kèm cách HOÀN NGUYÊN chính xác.
+ *
+ * Xóa danh mục không phải một phép gán `deletedAt` đơn giản: nó còn dời rule
+ * và event sang "Chưa phân loại", và xóa mềm SalaryRule lẫn adjustment. Hoàn
+ * tác mà chỉ gỡ `deletedAt` của danh mục thì mọi lịch vẫn nằm lại ở "Chưa
+ * phân loại" — người dùng bấm "Hoàn tác" xong vẫn mất dữ liệu, chỉ khác là
+ * bây giờ họ tưởng mình đã lấy lại được.
+ *
+ * Nên phải chụp danh sách bản ghi bị dời TRƯỚC khi xóa.
+ */
+export async function softDeleteCategoryUndoable(
+  id: string,
+): Promise<() => Promise<void>> {
+  const [rules, events] = await Promise.all([
+    db.rules.where('categoryId').equals(id).toArray(),
+    db.events.where('categoryId').equals(id).toArray(),
+  ]);
+  const ruleIds = rules.filter((r) => !r.deletedAt).map((r) => r.id);
+  const eventIds = events.filter((e) => !e.deletedAt).map((e) => e.id);
+
+  const at = nowISO();
+  await softDeleteCategoryAt(id, at);
+
+  return async () => {
+    const t = nowISO();
+    await db.transaction(
+      'rw',
+      [db.categories, db.rules, db.events, db.salaryRules, db.adjustments],
+      async () => {
+        await db.categories.update(id, { deletedAt: undefined, updatedAt: t });
+        await db.rules.where('id').anyOf(ruleIds).modify({ categoryId: id, updatedAt: t });
+        await db.events.where('id').anyOf(eventIds).modify({ categoryId: id, updatedAt: t });
+        // Chỉ khôi phục thứ bị xóa CÙNG LÚC, không đụng bản ghi đã xóa từ trước.
+        await db.salaryRules
+          .where('categoryId')
+          .equals(id)
+          .filter((r) => r.deletedAt === at)
+          .modify({ deletedAt: undefined, updatedAt: t });
+        await db.adjustments
+          .where('categoryId')
+          .equals(id)
+          .filter((a) => a.deletedAt === at)
+          .modify({ deletedAt: undefined, updatedAt: t });
+      },
+    );
+  };
 }
 
 /**
