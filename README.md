@@ -31,6 +31,43 @@ Có `manifest.webmanifest` và service worker tự viết (`public/sw.js`), khô
 
 Service worker dùng **hai chiến lược khác nhau, không được gộp**: yêu cầu điều hướng thì ưu tiên mạng, tài nguyên thì ưu tiên cache. `index.html` trỏ tới các file JS đã băm tên, nên phục vụ bản HTML cũ từ cache sau khi deploy bản mới sẽ khiến nó đòi những file không còn tồn tại — trắng màn hình và người dùng không có đường thoát.
 
+## In — vì sao bản in KHÁC màn hình
+
+Lưới giờ không in vừa một trang A4 và sẽ không bao giờ vừa. Nó trải 06:00–23:00, tức 17 tiếng × 56px = **952px**, trong khi A4 ngang trừ lề 10mm chỉ còn khoảng **718px** chiều cao. Thu nhỏ cho vừa thì mỗi giờ còn 35px, một buổi 1 tiếng cao 35px, chữ tiêu đề và giờ chồng lên nhau — vừa giấy nhưng không đọc được.
+
+Nên `Ctrl+P` ở lịch tuần in ra một **bảng ba hàng buổi × bảy cột ngày** (`PrintWeek.tsx`), không phải lưới giờ. Bỏ vị trí chính xác theo phút, đổi lấy việc luôn vừa một trang: thêm buổi chỉ làm ô cao thêm chứ không kéo dài bảng theo trục thời gian.
+
+Ba hàng phủ **trọn 24 giờ** chứ không đúng theo nhãn — "Sáng" bắt đầu từ 00:00, "Tối" kéo tới 24:00. Ca 05:00 hay 23:30 là chuyện có thật, và hở một khoảng là buổi rơi vào đó biến mất khỏi bản in mà không báo gì. Có test cho chuyện này.
+
+Buổi đã hủy không lên giấy: bản in là thứ mang theo để làm việc, không phải nhật ký.
+
+### Hai nút, hai cơ chế khác hẳn nhau
+
+| | **In** | **Xuất PDF** |
+|---|---|---|
+| Cách làm | `window.print()` + `@media print` | `@react-pdf/renderer` |
+| Thao tác | Hộp thoại in → chọn "Lưu dưới dạng PDF" | Tải file thẳng xuống |
+| Unicode | **Hoàn hảo** — dùng font hệ thống, tiếng Việt, 中文, emoji đều đúng | Chỉ tiếng Việt. Chữ Hán và emoji ra **ô vuông** |
+| Dung lượng | 0 | ~350 KB thư viện + ~500 KB font, **nạp động** |
+| Offline | Có | Lần đầu cần mạng để tải chunk |
+
+Trình duyệt không cho trang web tự ghi file PDF qua đường in — đó là ràng buộc bảo mật. Khác biệt thật giữa hai nút chỉ là một cú bấm, đổi lại nút "In" xử lý Unicode tốt hơn hẳn.
+
+**Chữ Hán trong PDF cần thêm font CJK ~8–10 MB.** Chưa nạp vì nó gấp hơn năm mươi lần toàn bộ bundle hiện tại. Lịch có tiêu đề tiếng Trung thì dùng nút "In".
+
+Nút Xuất PDF **từ chối chạy** khi lịch chứa chữ Hán, kana, Hangul hoặc emoji, thay vì sinh file rồi cảnh báo. Lý do: font thiếu glyph thì PDF không bỏ trống mà lấy glyph nằm ở chỉ số tương ứng trong bảng của font — `中文` ra `-‡`. Đó là **ký tự sai trông như thật**, không phải ô vuông báo thiếu, nên người dùng hoàn toàn có thể gửi file hỏng đi mà không nhận ra. Hỏng lặng lẽ nguy hiểm hơn hỏng ồn ào.
+
+### Cài font cho Xuất PDF
+
+Font mặc định của PDF (Helvetica) mã hóa WinAnsi và **không có glyph tiếng Việt có dấu** — "Đại học" sẽ ra một dãy ô vuông. Phải đặt hai file này vào `public/fonts/`:
+
+```
+public/fonts/NotoSans-Regular.ttf
+public/fonts/NotoSans-Bold.ttf
+```
+
+Tải từ [Google Fonts — Noto Sans](https://fonts.google.com/noto/specimen/Noto+Sans) (bấm "Get font" → "Download all", lấy hai file static). Thiếu file thì nút Xuất PDF báo lỗi rõ ràng chứ không âm thầm mất dấu — `exportSchedulePdf.tsx` kiểm tra sự tồn tại trước khi đăng ký, vì @react-pdf nuốt lỗi tải font và lặng lẽ quay về Helvetica.
+
 Biểu tượng hiện là SVG. Chrome chấp nhận, nhưng muốn Lighthouse hài lòng hoàn toàn thì nên bổ sung PNG 192px và 512px.
 
 | Lệnh | Việc |
@@ -38,7 +75,8 @@ Biểu tượng hiện là SVG. Chrome chấp nhận, nhưng muốn Lighthouse h
 | `npm test` | Chạy bộ test (Vitest) |
 | `npm run test:watch` | Test ở chế độ theo dõi |
 | `npm run typecheck` | `tsc -b` — **phải là `-b`**, xem bên dưới |
-| `npm run check:core` | Kiểm tra ranh giới `core/` |
+| `npm run lint` | oxlint |
+| `npm run check:core` | Kiểm tra ranh giới `core/` (chạy bằng Node, không cần bash) |
 | `npm run build` | Build production |
 
 ### ⚠️ `typecheck` phải chạy `tsc -b`, không phải `tsc --noEmit`
@@ -65,6 +103,7 @@ src/
 │   ├── stats.ts         Thống kê kế hoạch vs thực tế
 │   ├── backup.ts        Kiểm tra file sao lưu + quy tắc trộn theo updatedAt
 │   ├── trash.ts         Mốc thời gian cho việc dọn tombstone
+│   ├── reminder.ts      Chọn buổi cần nhắc và thời điểm bắn
 │   ├── income.ts        TẦNG 1 — tiền của một buổi
 │   ├── payroll.ts       TẦNG 2 — tiền của một tháng (con số chính thức)
 │   └── __tests__/
@@ -223,6 +262,28 @@ Xóa vĩnh viễn mặc định chỉ dọn thứ đã xóa **quá 30 ngày**. L
 
 Khôi phục một `RecurringRule` kéo theo cả exception bị dọn **cùng lúc** với nó — `softDeleteRule` đóng chung một dấu thời gian chính là để phục vụ chỗ này. Khôi phục Category thì **không** kéo lịch về: lúc xóa, rule và event đã bị dời sang "Chưa phân loại" và bản ghi không lưu chúng vốn thuộc về đâu. Chỉ nút Hoàn tác ngay tại thời điểm xóa mới làm được, vì nó giữ danh sách trong bộ nhớ. Màn hình nói rõ điều này.
 
+## Nhắc lịch — và vì sao nó chỉ nhắc được nửa vời
+
+Ứng dụng không có máy chủ. Không máy chủ thì không có Web Push, và không Web Push thì **không có cách nào** đánh thức trình duyệt đã đóng. Notification Triggers API làm được nhưng tới nay vẫn nằm sau cờ thử nghiệm.
+
+Nên cơ chế là hẹn giờ trong trang: chỉ chạy khi tab hoặc app đang mở. Màn hình Cài đặt nói thẳng điều đó **ngay dưới tiêu đề**, không giấu xuống cuối — một tính năng nhắc lịch hứa nhiều hơn thực tế là cách nhanh nhất khiến người ta bỏ lỡ ca làm rồi mất niềm tin vào cả ứng dụng.
+
+Muốn nhắc thật khi đóng app thì phải có backend đẩy Web Push. Đó là một dự án khác.
+
+## Test
+
+| Tầng | Cách test |
+|---|---|
+| `core/`, `pdf/model` | Hàm thuần, mảng vào mảng ra. Không cần DOM, chạy trong mili-giây. |
+| `db/` | IndexedDB thật trong bộ nhớ qua `fake-indexeddb`. **Không mock Dexie.** |
+| Component | `@testing-library/react`. Ưu tiên chặn tái phát các lỗi đã từng lọt. |
+
+Bộ test ở `core/` **không bắt được** ba lỗi lọt lưới gần đây — ô số nằm trong `<label>`, cột biểu đồ cao 0px, bộ lọc nhắc lịch. Không phải vì chúng yếu, mà vì chúng nhìn sai chỗ. Test component tồn tại để bịt đúng khoảng mù đó, nên mỗi bài nên tương ứng với một lỗi thật chứ không phải phủ cho đủ.
+
+Tầng `db/` chạy mã thật chứ không mock là có lý do: mock `db.rules.update()` chỉ chứng minh ta gọi đúng hàm, nó không chứng minh Dexie hiểu `deletedAt: undefined` là lệnh **xóa thuộc tính** — mà toàn bộ cơ chế hoàn tác dựa vào đúng hành vi đó.
+
+Mỗi bài trong `src/db/__tests__/undo.test.ts` tương ứng với một lỗi đã từng xảy ra hoặc suýt xảy ra: ghi `CANCEL` đè lên `MOVE` rồi hoàn tác, đánh dấu hoàn thành làm mất `type: 'MOVE'`, tách chuỗi mà quên trả `endDate`, xóa danh mục rồi khôi phục mà lịch nằm lại ở "Chưa phân loại".
+
 ## Còn treo
 
 | Việc | Ghi chú |
@@ -231,6 +292,8 @@ Khôi phục một `RecurringRule` kéo theo cả exception bị dọn **cùng l
 | Xóa hẳn rate của riêng một buổi | Exception dùng `??` để nối tiếp giá trị gốc, nên không phân biệt được "để trống" với "xóa đi". |
 | "Copy Week" | Chưa định nghĩa lại. Với kiến trúc rule-based, copy tuần sẽ nhân đôi sự kiện. |
 | Biểu tượng PNG cho PWA | Hiện chỉ có SVG. Chrome cài được, nhưng Lighthouse muốn PNG 192px và 512px. |
+| Test cho component | `core/` và `db/` đã phủ. Tầng React thì chưa — và hai lỗi lọt lưới gần đây (ô số nằm trong `<label>`, cột biểu đồ cao 0px) đều nằm đúng ở đó. |
+| Nhắc lịch khi đã đóng app | Cần backend đẩy Web Push. Xem mục Nhắc lịch. |
 | Đồng bộ Cloud | `BaseEntity` đã có `createdAt`/`updatedAt`/`deletedAt`, và `mergeById()` đã là quy tắc giải quyết xung đột. Chỉ phải viết lại `db/`. |
 
 ## Ngôn ngữ

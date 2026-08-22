@@ -308,9 +308,21 @@ export interface SystemSettings {
   showConflictAlerts: boolean;
   /** Buổi đã qua thời điểm hiện tại thì mặc định tính là hoàn thành */
   autoCompletePastOccurrences: boolean;
+  /**
+   * Nhắc trước giờ vào buổi bằng thông báo trình duyệt.
+   *
+   * ⚠️ CHỈ CHẠY KHI ỨNG DỤNG ĐANG MỞ. Không có máy chủ thì không có Web Push,
+   * và không có Web Push thì không đánh thức được trình duyệt đã đóng. Xem
+   * core/reminder.ts.
+   */
+  remindersEnabled: boolean;
+  /** Báo trước bao nhiêu phút */
+  reminderLeadMinutes: number;
 }
 
 export const DEFAULT_SETTINGS: SystemSettings = {
+  remindersEnabled: false,
+  reminderLeadMinutes: 15,
   language: 'vi',
   currency: 'VND',
   weekStartsOn: 1,

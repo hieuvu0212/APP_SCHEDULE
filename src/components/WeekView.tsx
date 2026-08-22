@@ -19,10 +19,11 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Category, Occurrence } from '../types';
+import type { Category, Occurrence, SalaryRule } from '../types';
 import { layoutDay, visibleHourRange, type PositionedOccurrence } from '../core/layout';
 import { dayOfWeek, endTimeOf, toHHMM, toMinutes } from '../core/time';
 import { todayKey } from '../core/calendar';
+import { PrintWeek } from './PrintWeek';
 import { tint } from './color';
 
 const HOUR_PX = 56;
@@ -56,6 +57,8 @@ export interface WeekViewProps {
   dates: string[];
   occurrences: Occurrence[];
   categories: Map<string, Category>;
+  /** Chỉ dùng cho dòng thu nhập ở bản in — xem chú thích trong PrintWeek */
+  salaryRules: SalaryRule[];
   showConflicts: boolean;
   onPick: (occurrence: Occurrence) => void;
   onCreateAt: (date: string, startTime: string) => void;
@@ -67,6 +70,7 @@ export function WeekView({
   dates,
   occurrences,
   categories,
+  salaryRules,
   showConflicts,
   onPick,
   onCreateAt,
@@ -199,7 +203,24 @@ export function WeekView({
   };
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <>
+      {/* Trên giấy dùng bảng Sáng/Chiều/Tối thay cho lưới giờ — xem chú thích
+          đầu PrintWeek.tsx về lý do lưới giờ không thể vừa một trang A4. */}
+      <PrintWeek
+        dates={dates}
+        occurrences={occurrences}
+        categories={categories}
+        salaryRules={salaryRules}
+      />
+
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white print:hidden">
+      {/* Cuộn NGANG bọc cả hàng tiêu đề lẫn lưới, để hai thứ luôn thẳng cột.
+          Trên màn hình 380px, bảy cột chia nhau chưa tới 46px mỗi cột — không
+          đọc nổi tiêu đề nào. `min-w` buộc cột giữ bề rộng tối thiểu và người
+          dùng vuốt ngang; trên màn hình rộng thì min-w không có tác dụng gì
+          vì lưới đã rộng hơn thế. */}
+      <div className="overflow-x-auto">
+        <div className="min-w-[700px]">
       <div
         className="grid border-b border-slate-200 bg-slate-50"
         style={{ gridTemplateColumns: `${GUTTER_PX}px repeat(7, minmax(0, 1fr))` }}
@@ -282,6 +303,8 @@ export function WeekView({
           )}
         </div>
       </div>
+        </div>
+      </div>
 
       {drag?.active && (
         <div className="border-t border-slate-100 bg-slate-50 px-3 py-1.5 text-center text-xs tabular-nums text-slate-600">
@@ -291,6 +314,7 @@ export function WeekView({
         </div>
       )}
     </div>
+    </>
   );
 }
 

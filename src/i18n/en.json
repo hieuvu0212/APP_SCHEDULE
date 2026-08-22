@@ -272,6 +272,35 @@
     "empty": "No sessions in this range.",
     "autoCompleteCaveat": "“Mark past sessions as completed automatically” is on, so every past session counts as done and this rate always looks good. For a figure that reflects reality, turn that option off in Settings and mark sessions yourself."
   },
+  "print": {
+    "band": "Part of day",
+    "morning": "Morning",
+    "afternoon": "Afternoon",
+    "evening": "Evening",
+    "exportedOn": "Exported {{date}}",
+    "summary": "Week summary",
+    "plannedHours": "Planned hours",
+    "completedHours": "Hours worked",
+    "estimatedIncome": "Estimated income",
+    "fixedMonthlyExcluded": "excludes fixed-monthly jobs",
+    "exportPdf": "Export PDF",
+    "generating": "Generating…",
+    "failed": "Could not create the PDF: {{message}}",
+    "fontMissing": "Font files missing from public/fonts/. See the README.",
+    "unsupportedGlyph": "“{{sample}}” contains characters the PDF font cannot draw (Han, kana, Hangul or emoji) — they would come out as wrong glyphs rather than blanks, so this was stopped. Use Print and choose “Save as PDF”: the browser uses system fonts and renders them correctly."
+  },
+  "reminder": {
+    "title": "Reminders",
+    "limitation": "This app has no server, so it can only remind you WHILE IT IS OPEN — in a browser tab or the installed app. Close it completely and nothing can wake it. Do not use this instead of your phone's alarm.",
+    "unsupported": "This browser does not support notifications.",
+    "denied": "You have blocked notifications for this site. To re-enable, open the browser's permission settings (the lock icon next to the address bar).",
+    "allow": "Allow notifications",
+    "enable": "Enable reminders",
+    "enableHint": "Only sessions still marked “scheduled” are reminded. Cancelled, no-show and completed ones are skipped.",
+    "lead": "Remind me",
+    "minutes": "{{n}} min before",
+    "body": "Starts at {{time}}, in {{minutes}} minutes."
+  },
   "trash": {
     "title": "Trash",
     "why": "Every delete in this app is a soft delete — the record stays so Undo has somewhere to go back to. Once the Undo toast disappears, they land here.",

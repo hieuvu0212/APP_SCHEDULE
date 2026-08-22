@@ -26,6 +26,11 @@ import {
   type TrashItem,
 } from '../db/repo/trash';
 import { SCHEMA_VERSION } from '../db/schema';
+import {
+  notificationState,
+  requestNotificationPermission,
+  type NotificationState,
+} from '../hooks/useReminders';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
 import { Button, ConfirmDialog, Field, Modal, inputClass } from './ui';
 
@@ -157,6 +162,8 @@ export function SettingsView() {
           hint={t('settings.showConflictsHint')}
         />
       </section>
+
+      <ReminderSection />
 
       <BackupSection />
       <TrashSection />
@@ -344,6 +351,90 @@ function ImportDialog({
         <p className="text-xs text-slate-400">{t('backup.noUndoWarning')}</p>
       </div>
     </Modal>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+
+const LEAD_CHOICES = [5, 15, 30, 60];
+
+function ReminderSection() {
+  const { t } = useTranslation();
+  const settings = useSettings();
+  const update = useUpdateSettings();
+  const [permission, setPermission] = useState<NotificationState>(() =>
+    notificationState(),
+  );
+
+  const ask = async () => {
+    const next = await requestNotificationPermission();
+    setPermission(next);
+    if (next === 'granted') await update({ remindersEnabled: true });
+  };
+
+  return (
+    <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
+      <div>
+        <h3 className="text-sm font-semibold text-slate-800">{t('reminder.title')}</h3>
+        {/* Nói giới hạn TRƯỚC, không giấu xuống cuối. Một tính năng nhắc lịch
+            hứa nhiều hơn thực tế là cách nhanh nhất khiến người ta bỏ lỡ ca
+            làm rồi mất niềm tin vào cả ứng dụng. */}
+        <p className="mt-1 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+          {t('reminder.limitation')}
+        </p>
+      </div>
+
+      {permission === 'unsupported' && (
+        <p className="text-xs text-slate-500">{t('reminder.unsupported')}</p>
+      )}
+
+      {permission === 'denied' && (
+        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          {t('reminder.denied')}
+        </p>
+      )}
+
+      {permission === 'default' && (
+        <Button variant="primary" onClick={() => void ask()}>
+          {t('reminder.allow')}
+        </Button>
+      )}
+
+      {permission === 'granted' && (
+        <>
+          <Toggle
+            checked={settings.remindersEnabled}
+            onChange={(v) => void update({ remindersEnabled: v })}
+            label={t('reminder.enable')}
+            hint={t('reminder.enableHint')}
+          />
+
+          {settings.remindersEnabled && (
+            <div>
+              <span className="block text-xs font-medium text-slate-500">
+                {t('reminder.lead')}
+              </span>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {LEAD_CHOICES.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => void update({ reminderLeadMinutes: m })}
+                    className={`rounded-lg px-3 py-1.5 text-sm transition ${
+                      settings.reminderLeadMinutes === m
+                        ? 'bg-slate-900 text-white'
+                        : 'border border-slate-300 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {t('reminder.minutes', { n: m })}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 

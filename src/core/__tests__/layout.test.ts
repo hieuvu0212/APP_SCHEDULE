@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Occurrence } from '../../types';
-import { MIN_BLOCK_MINUTES, layoutDay, visibleHourRange } from '../layout';
+import { MIN_BLOCK_MINUTES, bandIndexOf, layoutDay, visibleHourRange } from '../layout';
 import { endsNextDay, toAbsolute, toMinutes } from '../time';
 
 const DATE = '2026-08-20';
@@ -124,6 +124,30 @@ describe('xếp cột khi chồng lấn', () => {
 
   it('mảng rỗng không làm vỡ thuật toán', () => {
     expect(layoutDay([])).toEqual([]);
+  });
+});
+
+describe('bandIndexOf — xếp buổi vào hàng Sáng/Chiều/Tối cho bản in', () => {
+  it('chia đúng ở hai điểm ranh giới', () => {
+    expect(bandIndexOf('11:59')).toBe(0);
+    expect(bandIndexOf('12:00')).toBe(1);
+    expect(bandIndexOf('17:59')).toBe(1);
+    expect(bandIndexOf('18:00')).toBe(2);
+  });
+
+  it('PHỦ TRỌN 24 giờ — không để hở khoảng nào', () => {
+    // Ca 05:00 và ca 23:30 là chuyện có thật. Hở một khoảng là buổi rơi vào
+    // đó biến mất khỏi bản in mà không báo gì.
+    expect(bandIndexOf('00:00')).toBe(0);
+    expect(bandIndexOf('05:00')).toBe(0);
+    expect(bandIndexOf('23:59')).toBe(2);
+  });
+
+  it('mọi giờ trong ngày đều tìm được một hàng', () => {
+    for (let m = 0; m < 1440; m += 7) {
+      const hhmm = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+      expect(bandIndexOf(hhmm)).toBeGreaterThanOrEqual(0);
+    }
   });
 });
 

@@ -14,14 +14,14 @@
 //     · Thu nhập  → màn hình đó tự nạp trọn tháng qua usePayroll
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useTranslation } from 'react-i18next';
 import type { DialogTarget, EditScope, SubmitPayload } from './components/EventDialog';
 import type { Occurrence, OccurrenceStatus, RecurringRule } from './types';
 import { addMonths, monthGridDates, todayKey, weekDates } from './core/calendar';
 import { calcOccurrenceIncome, resolveSalaryRule } from './core/income';
-import { addDays, monthBounds, monthOf } from './core/time';
+import { addDays, dayOfWeek, monthBounds, monthOf } from './core/time';
 import { CategoryManager } from './components/CategoryManager';
 import { RuleManager } from './components/RuleManager';
 import { EventDialog } from './components/EventDialog';
@@ -37,8 +37,9 @@ import { listSalaryRules } from './db/repo/salary';
 import { getRule } from './db/repo/rules';
 import { getEvent } from './db/repo/events';
 import { categoryMap, useCategories, useSchedule } from './hooks/useSchedule';
+import { useReminders } from './hooks/useReminders';
 import { useApplyLanguage, useApplyTheme, useSettings } from './hooks/useSettings';
-import { formatDayMonth, formatMonthLabel } from './i18n';
+import { formatDate, formatDayMonth, formatHours, formatMoney, formatMonthLabel } from './i18n';
 import {
   applySubmit,
   deleteSeries,
@@ -68,6 +69,7 @@ export default function App() {
   const settings = useSettings();
   useApplyTheme(settings.theme);
   useApplyLanguage(settings.language);
+  useReminders();
 
   const [view, setView] = useState<View>('week');
   const [anchor, setAnchor] = useState<string>(() => todayKey());
@@ -76,6 +78,8 @@ export default function App() {
   const [dialog, setDialog] = useState<DialogTarget | null>(null);
   const [dialogScope, setDialogScope] = useState<EditScope>('OCCURRENCE');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const categories = useCategories();
   const catMap = useMemo(() => categoryMap(categories), [categories]);
@@ -105,16 +109,23 @@ export default function App() {
 
   // ── Điều hướng ──────────────────────────────────────────────────────────
 
-  const step = (delta: number) => {
-    if (view === 'month' || view === 'payroll') setMonth((m) => addMonths(m, delta));
-    else setAnchor((a) => addDays(a, delta * 7));
-  };
+  // useCallback ở ba hàm dưới không phải để tối ưu mà để chúng KHAI BÁO ĐƯỢC
+  // trong mảng phụ thuộc của effect phím tắt. Không có nó, effect hoặc phải
+  // bỏ sót phụ thuộc (thao tác trên `view` cũ) hoặc phải đăng ký lại sau mỗi
+  // lần render.
+  const step = useCallback(
+    (delta: number) => {
+      if (view === 'month' || view === 'payroll') setMonth((m) => addMonths(m, delta));
+      else setAnchor((a) => addDays(a, delta * 7));
+    },
+    [view],
+  );
 
-  const goToday = () => {
+  const goToday = useCallback(() => {
     const today = todayKey();
     setAnchor(today);
     setMonth(monthOf(today));
-  };
+  }, []);
 
   const openDay = (date: string) => {
     setAnchor(date);
@@ -126,14 +137,17 @@ export default function App() {
       ? formatMonthLabel(month)
       : `${formatDayMonth(weekGrid[0])} – ${formatDayMonth(weekGrid[6])}`;
 
-  const openCreate = () =>
-    setDialog({
-      kind: 'create',
-      // Ở lịch tháng, `anchor` vẫn nằm ở tuần đang xem chứ không theo tháng
-      // đang lật, nên phải lấy ngày đầu tháng đang hiển thị.
-      date: view === 'month' ? `${month}-01` : anchor,
-      startTime: '08:00',
-    });
+  const openCreate = useCallback(
+    () =>
+      setDialog({
+        kind: 'create',
+        // Ở lịch tháng, `anchor` vẫn nằm ở tuần đang xem chứ không theo tháng
+        // đang lật, nên phải lấy ngày đầu tháng đang hiển thị.
+        date: view === 'month' ? `${month}-01` : anchor,
+        startTime: '08:00',
+      }),
+    [view, month, anchor],
+  );
 
   // ── Phím tắt ────────────────────────────────────────────────────────────
   //
@@ -178,10 +192,7 @@ export default function App() {
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // `step` và `openCreate` được dựng lại mỗi lần render và đóng gói `view`,
-    // `anchor`, `month` hiện tại — nên phải nghe lại khi ba thứ đó đổi, nếu
-    // không phím tắt sẽ thao tác trên giá trị cũ.
-  }, [dialog, selectedKey, view, anchor, month]);
+  }, [dialog, selectedKey, view, step, goToday, openCreate]);
 
   // ── Thao tác ────────────────────────────────────────────────────────────
 
@@ -270,6 +281,60 @@ export default function App() {
       resolveSalaryRule(salaryRules ?? [], o.categoryId, monthOf(o.date)),
     );
 
+  /**
+   * Xuất PDF cho tuần đang xem.
+   *
+   * Mọi chuỗi được dịch Ở ĐÂY rồi truyền xuống, vì tài liệu PDF render trong
+   * cây riêng của @react-pdf và không thấy Provider của i18next.
+   */
+  const handleExportPdf = async () => {
+    if (exporting || !occurrences) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const { exportSchedulePdf, MissingFontError, UnsupportedGlyphError } = await import(
+        './pdf/exportSchedulePdf'
+      );
+      try {
+        await exportSchedulePdf({
+          dates: weekGrid,
+          occurrences,
+          categories: catMap,
+          salaryRules: salaryRules ?? [],
+          labels: {
+            appName: t('app.name'),
+            rangeLabel: `${formatDate(weekGrid[0])} — ${formatDate(weekGrid[6])}`,
+            exportedLabel: t('print.exportedOn', { date: formatDate(todayKey()) }),
+            summary: t('print.summary'),
+            plannedHours: t('print.plannedHours'),
+            completedHours: t('print.completedHours'),
+            estimatedIncome: t('print.estimatedIncome'),
+            fixedMonthlyExcluded: t('print.fixedMonthlyExcluded'),
+            weekdays: [0, 1, 2, 3, 4, 5, 6].map((d) => t(`weekday.s${d}`)),
+          },
+          format: {
+            dayLabel: formatDayMonth,
+            hours: (h) => `${formatHours(h)} ${t('common.hours')}`,
+            money: (amount) => formatMoney(amount, settings.currency),
+            dayOfWeek,
+          },
+        });
+      } catch (e) {
+        if (e instanceof MissingFontError) throw new Error(t('print.fontMissing'));
+        if (e instanceof UnsupportedGlyphError) {
+          throw new Error(t('print.unsupportedGlyph', { sample: e.sample }));
+        }
+        throw e;
+      }
+    } catch (e) {
+      setExportError(
+        t('print.failed', { message: e instanceof Error ? e.message : String(e) }),
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const ready = categories != null && occurrences != null;
 
   return (
@@ -286,13 +351,15 @@ export default function App() {
         <header className="mb-5 flex flex-wrap items-center gap-3 print:hidden">
           <h1 className="text-lg font-semibold">{t('app.name')}</h1>
 
-          <nav className="flex flex-wrap gap-1 rounded-lg bg-slate-200/60 p-1">
+          {/* Bảy tab không vừa màn hình điện thoại. Cuộn ngang thay vì xuống
+              dòng: xuống dòng làm header cao gấp đôi và đẩy cả lịch xuống. */}
+          <nav className="flex max-w-full gap-1 overflow-x-auto rounded-lg bg-slate-200/60 p-1">
             {VIEWS.map((v) => (
               <button
                 key={v}
                 type="button"
                 onClick={() => setView(v)}
-                className={`rounded-md px-3 py-1 text-sm font-medium transition ${
+                className={`shrink-0 rounded-md px-3 py-1 text-sm font-medium transition ${
                   view === v
                     ? 'bg-white text-slate-900 shadow-sm'
                     : 'text-slate-500 hover:text-slate-800'
@@ -335,12 +402,27 @@ export default function App() {
               <Button variant="outline" onClick={() => window.print()}>
                 {t('common.print')}
               </Button>
+              {view === 'week' && (
+                <Button
+                  variant="outline"
+                  disabled={exporting}
+                  onClick={() => void handleExportPdf()}
+                >
+                  {exporting ? t('print.generating') : t('print.exportPdf')}
+                </Button>
+              )}
               <Button variant="primary" onClick={openCreate} title={t('shortcut.new')}>
                 + {t('event.add')}
               </Button>
             </span>
           )}
         </header>
+
+        {exportError && (
+          <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 print:hidden">
+            {exportError}
+          </p>
+        )}
 
         {!ready || !categories || !occurrences ? (
           <p className="rounded-xl border border-slate-200 bg-white px-4 py-10 text-center text-slate-400">
@@ -382,6 +464,7 @@ export default function App() {
             dates={weekGrid}
             occurrences={occurrences}
             categories={catMap}
+            salaryRules={salaryRules ?? []}
             showConflicts={settings.showConflictAlerts}
             onPick={(o) => setSelectedKey(o.key)}
             onCreateAt={(date, startTime) => setDialog({ kind: 'create', date, startTime })}

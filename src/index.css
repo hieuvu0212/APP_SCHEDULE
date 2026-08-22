@@ -111,6 +111,16 @@
     background: #fff;
   }
 
+  /* Đừng để bảng bị cắt ngang giữa một hàng buổi. Không có dòng này thì hàng
+     "Tối" có thể rơi một nửa sang tờ thứ hai — vẫn hai tờ, chỉ khác chỗ cắt. */
+  table {
+    break-inside: auto;
+  }
+  tr,
+  li {
+    break-inside: avoid;
+  }
+
   /* Buộc trình duyệt in cả màu nền của khối sự kiện. Không có dòng này thì
      lịch in ra toàn ô trắng, mất hết thông tin phân loại theo màu. */
   * {

@@ -114,7 +114,7 @@ export function Modal({
       // `bg-black/50` chứ KHÔNG phải `bg-slate-900/40`: ở chế độ tối, biến
       // --color-slate-900 bị đảo thành màu sáng nên lớp phủ sẽ biến thành một
       // màn sương trắng. --color-black cố ý không bị đảo.
-      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/50 p-4 print:hidden sm:items-center"
+      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/50 p-2 print:hidden sm:items-center sm:p-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -137,7 +137,11 @@ export function Modal({
             ✕
           </button>
         </header>
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
+        {/* Trên điện thoại lấy nhiều chiều cao hơn: bàn phím ảo đã nuốt mất
+            gần nửa màn hình khi đang gõ vào form. */}
+        <div className="max-h-[78vh] overflow-y-auto px-4 py-4 sm:max-h-[70vh] sm:px-5">
+          {children}
+        </div>
         {footer && (
           <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-5 py-3">
             {footer}

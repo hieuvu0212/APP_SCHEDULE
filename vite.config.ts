@@ -22,5 +22,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // Gắn IndexedDB chạy trong bộ nhớ để tầng db/ test được bằng mã thật.
+    setupFiles: ['./src/test/setup.ts'],
   },
 });

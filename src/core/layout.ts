@@ -96,6 +96,47 @@ export function layoutDay(occurrences: Occurrence[]): PositionedOccurrence[] {
   return items;
 }
 
+// ─── Bố cục cho BẢN IN ─────────────────────────────────────────────────────
+//
+//  Lưới giờ không in vừa một trang A4 và sẽ không bao giờ vừa: 17 tiếng nhân
+//  56px là 952px, trong khi A4 ngang trừ lề chỉ còn khoảng 718px. Ép thu nhỏ
+//  cho vừa thì một buổi 1 tiếng cao 35px và chữ chồng lên nhau — vừa giấy
+//  nhưng không đọc được.
+//
+//  Bản in dùng cách trình bày KHÁC HẲN: ba hàng buổi × bảy cột ngày. Bỏ đi
+//  vị trí chính xác theo phút, đổi lấy việc luôn vừa một trang bất kể lịch
+//  dày tới đâu. Trên giấy, đọc được quan trọng hơn đo được.
+
+export interface TimeBand {
+  /** Khóa i18n cho nhãn hàng */
+  key: string;
+  /** Phút bắt đầu tính từ 00:00, BAO GỒM */
+  from: number;
+  /** Phút kết thúc, KHÔNG bao gồm */
+  to: number;
+}
+
+/**
+ * Ba buổi phủ trọn 24 giờ.
+ *
+ * Biên ngoài cố tình rộng hơn nhãn: hàng "Sáng" bắt đầu từ 00:00 chứ không
+ * phải 06:00, và "Tối" kéo tới 24:00. Ca 05:00 hay 23:30 là chuyện có thật;
+ * để hở khoảng nào là buổi rơi vào đó biến mất khỏi bản in mà không báo gì.
+ */
+export const PRINT_BANDS: TimeBand[] = [
+  { key: 'print.morning', from: 0, to: 12 * 60 },
+  { key: 'print.afternoon', from: 12 * 60, to: 18 * 60 },
+  { key: 'print.evening', from: 18 * 60, to: 24 * 60 },
+];
+
+/** Buổi bắt đầu lúc `startTime` thuộc hàng nào. Xếp theo GIỜ BẮT ĐẦU. */
+export function bandIndexOf(startTime: string, bands: TimeBand[] = PRINT_BANDS): number {
+  const minute = toMinutes(startTime);
+  const index = bands.findIndex((b) => minute >= b.from && minute < b.to);
+  // Không khớp hàng nào thì dồn vào hàng cuối, thay vì để rơi mất.
+  return index === -1 ? bands.length - 1 : index;
+}
+
 /**
  * Khoảng giờ đáng hiển thị, để Week View không bắt người dùng cuộn qua
  * tám tiếng trống mới thấy buổi đầu tiên.

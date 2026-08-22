@@ -272,6 +272,35 @@
     "empty": "此区间内没有课次。",
     "autoCompleteCaveat": "你开启了“自动把过去的课次标记为已完成”，所以所有过去的课次都算作已完成，这里的比率永远好看。想让数字反映实际情况，请到设置里关闭该选项并自己逐个标记。"
   },
+  "print": {
+    "band": "时段",
+    "morning": "上午",
+    "afternoon": "下午",
+    "evening": "晚上",
+    "exportedOn": "导出于 {{date}}",
+    "summary": "本周汇总",
+    "plannedHours": "计划工时",
+    "completedHours": "已完成工时",
+    "estimatedIncome": "预计收入",
+    "fixedMonthlyExcluded": "不含按月固定计薪的工作",
+    "exportPdf": "导出 PDF",
+    "generating": "生成中…",
+    "failed": "无法生成 PDF：{{message}}",
+    "fontMissing": "public/fonts/ 中缺少字体文件。请参阅 README。",
+    "unsupportedGlyph": "“{{sample}}”含有 PDF 字体无法绘制的字符（汉字、假名、谚文或表情符号）——它们会显示为错误的字形而不是空白，因此已中止。请改用“打印”并选择“另存为 PDF”：浏览器使用系统字体，可以正确显示。"
+  },
+  "reminder": {
+    "title": "课前提醒",
+    "limitation": "本应用没有服务器，所以只能在它处于打开状态时提醒你——浏览器标签页或已安装的应用中。完全关闭后没有任何东西能把它唤醒。请不要用它代替手机闹钟。",
+    "unsupported": "此浏览器不支持通知。",
+    "denied": "你已阻止本站的通知。要重新开启，请打开浏览器的权限设置（地址栏旁的锁形图标）。",
+    "allow": "允许通知",
+    "enable": "开启提醒",
+    "enableHint": "只提醒仍处于“已排期”状态的课次。已取消、缺勤和已完成的会跳过。",
+    "lead": "提前",
+    "minutes": "{{n}} 分钟",
+    "body": "{{time}} 开始，还有 {{minutes}} 分钟。"
+  },
   "trash": {
     "title": "回收站",
     "why": "应用里所有删除都是软删除——记录会留下，好让撤销有路可退。撤销提示消失后，它们就到这里。",

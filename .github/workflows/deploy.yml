@@ -33,9 +33,16 @@ jobs:
       # không tự nâng phiên bản. Bản deploy phải khớp bản đã chạy test ở máy.
       - run: npm ci
 
-      # Ba bước dưới là CỔNG CHẶN. Test đỏ thì không có gì được deploy —
-      # đó là toàn bộ lý do 167 test kia tồn tại.
+      # Năm bước dưới là CỔNG CHẶN. Bất kỳ cái nào đỏ thì không có gì được
+      # deploy — đó là toàn bộ lý do bộ test tồn tại.
+      #
+      # `check:core` viết bằng bash và trên Windows hay bị bỏ qua vì thiếu
+      # bash. Runner của GitHub luôn có, nên đây là chỗ nó thật sự chạy được
+      # mỗi lần, không phụ thuộc vào việc ai đó nhớ gõ lệnh.
+      - run: npm run check:core
+      - run: npm run lint
       - run: npm test
+      # `tsc -b`, KHÔNG phải `tsc --noEmit` — xem phần cảnh báo trong README.
       - run: npm run typecheck
       - run: npm run build
 

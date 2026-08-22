@@ -272,6 +272,35 @@
     "empty": "Chưa có buổi nào trong khoảng này.",
     "autoCompleteCaveat": "Bạn đang bật “tự đánh dấu buổi đã qua là hoàn thành”, nên mọi buổi trong quá khứ tự thành đã hoàn thành và tỷ lệ ở đây luôn đẹp. Muốn con số phản ánh thực tế thì tắt tùy chọn đó trong Cài đặt và tự đánh dấu từng buổi."
   },
+  "print": {
+    "band": "Buổi",
+    "morning": "Sáng",
+    "afternoon": "Chiều",
+    "evening": "Tối",
+    "exportedOn": "Xuất ngày {{date}}",
+    "summary": "Tổng kết tuần",
+    "plannedHours": "Giờ kế hoạch",
+    "completedHours": "Giờ đã làm",
+    "estimatedIncome": "Thu nhập ước tính",
+    "fixedMonthlyExcluded": "chưa gồm công việc trả khoán tháng",
+    "exportPdf": "Xuất PDF",
+    "generating": "Đang tạo…",
+    "failed": "Không tạo được PDF: {{message}}",
+    "fontMissing": "Thiếu file font trong public/fonts/. Xem hướng dẫn trong README.",
+    "unsupportedGlyph": "“{{sample}}” chứa chữ mà font của bản PDF không vẽ được (chữ Hán, kana, Hangul hoặc emoji) — nó sẽ ra ký tự sai chứ không phải ô trống, nên tôi dừng lại. Dùng nút In rồi chọn “Lưu dưới dạng PDF”: trình duyệt dùng font hệ thống nên hiện đúng."
+  },
+  "reminder": {
+    "title": "Nhắc trước giờ",
+    "limitation": "Ứng dụng này không có máy chủ, nên chỉ nhắc được KHI NÓ ĐANG MỞ — trên một tab trình duyệt hoặc trong app đã cài. Đóng hẳn thì không có gì đánh thức nó dậy. Đừng dùng thay cho báo thức của điện thoại.",
+    "unsupported": "Trình duyệt này không hỗ trợ thông báo.",
+    "denied": "Bạn đã chặn thông báo cho trang này. Muốn bật lại thì mở phần cài đặt quyền của trình duyệt (biểu tượng ổ khóa cạnh thanh địa chỉ).",
+    "allow": "Cho phép thông báo",
+    "enable": "Bật nhắc lịch",
+    "enableHint": "Chỉ nhắc buổi ở trạng thái “đã lên lịch”. Buổi đã hủy, vắng mặt hay đã hoàn thành thì bỏ qua.",
+    "lead": "Báo trước",
+    "minutes": "{{n}} phút",
+    "body": "Bắt đầu lúc {{time}}, còn {{minutes}} phút nữa."
+  },
   "trash": {
     "title": "Thùng rác",
     "why": "Mọi thao tác xóa trong ứng dụng đều là xóa mềm — bản ghi vẫn nằm lại để nút Hoàn tác có đường quay về. Khi thông báo Hoàn tác tắt đi, chúng vào đây.",
