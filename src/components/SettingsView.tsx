@@ -11,16 +11,33 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useRef, useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { useTranslation } from 'react-i18next';
 import type { SystemSettings } from '../types';
-import type { BackupFile, BackupError } from '../core/backup';
+import type { BackupFile, BackupError, BackupTable } from '../core/backup';
 import { backupFileName, countRecords, validateBackup } from '../core/backup';
+import { daysSinceDeleted, purgeCutoff } from '../core/trash';
 import { exportBackup, importBackup, type ImportReport } from '../db/backup';
+import {
+  listTrash,
+  purgeOlderThan,
+  purgeOne,
+  restoreFromTrash,
+  type TrashItem,
+} from '../db/repo/trash';
 import { SCHEMA_VERSION } from '../db/schema';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
-import { Button, Field, Modal, inputClass } from './ui';
+import { Button, ConfirmDialog, Field, Modal, inputClass } from './ui';
 
 const CURRENCIES: Array<SystemSettings['currency']> = ['VND', 'USD', 'CNY'];
+
+/** Chỉ liệt kê bộ ngôn ngữ THẬT SỰ có file. Bày ra một lựa chọn rồi rơi về
+ *  tiếng Việt còn khó hiểu hơn là không bày. */
+const LANGUAGES: Array<{ value: SystemSettings['language']; label: string }> = [
+  { value: 'vi', label: 'Tiếng Việt' },
+  { value: 'en', label: 'English' },
+  { value: 'zh', label: '中文' },
+];
 
 // Khóa viết thẳng thay vì ghép `settings.theme_${v}`: i18next dùng dấu gạch
 // dưới làm ký tự phân tách số nhiều, nên khóa dạng đó dễ va vào cơ chế đó.
@@ -74,6 +91,25 @@ export function SettingsView() {
           <p className="mt-1 text-xs text-slate-400">{t('settings.themeHint')}</p>
         </div>
 
+        <Field label={t('settings.languageLabel')} hint={t('settings.languageHint')}>
+          {(id) => (
+            <select
+              id={id}
+              className={`${inputClass} max-w-52`}
+              value={settings.language}
+              onChange={(e) =>
+                void update({ language: e.target.value as SystemSettings['language'] })
+              }
+            >
+              {LANGUAGES.map((l) => (
+                <option key={l.value} value={l.value}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
+
         <Field label={t('settings.weekStartsOn')} hint={t('settings.weekStartsOnHint')}>
           {(id) => (
             <select
@@ -123,6 +159,7 @@ export function SettingsView() {
       </section>
 
       <BackupSection />
+      <TrashSection />
     </div>
   );
 }
@@ -309,6 +346,139 @@ function ImportDialog({
     </Modal>
   );
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Mặc định chỉ dọn thứ đã xóa quá ngần này ngày — xem chú thích ở db/repo/trash.ts */
+const DEFAULT_PURGE_DAYS = 30;
+
+const TABLE_KEY: Record<BackupTable, string> = {
+  categories: 'trash.tableCategories',
+  rules: 'trash.tableRules',
+  events: 'trash.tableEvents',
+  exceptions: 'trash.tableExceptions',
+  salaryRules: 'trash.tableSalaryRules',
+  adjustments: 'trash.tableAdjustments',
+  adjustmentTemplates: 'trash.tableTemplates',
+};
+
+function TrashSection() {
+  const { t } = useTranslation();
+  const items = useLiveQuery(() => listTrash(), []);
+  const [confirming, setConfirming] = useState<TrashItem | 'old' | null>(null);
+  const [purged, setPurged] = useState<number | null>(null);
+
+  if (!items) return null;
+
+  const cutoff = purgeCutoff(DEFAULT_PURGE_DAYS);
+  const oldCount = items.filter((i) => i.deletedAt <= cutoff).length;
+
+  const doPurgeOld = async () => {
+    setConfirming(null);
+    setPurged(await purgeOlderThan(cutoff));
+  };
+
+  const doPurgeOne = async (item: TrashItem) => {
+    setConfirming(null);
+    await purgeOne(item.table, item.id);
+  };
+
+  return (
+    <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-800">
+            {t('trash.title')}
+            {items.length > 0 && (
+              <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-normal text-slate-500">
+                {items.length}
+              </span>
+            )}
+          </h3>
+          <p className="mt-1 text-xs leading-relaxed text-slate-500">{t('trash.why')}</p>
+        </div>
+        {oldCount > 0 && (
+          <Button
+            variant="danger"
+            onClick={() => setConfirming('old')}
+          >
+            {t('trash.purgeOld', { n: oldCount, days: DEFAULT_PURGE_DAYS })}
+          </Button>
+        )}
+      </div>
+
+      {purged != null && (
+        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          {t('trash.purgeDone', { n: purged })}
+        </p>
+      )}
+
+      {items.length === 0 ? (
+        <p className="text-xs text-slate-400">{t('trash.empty')}</p>
+      ) : (
+        <ul className="divide-y divide-slate-50">
+          {items.map((item) => {
+            const days = daysSinceDeleted(item.deletedAt);
+            return (
+              <li
+                key={`${item.table}:${item.id}`}
+                className="flex flex-wrap items-center gap-x-2 gap-y-1 py-2 text-sm"
+              >
+                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500">
+                  {t(TABLE_KEY[item.table])}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-slate-700">{item.label}</span>
+                <span className="text-xs text-slate-400">
+                  {days === 0 ? t('trash.deletedToday') : t('trash.deletedAgo', { n: days })}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void restoreFromTrash(item.table, item.id)}
+                  className="rounded px-1.5 py-0.5 text-xs text-slate-600 transition hover:bg-slate-100"
+                >
+                  {t('trash.restore')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirming(item)}
+                  className="rounded px-1.5 py-0.5 text-xs text-red-600 transition hover:bg-red-50"
+                >
+                  {t('trash.purgeOne')}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+        {t('trash.categoryCaveat')}
+      </p>
+
+      {confirming === 'old' && (
+        <ConfirmDialog
+          title={t('trash.purgeTitle')}
+          confirmLabel={t('trash.purgeConfirm')}
+          message={t('trash.purgeOldMessage', { n: oldCount, days: DEFAULT_PURGE_DAYS })}
+          onCancel={() => setConfirming(null)}
+          onConfirm={() => void doPurgeOld()}
+        />
+      )}
+
+      {confirming && confirming !== 'old' && (
+        <ConfirmDialog
+          title={t('trash.purgeTitle')}
+          confirmLabel={t('trash.purgeConfirm')}
+          message={t('trash.purgeOneMessage', { label: confirming.label })}
+          onCancel={() => setConfirming(null)}
+          onConfirm={() => void doPurgeOne(confirming)}
+        />
+      )}
+    </section>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 
 function Toggle({
   checked,

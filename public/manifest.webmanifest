@@ -1,0 +1,26 @@
+{
+  "name": "Personal Schedule System",
+  "short_name": "Lịch",
+  "description": "Lịch cá nhân đa loại kèm theo dõi thu nhập. Dữ liệu nằm hoàn toàn trên máy bạn.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "lang": "vi",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

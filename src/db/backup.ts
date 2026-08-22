@@ -13,20 +13,8 @@ import type { SystemSettings } from '../types';
 import type { BackupFile, BackupTable } from '../core/backup';
 import { BACKUP_FORMAT, BACKUP_TABLES, mergeById } from '../core/backup';
 import { db, SCHEMA_VERSION } from './schema';
+import { ALL_TABLES, tableOf, type SoftDeletableRow } from './tables';
 import { loadSettings, saveSettings } from './repo/settings';
-
-/** Bảng nào trong Dexie ứng với tên nào trong file sao lưu */
-function tableOf(name: BackupTable) {
-  switch (name) {
-    case 'categories': return db.categories;
-    case 'rules': return db.rules;
-    case 'exceptions': return db.exceptions;
-    case 'events': return db.events;
-    case 'salaryRules': return db.salaryRules;
-    case 'adjustments': return db.adjustments;
-    case 'adjustmentTemplates': return db.adjustmentTemplates;
-  }
-}
 
 export async function exportBackup(): Promise<BackupFile> {
   const entries = await Promise.all(
@@ -68,39 +56,25 @@ export async function importBackup(
 
   await db.transaction(
     'rw',
-    [
-      db.categories,
-      db.rules,
-      db.exceptions,
-      db.events,
-      db.salaryRules,
-      db.adjustments,
-      db.adjustmentTemplates,
-    ],
+    ALL_TABLES,
     async () => {
       for (const name of BACKUP_TABLES) {
         const table = tableOf(name);
-        const incoming = (backup.data[name] ?? []) as Array<{
-          id: string;
-          updatedAt?: string;
-        }>;
+        const incoming = (backup.data[name] ?? []) as SoftDeletableRow[];
 
         if (mode === 'replace') {
           await table.clear();
           const valid = incoming.filter((row) => row && typeof row.id === 'string');
-          if (valid.length) await table.bulkPut(valid as never);
+          if (valid.length) await table.bulkPut(valid);
           report.added += valid.length;
           report.total += valid.length;
           continue;
         }
 
-        const existing = (await table.toArray()) as Array<{
-          id: string;
-          updatedAt?: string;
-        }>;
+        const existing = await table.toArray();
         const result = mergeById(existing, incoming);
         await table.clear();
-        if (result.merged.length) await table.bulkPut(result.merged as never);
+        if (result.merged.length) await table.bulkPut(result.merged);
 
         report.added += result.added;
         report.updated += result.updated;

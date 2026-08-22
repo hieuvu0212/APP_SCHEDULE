@@ -15,13 +15,39 @@ npm install
 npm run dev          # http://localhost:5173
 ```
 
+## Deploy
+
+Push lên `main` là `.github/workflows/deploy.yml` tự chạy: `npm ci` → test → typecheck → build → đẩy `dist/` lên GitHub Pages. **Test đỏ thì không có gì được deploy** — đó là toàn bộ lý do bộ test tồn tại.
+
+Bật một lần trong repo: Settings → Pages → Source → **GitHub Actions**.
+
+`vite.config.ts` đặt `base: './'` (đường dẫn tương đối) thay vì viết cứng tên repo. Nhờ vậy không phải sửa file khi đổi tên repo, và mở thẳng thư mục `dist` bằng `file://` cũng chạy. An toàn vì ứng dụng chỉ có một trang, không có router lồng nhiều cấp.
+
+**Dữ liệu KHÔNG đi theo.** IndexedDB tách riêng theo origin, nên bản trên `github.io` khởi đầu trống trơn — dữ liệu ở `localhost` vẫn nằm nguyên chỗ cũ. Muốn chuyển thì Cài đặt → Xuất file sao lưu ở máy này, rồi Nhập từ file ở máy kia. Cũng vì thế mà **repo công khai không làm lộ lịch của bạn**: chỉ có mã nguồn được đẩy lên, dữ liệu chưa bao giờ rời khỏi trình duyệt.
+
+## Cài như ứng dụng
+
+Có `manifest.webmanifest` và service worker tự viết (`public/sw.js`), không thêm phụ thuộc nào. Mở bản đã deploy trên Chrome/Edge → menu → "Cài đặt ứng dụng"; trên Android là "Thêm vào màn hình chính". Sau lần mở đầu tiên, app chạy được cả khi không có mạng — dữ liệu vốn đã nằm trong IndexedDB, thứ duy nhất cần cache là mấy file HTML/JS/CSS.
+
+Service worker dùng **hai chiến lược khác nhau, không được gộp**: yêu cầu điều hướng thì ưu tiên mạng, tài nguyên thì ưu tiên cache. `index.html` trỏ tới các file JS đã băm tên, nên phục vụ bản HTML cũ từ cache sau khi deploy bản mới sẽ khiến nó đòi những file không còn tồn tại — trắng màn hình và người dùng không có đường thoát.
+
+Biểu tượng hiện là SVG. Chrome chấp nhận, nhưng muốn Lighthouse hài lòng hoàn toàn thì nên bổ sung PNG 192px và 512px.
+
 | Lệnh | Việc |
 |---|---|
 | `npm test` | Chạy bộ test (Vitest) |
 | `npm run test:watch` | Test ở chế độ theo dõi |
-| `npm run typecheck` | `tsc --noEmit` |
+| `npm run typecheck` | `tsc -b` — **phải là `-b`**, xem bên dưới |
 | `npm run check:core` | Kiểm tra ranh giới `core/` |
 | `npm run build` | Build production |
+
+### ⚠️ `typecheck` phải chạy `tsc -b`, không phải `tsc --noEmit`
+
+`tsconfig.json` là một **solution file**: `"files": []` cộng với `references` trỏ sang `tsconfig.app.json` và `tsconfig.node.json`.
+
+Chạy `tsc --noEmit` trên cấu hình đó sẽ kiểm tra đúng **không file nào** rồi thoát với mã 0. Lệnh luôn xanh, và nó xanh vì chẳng làm gì cả. Chỉ chế độ build `-b` mới đi theo các reference.
+
+Lỗi này im lặng theo cách tệ nhất: nó không báo gì, chỉ đơn giản là không bảo vệ. Bốn lỗi kiểu thật đã lọt qua nhiều phiên làm việc và chỉ lộ ra khi chạy `npm run build`.
 
 ## Cấu trúc
 
@@ -38,6 +64,7 @@ src/
 │   ├── filter.ts        Lọc và tìm kiếm (bỏ dấu tiếng Việt)
 │   ├── stats.ts         Thống kê kế hoạch vs thực tế
 │   ├── backup.ts        Kiểm tra file sao lưu + quy tắc trộn theo updatedAt
+│   ├── trash.ts         Mốc thời gian cho việc dọn tombstone
 │   ├── income.ts        TẦNG 1 — tiền của một buổi
 │   ├── payroll.ts       TẦNG 2 — tiền của một tháng (con số chính thức)
 │   └── __tests__/
@@ -186,7 +213,15 @@ Nguyên tắc: hàm ghi trả về kèm cách hoàn nguyên, không có undo sta
 
 `upsertExceptionUndoable` chụp trạng thái cũ **trước** khi ghi đè, vì index unique chỉ cho một exception mỗi buổi. Hoàn tác kiểu "xóa bản vừa ghi" sẽ đưa buổi về ngày gốc thay vì ngày đã dời — hoàn tác sai còn tệ hơn không có hoàn tác.
 
-Ngoại lệ duy nhất: **nhập file sao lưu** không hoàn tác được, và hộp thoại nói thẳng điều đó.
+Ngoại lệ duy nhất: **nhập file sao lưu** và **xóa vĩnh viễn trong thùng rác** không hoàn tác được, và cả hai hộp thoại đều nói thẳng điều đó.
+
+## Thùng rác
+
+Mọi thao tác xóa đều là xóa mềm — bản ghi ở lại để nút Hoàn tác có đường quay về, và để Phase đồng bộ Cloud biết mà xóa ở phía kia. Nhưng khi toast tắt, tombstone không còn màn hình nào chạm tới: không khôi phục được, không dọn được, vẫn phình file sao lưu. Cài đặt → Thùng rác đóng vòng đó.
+
+Xóa vĩnh viễn mặc định chỉ dọn thứ đã xóa **quá 30 ngày**. Lý do không chỉ là an toàn dữ liệu: mất tombstone là mất luôn tín hiệu "hãy xóa bản ghi này ở máy khác", nên dọn sớm rồi đồng bộ có thể khiến bản ghi sống lại từ máy chưa nhận được lệnh xóa.
+
+Khôi phục một `RecurringRule` kéo theo cả exception bị dọn **cùng lúc** với nó — `softDeleteRule` đóng chung một dấu thời gian chính là để phục vụ chỗ này. Khôi phục Category thì **không** kéo lịch về: lúc xóa, rule và event đã bị dời sang "Chưa phân loại" và bản ghi không lưu chúng vốn thuộc về đâu. Chỉ nút Hoàn tác ngay tại thời điểm xóa mới làm được, vì nó giữ danh sách trong bộ nhớ. Màn hình nói rõ điều này.
 
 ## Còn treo
 
@@ -195,8 +230,16 @@ Ngoại lệ duy nhất: **nhập file sao lưu** không hoàn tác được, v�
 | Xuất PNG | Đã in được PDF qua `window.print()`. Muốn xuất ảnh bitmap thì dùng `html2canvas-pro`, KHÔNG dùng `html2canvas` 1.4.1 — bản đó crash với Tailwind v4 vì `oklch()`. |
 | Xóa hẳn rate của riêng một buổi | Exception dùng `??` để nối tiếp giá trị gốc, nên không phân biệt được "để trống" với "xóa đi". |
 | "Copy Week" | Chưa định nghĩa lại. Với kiến trúc rule-based, copy tuần sẽ nhân đôi sự kiện. |
-| Bộ ngôn ngữ en/zh | `i18n/` đã sẵn sàng, chỉ cần thêm file JSON. Không component nào phải sửa. |
+| Biểu tượng PNG cho PWA | Hiện chỉ có SVG. Chrome cài được, nhưng Lighthouse muốn PNG 192px và 512px. |
 | Đồng bộ Cloud | `BaseEntity` đã có `createdAt`/`updatedAt`/`deletedAt`, và `mergeById()` đã là quy tắc giải quyết xung đột. Chỉ phải viết lại `db/`. |
+
+## Ngôn ngữ
+
+Giao diện có `vi`, `en` và `zh`, đổi trong Cài đặt. Khóa nào thiếu ở bộ đang dùng thì rơi về tiếng Việt — mọi chuỗi mới đều viết ở `vi` trước, nên đó là bản đầy đủ nhất.
+
+`formatMoney` / `formatDate` / `formatHours` lấy ngôn ngữ từ i18next **tại thời điểm gọi**, không phải hằng số lúc định nghĩa. Trước đây chúng mặc định cứng `'vi'`; không ai để ý vì chỉ có một bộ ngôn ngữ, nhưng đó đúng là loại trường chết chỉ lộ ra khi thêm bộ thứ hai.
+
+Tiêu đề, ghi chú, địa điểm và tên học sinh là **dữ liệu người dùng** — chúng không đi qua i18n và hiện đúng như đã gõ, bất kể ngôn ngữ giao diện.
 
 ## Tài liệu kèm theo
 

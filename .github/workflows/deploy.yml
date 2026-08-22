@@ -1,0 +1,54 @@
+name: Build và deploy lên GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Quyền tối thiểu cho việc deploy Pages. `id-token` là bắt buộc với
+# actions/deploy-pages, thiếu nó thì bước deploy báo lỗi xác thực.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Push liên tiếp thì chỉ giữ lần cuối. Hai lần deploy chồng nhau sẽ tranh
+# nhau cùng một môi trường và một trong hai luôn thất bại.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm ci` chứ không phải `npm install`: cài đúng theo package-lock,
+      # không tự nâng phiên bản. Bản deploy phải khớp bản đã chạy test ở máy.
+      - run: npm ci
+
+      # Ba bước dưới là CỔNG CHẶN. Test đỏ thì không có gì được deploy —
+      # đó là toàn bộ lý do 167 test kia tồn tại.
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

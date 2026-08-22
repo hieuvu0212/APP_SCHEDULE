@@ -37,7 +37,7 @@ import { listSalaryRules } from './db/repo/salary';
 import { getRule } from './db/repo/rules';
 import { getEvent } from './db/repo/events';
 import { categoryMap, useCategories, useSchedule } from './hooks/useSchedule';
-import { useApplyTheme, useSettings } from './hooks/useSettings';
+import { useApplyLanguage, useApplyTheme, useSettings } from './hooks/useSettings';
 import { formatDayMonth, formatMonthLabel } from './i18n';
 import {
   applySubmit,
@@ -67,6 +67,7 @@ export default function App() {
   const { pushUndo } = useUndo();
   const settings = useSettings();
   useApplyTheme(settings.theme);
+  useApplyLanguage(settings.language);
 
   const [view, setView] = useState<View>('week');
   const [anchor, setAnchor] = useState<string>(() => todayKey());
