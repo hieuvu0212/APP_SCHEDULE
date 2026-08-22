@@ -15,8 +15,6 @@
 
 import { StyleSheet } from '@react-pdf/renderer';
 
-export const PDF_FONT = 'NotoSans';
-
 export const COLORS = {
   ink: '#0f172a',
   body: '#334155',
@@ -28,7 +26,8 @@ export const COLORS = {
 
 export const styles = StyleSheet.create({
   page: {
-    fontFamily: PDF_FONT,
+    // `fontFamily` KHÔNG đặt ở đây — SchedulePdf gắn vào lúc render, vì họ
+    // font phụ thuộc nội dung (Latin hay CJK). Xem pdf/fonts.ts.
     fontSize: 7,
     color: COLORS.body,
     backgroundColor: '#ffffff',

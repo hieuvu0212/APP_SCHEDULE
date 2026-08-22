@@ -287,7 +287,8 @@
     "generating": "生成中…",
     "failed": "无法生成 PDF：{{message}}",
     "fontMissing": "public/fonts/ 中缺少字体文件。请参阅 README。",
-    "unsupportedGlyph": "“{{sample}}”含有 PDF 字体无法绘制的字符（汉字、假名、谚文或表情符号）——它们会显示为错误的字形而不是空白，因此已中止。请改用“打印”并选择“另存为 PDF”：浏览器使用系统字体，可以正确显示。"
+    "fontFormat": "{{url}} 不是有效的字体文件——读取到：{{found}}。请检查三点：文件是否在 public/fonts/ 中、是否是 static 文件夹里的 .ttf（不要用可变字体或 .zip），以及大小是否合理（Noto Sans 约 500 KB，Noto Sans SC 约 10 MB）。",
+    "cjkFontMissing": "本周日程含有汉字、假名、谚文或表情符号，需要在 public/fonts/ 中放入 NotoSansSC-Regular.ttf（参见 README）。在此之前，请改用“打印”并选择“另存为 PDF”——浏览器使用系统字体，可以正确显示。"
   },
   "reminder": {
     "title": "课前提醒",

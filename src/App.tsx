@@ -292,7 +292,7 @@ export default function App() {
     setExporting(true);
     setExportError(null);
     try {
-      const { exportSchedulePdf, MissingFontError, UnsupportedGlyphError } = await import(
+      const { exportSchedulePdf, MissingFontError, FontFormatError } = await import(
         './pdf/exportSchedulePdf'
       );
       try {
@@ -320,9 +320,17 @@ export default function App() {
           },
         });
       } catch (e) {
-        if (e instanceof MissingFontError) throw new Error(t('print.fontMissing'));
-        if (e instanceof UnsupportedGlyphError) {
-          throw new Error(t('print.unsupportedGlyph', { sample: e.sample }));
+        // Thiếu font nào thì chỉ đúng font đó, vì hai bộ có cách lấy khác
+        // nhau: bộ Latin bắt buộc, bộ CJK chỉ cần khi lịch có chữ Hán.
+        if (e instanceof MissingFontError) {
+          throw new Error(
+            t(e.family === 'NotoSansSC' ? 'print.cjkFontMissing' : 'print.fontMissing'),
+          );
+        }
+        // File có ở đó nhưng không phải font. fontkit chỉ nói "Unknown font
+        // format"; ở đây ta biết nó đã đọc phải cái gì nên nói ra được.
+        if (e instanceof FontFormatError) {
+          throw new Error(t('print.fontFormat', { url: e.url, found: e.found }));
         }
         throw e;
       }

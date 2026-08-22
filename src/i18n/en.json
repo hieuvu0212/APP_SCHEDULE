@@ -287,7 +287,8 @@
     "generating": "Generating…",
     "failed": "Could not create the PDF: {{message}}",
     "fontMissing": "Font files missing from public/fonts/. See the README.",
-    "unsupportedGlyph": "“{{sample}}” contains characters the PDF font cannot draw (Han, kana, Hangul or emoji) — they would come out as wrong glyphs rather than blanks, so this was stopped. Use Print and choose “Save as PDF”: the browser uses system fonts and renders them correctly."
+    "fontFormat": "{{url}} is not a valid font — what was read: {{found}}. Check three things: the file is in public/fonts/, it is the .ttf from the static folder (not the variable font, not the .zip), and the size looks right (~500 KB for Noto Sans, ~10 MB for Noto Sans SC).",
+    "cjkFontMissing": "This week contains Han, kana, Hangul or emoji, which needs NotoSansSC-Regular.ttf in public/fonts/ (see the README). In the meantime use Print and choose “Save as PDF” — the browser uses system fonts and renders them correctly."
   },
   "reminder": {
     "title": "Reminders",

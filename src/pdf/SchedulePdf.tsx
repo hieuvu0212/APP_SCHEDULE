@@ -14,10 +14,25 @@ import { Document, Page, Text, View } from '@react-pdf/renderer';
 import type { PdfModel } from './model';
 import { eventTint, styles } from './pdfStyles';
 
-export function SchedulePdf({ model }: { model: PdfModel }) {
+export function SchedulePdf({
+  model,
+  fontFamily,
+}: {
+  model: PdfModel;
+  /**
+   * Họ font do pdf/fonts.ts chọn theo nội dung: bộ Latin cho lịch thường, bộ
+   * CJK khi có chữ Hán. Đặt ở `Page` là đủ vì `fontFamily` được kế thừa
+   * xuống mọi `Text` bên dưới.
+   */
+  fontFamily: string;
+}) {
   return (
     <Document title={`${model.appName} — ${model.rangeLabel}`}>
-      <Page size="A4" orientation="landscape" style={styles.page}>
+      <Page
+        size="A4"
+        orientation="landscape"
+        style={[styles.page, { fontFamily }]}
+      >
         <View style={styles.header}>
           <View>
             <Text style={styles.appName}>{model.appName}</Text>

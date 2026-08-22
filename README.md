@@ -47,26 +47,45 @@ Buổi đã hủy không lên giấy: bản in là thứ mang theo để làm vi
 |---|---|---|
 | Cách làm | `window.print()` + `@media print` | `@react-pdf/renderer` |
 | Thao tác | Hộp thoại in → chọn "Lưu dưới dạng PDF" | Tải file thẳng xuống |
-| Unicode | **Hoàn hảo** — dùng font hệ thống, tiếng Việt, 中文, emoji đều đúng | Chỉ tiếng Việt. Chữ Hán và emoji ra **ô vuông** |
-| Dung lượng | 0 | ~350 KB thư viện + ~500 KB font, **nạp động** |
+| Unicode | **Hoàn hảo** — dùng font hệ thống, tiếng Việt, 中文, emoji đều đúng | Tùy font đã cài, xem bên dưới |
+| Dung lượng | 0 | ~456 KB thư viện + font, **nạp động** |
 | Offline | Có | Lần đầu cần mạng để tải chunk |
 
-Trình duyệt không cho trang web tự ghi file PDF qua đường in — đó là ràng buộc bảo mật. Khác biệt thật giữa hai nút chỉ là một cú bấm, đổi lại nút "In" xử lý Unicode tốt hơn hẳn.
-
-**Chữ Hán trong PDF cần thêm font CJK ~8–10 MB.** Chưa nạp vì nó gấp hơn năm mươi lần toàn bộ bundle hiện tại. Lịch có tiêu đề tiếng Trung thì dùng nút "In".
-
-Nút Xuất PDF **từ chối chạy** khi lịch chứa chữ Hán, kana, Hangul hoặc emoji, thay vì sinh file rồi cảnh báo. Lý do: font thiếu glyph thì PDF không bỏ trống mà lấy glyph nằm ở chỉ số tương ứng trong bảng của font — `中文` ra `-‡`. Đó là **ký tự sai trông như thật**, không phải ô vuông báo thiếu, nên người dùng hoàn toàn có thể gửi file hỏng đi mà không nhận ra. Hỏng lặng lẽ nguy hiểm hơn hỏng ồn ào.
+Trình duyệt không cho trang web tự ghi file PDF qua đường in — đó là ràng buộc bảo mật. Khác biệt thật giữa hai nút chỉ là một cú bấm.
 
 ### Cài font cho Xuất PDF
 
-Font mặc định của PDF (Helvetica) mã hóa WinAnsi và **không có glyph tiếng Việt có dấu** — "Đại học" sẽ ra một dãy ô vuông. Phải đặt hai file này vào `public/fonts/`:
+Font mặc định của định dạng PDF (Helvetica) mã hóa WinAnsi và **không có glyph tiếng Việt có dấu**. Tệ hơn: khi thiếu glyph, PDF không bỏ trống mà lấy glyph nằm ở **chỉ số tương ứng** trong bảng của font. `中文` ra `-‡` — ký tự sai trông như thật, không phải ô vuông báo thiếu. Người dùng hoàn toàn có thể gửi file hỏng đi mà không nhận ra.
+
+Vì thế `pdf/fonts.ts` kiểm tra sự tồn tại của file **trước** khi đăng ký, và báo lỗi rõ ràng nếu thiếu — @react-pdf nuốt lỗi tải font rồi lặng lẽ quay về Helvetica.
+
+**Bắt buộc** — đặt vào `public/fonts/`:
 
 ```
-public/fonts/NotoSans-Regular.ttf
-public/fonts/NotoSans-Bold.ttf
+NotoSans-Regular.ttf      ~500 KB   Latin + tiếng Việt
+NotoSans-Bold.ttf                    (thiếu thì chữ đậm dùng bản thường)
 ```
 
-Tải từ [Google Fonts — Noto Sans](https://fonts.google.com/noto/specimen/Noto+Sans) (bấm "Get font" → "Download all", lấy hai file static). Thiếu file thì nút Xuất PDF báo lỗi rõ ràng chứ không âm thầm mất dấu — `exportSchedulePdf.tsx` kiểm tra sự tồn tại trước khi đăng ký, vì @react-pdf nuốt lỗi tải font và lặng lẽ quay về Helvetica.
+Tải ở [Google Fonts — Noto Sans](https://fonts.google.com/noto/specimen/Noto+Sans): "Get font" → "Download all" → lấy hai file trong thư mục `static`.
+
+**Chỉ khi lịch có tiếng Trung / Nhật / Hàn / emoji:**
+
+```
+NotoSansSC-Regular.ttf    ~10 MB    có SẴN cả glyph Latin
+NotoSansSC-Bold.ttf
+```
+
+Tải ở [Noto Sans SC](https://fonts.google.com/noto/specimen/Noto+Sans+SC).
+
+### Chọn font theo nội dung
+
+`findUnsupportedText()` dò tiêu đề, tên danh mục và địa điểm của cả tuần. Có chữ Hán, kana, Hangul hay emoji thì dùng bộ CJK cho **toàn bộ** tài liệu; không thì dùng bộ Latin.
+
+Hai điều khiến cách này gọn:
+
+Noto Sans SC **đã chứa glyph Latin**, nên khi cần CJK thì một font lo hết — không phải dựng cơ chế font dự phòng, thứ mà @react-pdf hỗ trợ không đồng nhất giữa các phiên bản.
+
+Và font 10 MB **chỉ tải khi thật sự cần**. Lịch toàn tiếng Việt không bao giờ chạm tới nó. Thiếu file CJK thì lỗi chỉ ra đúng file đó và gợi ý dùng nút "In" trong lúc chờ.
 
 Biểu tượng hiện là SVG. Chrome chấp nhận, nhưng muốn Lighthouse hài lòng hoàn toàn thì nên bổ sung PNG 192px và 512px.
 

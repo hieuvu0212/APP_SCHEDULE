@@ -287,7 +287,8 @@
     "generating": "Đang tạo…",
     "failed": "Không tạo được PDF: {{message}}",
     "fontMissing": "Thiếu file font trong public/fonts/. Xem hướng dẫn trong README.",
-    "unsupportedGlyph": "“{{sample}}” chứa chữ mà font của bản PDF không vẽ được (chữ Hán, kana, Hangul hoặc emoji) — nó sẽ ra ký tự sai chứ không phải ô trống, nên tôi dừng lại. Dùng nút In rồi chọn “Lưu dưới dạng PDF”: trình duyệt dùng font hệ thống nên hiện đúng."
+    "fontFormat": "File {{url}} không phải font hợp lệ — đọc được: {{found}}. Kiểm tra ba chỗ: file có nằm trong public/fonts/ không, có phải bản .ttf trong thư mục static không (đừng dùng bản variable hay file .zip), và kích thước có hợp lý không (~500 KB cho Noto Sans, ~10 MB cho Noto Sans SC).",
+    "cjkFontMissing": "Lịch tuần này có chữ Hán, kana, Hangul hoặc emoji, cần thêm font NotoSansSC-Regular.ttf trong public/fonts/ (xem README). Trong lúc chờ, dùng nút In rồi chọn “Lưu dưới dạng PDF” — trình duyệt dùng font hệ thống nên hiện đúng."
   },
   "reminder": {
     "title": "Nhắc trước giờ",
