@@ -19,7 +19,7 @@ import { useTranslation } from 'react-i18next';
 type ButtonVariant = 'primary' | 'ghost' | 'danger' | 'outline';
 
 const BUTTON_STYLE: Record<ButtonVariant, string> = {
-  primary: 'bg-slate-900 text-white hover:bg-slate-700',
+  primary: 'bg-primary text-primary-fg hover:opacity-90',
   outline: 'border border-slate-300 text-slate-700 hover:bg-slate-100',
   ghost: 'text-slate-600 hover:bg-slate-100',
   danger: 'border border-red-200 text-red-600 hover:bg-red-50',
@@ -69,9 +69,6 @@ export function Field({
     </div>
   );
 }
-
-export const inputClass =
-  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-900 focus:ring-1 focus:ring-slate-900';
 
 // ─── Modal ─────────────────────────────────────────────────────────────────
 

@@ -17,7 +17,8 @@ import type { Category, Occurrence, OccurrenceStatus } from '../types';
 import { filterOccurrences, totalMinutes } from '../core/filter';
 import { endTimeOf, hoursOf } from '../core/time';
 import { formatDate, formatHours, formatMoney } from '../i18n';
-import { ColorDot, inputClass } from './ui';
+import { inputClass } from './styles';
+import { ColorDot } from './ui';
 
 const STATUSES: OccurrenceStatus[] = ['SCHEDULED', 'COMPLETED', 'NO_SHOW', 'CANCELLED'];
 const STATUS_KEY: Record<OccurrenceStatus, string> = {
@@ -124,7 +125,7 @@ export function ListView({
                 onClick={() => setCategoryIds((l) => toggle(l, c.id))}
                 className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition ${
                   on
-                    ? 'bg-slate-900 text-white'
+                    ? 'bg-primary text-primary-fg'
                     : 'border border-slate-300 text-slate-600 hover:bg-slate-100'
                 }`}
               >
@@ -145,7 +146,7 @@ export function ListView({
                 onClick={() => setStatuses((l) => toggle(l, s))}
                 className={`rounded-full px-2.5 py-1 text-xs transition ${
                   on
-                    ? 'bg-slate-900 text-white'
+                    ? 'bg-primary text-primary-fg'
                     : 'border border-slate-300 text-slate-600 hover:bg-slate-100'
                 }`}
               >

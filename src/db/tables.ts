@@ -47,6 +47,7 @@ export function tableOf(name: BackupTable): Table<SoftDeletableRow, string> {
     salaryRules: db.salaryRules,
     adjustments: db.adjustments,
     adjustmentTemplates: db.adjustmentTemplates,
+    payments: db.payments,
   };
   return tables[name] as Table<SoftDeletableRow, string>;
 }
@@ -60,4 +61,5 @@ export const ALL_TABLES = [
   db.salaryRules,
   db.adjustments,
   db.adjustmentTemplates,
+  db.payments,
 ];

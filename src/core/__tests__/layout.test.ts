@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { Occurrence } from '../../types';
-import { MIN_BLOCK_MINUTES, bandIndexOf, layoutDay, visibleHourRange } from '../layout';
+import {
+  MIN_BLOCK_MINUTES,
+  bandIndexOf,
+  groupByBand,
+  layoutDay,
+  visibleHourRange,
+} from '../layout';
 import { endsNextDay, toAbsolute, toMinutes } from '../time';
 
 const DATE = '2026-08-20';
@@ -148,6 +154,38 @@ describe('bandIndexOf — xếp buổi vào hàng Sáng/Chiều/Tối cho bản 
       const hhmm = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
       expect(bandIndexOf(hhmm)).toBeGreaterThanOrEqual(0);
     }
+  });
+});
+
+describe('groupByBand', () => {
+  it('chia đúng ba nhóm theo giờ bắt đầu', () => {
+    const groups = groupByBand([
+      { startTime: '19:00' },
+      { startTime: '08:00' },
+      { startTime: '14:00' },
+    ]);
+    expect(groups.map((g) => g.map((x) => x.startTime))).toEqual([
+      ['08:00'],
+      ['14:00'],
+      ['19:00'],
+    ]);
+  });
+
+  it('LUÔN trả về đủ số nhóm, kể cả nhóm rỗng', () => {
+    // Tầng hiển thị cần biết "chiều nay không có gì" để in dấu gạch, chứ
+    // không phải bỏ hàng đó đi rồi làm lệch bố cục giữa các ngày.
+    expect(groupByBand([{ startTime: '08:00' }])).toEqual([[{ startTime: '08:00' }], [], []]);
+    expect(groupByBand([])).toEqual([[], [], []]);
+  });
+
+  it('giữ nguyên thứ tự bên trong mỗi nhóm', () => {
+    const groups = groupByBand([
+      { startTime: '09:00' },
+      { startTime: '07:00' },
+      { startTime: '11:00' },
+    ]);
+    // Không tự sắp xếp — người gọi đã sắp theo startAbs trước đó.
+    expect(groups[0].map((x) => x.startTime)).toEqual(['09:00', '07:00', '11:00']);
   });
 });
 

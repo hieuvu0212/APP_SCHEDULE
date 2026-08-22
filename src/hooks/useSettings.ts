@@ -29,6 +29,19 @@ export function useUpdateSettings(): (patch: Partial<SystemSettings>) => Promise
  * lần lúc khởi động: máy đổi sang chế độ tối lúc chiều tối thì ứng dụng đang
  * mở cũng phải đổi theo, không đợi tải lại trang.
  */
+/**
+ * Gắn màu nhấn lên thẻ <html> qua `data-theme`.
+ *
+ * Dùng thuộc tính chứ không phải lớp, để nó ghép được với lớp `.dark`:
+ * `.dark[data-theme='blue']` cần màu nhấn sáng hơn bản nền sáng. Hai trục
+ * độc lập nên phải ở hai cơ chế khác nhau.
+ */
+export function useApplyColorTheme(colorTheme: SystemSettings['colorTheme']): void {
+  useEffect(() => {
+    document.documentElement.dataset.theme = colorTheme;
+  }, [colorTheme]);
+}
+
 export function useApplyTheme(theme: SystemSettings['theme']): void {
   useEffect(() => {
     const root = document.documentElement;

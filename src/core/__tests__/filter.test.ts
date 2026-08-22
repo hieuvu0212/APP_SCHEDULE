@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Occurrence } from '../../types';
-import { filterOccurrences, normalizeText, totalMinutes } from '../filter';
+import {
+  distinctClients,
+  filterOccurrences,
+  normalizeText,
+  totalMinutes,
+} from '../filter';
 import { toAbsolute } from '../time';
 
 function occ(over: Partial<Occurrence> = {}): Occurrence {
@@ -133,6 +138,51 @@ describe('filterOccurrences', () => {
     ]);
     // Chữ Latin trong tiêu đề tiếng Trung vẫn hạ chữ thường bình thường
     expect(filterOccurrences(mixed, { query: 'hsk4' }).map((o) => o.key)).toEqual(['zh']);
+  });
+});
+
+describe('lọc theo clientName — không riêng học sinh', () => {
+  // Trường này trả lời "buổi này dành cho ai / ở đâu": học sinh với gia sư,
+  // chỗ làm với đi làm, môn học với đại học.
+  const list = [
+    occ({ key: 'a', clientName: 'Minh' }),
+    occ({ key: 'b', clientName: 'PULLMAN' }),
+    occ({ key: 'c', clientName: ' minh ' }),
+    occ({ key: 'd' }),
+  ];
+
+  it('gom cả biến thể hoa thường và khoảng trắng thừa', () => {
+    expect(filterOccurrences(list, { clientNames: ['Minh'] }).map((o) => o.key)).toEqual([
+      'a',
+      'c',
+    ]);
+  });
+
+  it('bỏ trống thì không lọc gì', () => {
+    expect(filterOccurrences(list, { clientNames: [] })).toHaveLength(4);
+  });
+
+  it('kết hợp được với bộ lọc khác', () => {
+    const out = filterOccurrences(list, {
+      clientNames: ['PULLMAN'],
+      statuses: ['SCHEDULED'],
+    });
+    expect(out.map((o) => o.key)).toEqual(['b']);
+  });
+});
+
+describe('distinctClients', () => {
+  it('gộp biến thể về một mục, giữ dạng gõ đầu tiên', () => {
+    const out = distinctClients([
+      occ({ clientName: 'Minh' }),
+      occ({ clientName: ' minh ' }),
+      occ({ clientName: 'PULLMAN' }),
+    ]);
+    expect(out).toEqual(['Minh', 'PULLMAN']);
+  });
+
+  it('bỏ qua buổi không có tên đối tượng', () => {
+    expect(distinctClients([occ(), occ({ clientName: '   ' })])).toEqual([]);
   });
 });
 

@@ -24,7 +24,8 @@ import { useTranslation } from 'react-i18next';
 import type { Category, SalaryMode, SalaryRule, ShortfallPolicy } from '../types';
 import { createSalaryRule, updateSalaryRule } from '../db/repo/salary';
 import { formatMoney } from '../i18n';
-import { Button, Field, Modal, inputClass } from './ui';
+import { inputClass } from './styles';
+import { Button, Field, Modal } from './ui';
 
 const CURRENCIES = ['VND', 'USD', 'CNY'] as const;
 
@@ -263,7 +264,7 @@ export function SalaryRuleForm({
                 onClick={() => set('mode', m)}
                 className={`rounded-lg px-3 py-1.5 text-sm transition ${
                   form.mode === m
-                    ? 'bg-slate-900 text-white'
+                    ? 'bg-primary text-primary-fg'
                     : 'border border-slate-300 text-slate-600 hover:bg-slate-100'
                 }`}
               >

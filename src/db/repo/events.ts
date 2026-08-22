@@ -34,6 +34,31 @@ export async function createEvent(input: NewSingleEvent): Promise<string> {
   return id;
 }
 
+/**
+ * Tạo nhiều sự kiện trong MỘT giao dịch, trả về id đã tạo.
+ *
+ * Chạy trong transaction để nhân bản tuần không thể dừng giữa chừng: tạo được
+ * bốn buổi rồi lỗi sẽ để lại một tuần chép dở mà nút Hoàn tác không biết gì về
+ * bốn buổi đó.
+ */
+export async function bulkCreateEvents(inputs: NewSingleEvent[]): Promise<string[]> {
+  if (inputs.length === 0) return [];
+
+  const t = nowISO();
+  const rows: SingleEvent[] = inputs.map((input) => ({
+    ...input,
+    id: newId(),
+    createdAt: t,
+    updatedAt: t,
+  }));
+
+  await db.transaction('rw', db.events, async () => {
+    await db.events.bulkAdd(rows);
+  });
+
+  return rows.map((r) => r.id);
+}
+
 export async function updateEvent(
   id: string,
   patch: Partial<NewSingleEvent>,

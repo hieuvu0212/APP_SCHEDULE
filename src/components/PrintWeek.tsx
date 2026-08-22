@@ -29,6 +29,7 @@ import { useTranslation } from 'react-i18next';
 import type { Category, Occurrence, SalaryRule } from '../types';
 import { todayKey } from '../core/calendar';
 import { calcOccurrenceIncome, resolveSalaryRule } from '../core/income';
+import { PRINT_BANDS, groupByBand } from '../core/layout';
 import { statsByCategory, totalStat } from '../core/stats';
 import { dayOfWeek, endTimeOf, monthOf } from '../core/time';
 import { formatDate, formatDayMonth, formatHours, formatMoney } from '../i18n';
@@ -136,15 +137,27 @@ export function PrintWeek({
                   {list.length === 0 ? (
                     <span className="text-slate-300">—</span>
                   ) : (
-                    <ul className="space-y-1">
-                      {list.map((o) => (
-                        <PrintEvent
-                          key={o.key}
-                          occurrence={o}
-                          category={categories.get(o.categoryId)}
-                        />
-                      ))}
-                    </ul>
+                    // Chia Sáng/Chiều/Tối. Một ngày bốn ca liền nhau in ra
+                    // thành cột chữ dài không có mốc nào để mắt bám vào; nhãn
+                    // buổi trả lại cấu trúc mà bố cục in đã bỏ trục thời gian.
+                    groupByBand(list).map((group, i) =>
+                      group.length === 0 ? null : (
+                        <div key={PRINT_BANDS[i].key} className="mb-1.5 last:mb-0">
+                          <p className="mb-0.5 text-[8px] font-bold uppercase tracking-wide text-slate-400">
+                            {t(PRINT_BANDS[i].key)}
+                          </p>
+                          <ul className="space-y-1">
+                            {group.map((o) => (
+                              <PrintEvent
+                                key={o.key}
+                                occurrence={o}
+                                category={categories.get(o.categoryId)}
+                              />
+                            ))}
+                          </ul>
+                        </div>
+                      ),
+                    )
                   )}
                 </td>
               );

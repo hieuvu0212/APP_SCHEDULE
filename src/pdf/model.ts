@@ -18,11 +18,14 @@
 
 import type { Category, Occurrence, SalaryRule } from '../types';
 import { calcOccurrenceIncome, resolveSalaryRule } from '../core/income';
+import { groupByBand } from '../core/layout';
 import { statsByCategory, totalStat } from '../core/stats';
 import { endTimeOf, monthOf } from '../core/time';
 
 export interface PdfEvent {
   key: string;
+  /** "08:00" — giữ riêng để gom nhóm theo buổi */
+  startTime: string;
   /** "08:00–12:00" */
   time: string;
   title: string;
@@ -33,13 +36,28 @@ export interface PdfEvent {
   mark: string;
 }
 
+export interface PdfBand {
+  /** Nhãn đã dịch: "Sáng" / "Chiều" / "Tối" */
+  label: string;
+  events: PdfEvent[];
+}
+
 export interface PdfColumn {
   date: string;
   /** "T2" / "Mon" / "一" */
   weekday: string;
   /** "17/08" */
   dayLabel: string;
+  /** Danh sách phẳng, đã sắp theo giờ — dùng để đếm và dò ký tự */
   events: PdfEvent[];
+  /**
+   * Cùng dữ liệu với `events`, gom theo buổi Sáng/Chiều/Tối.
+   *
+   * Một ngày dạy bốn ca liền nhau in ra thành một cột chữ dài không có mốc
+   * nào để mắt bám vào. Chia buổi cho lại cấu trúc mà trục thời gian của lưới
+   * đã phải bỏ đi khi chuyển sang bố cục in.
+   */
+  bands: PdfBand[];
 }
 
 export interface PdfModel {
@@ -77,6 +95,8 @@ export interface PdfModelInput {
     fixedMonthlyExcluded: string;
     /** Bảy nhãn thứ, chỉ số theo Date.getDay() */
     weekdays: string[];
+    /** Ba nhãn buổi, cùng thứ tự với PRINT_BANDS */
+    bands: string[];
   };
   format: {
     dayLabel: (date: string) => string;
@@ -93,15 +113,13 @@ export function buildPdfModel(input: PdfModelInput): PdfModel {
   // phải nhật ký.
   const visible = input.occurrences.filter((o) => o.status !== 'CANCELLED');
 
-  const columns: PdfColumn[] = dates.map((date) => ({
-    date,
-    weekday: labels.weekdays[format.dayOfWeek(date)] ?? '',
-    dayLabel: format.dayLabel(date),
-    events: visible
+  const columns: PdfColumn[] = dates.map((date) => {
+    const events: PdfEvent[] = visible
       .filter((o) => o.date === date)
       .sort((a, b) => a.startAbs - b.startAbs)
       .map((o) => ({
         key: o.key,
+        startTime: o.startTime,
         time: `${o.startTime}–${endTimeOf(o.startTime, o.durationMinutes)}`,
         title: o.title,
         categoryName: categories.get(o.categoryId)?.name ?? '',
@@ -110,8 +128,19 @@ export function buildPdfModel(input: PdfModelInput): PdfModel {
         // Ký hiệu chứ không phải màu: bản in có thể ra máy in đen trắng, và
         // lúc đó màu là thông tin bị mất hoàn toàn.
         mark: o.status === 'COMPLETED' ? '✓' : o.status === 'NO_SHOW' ? '✗' : '',
+      }));
+
+    return {
+      date,
+      weekday: labels.weekdays[format.dayOfWeek(date)] ?? '',
+      dayLabel: format.dayLabel(date),
+      events,
+      bands: groupByBand(events).map((group, i) => ({
+        label: labels.bands[i] ?? '',
+        events: group,
       })),
-  }));
+    };
+  });
 
   const total = totalStat(statsByCategory(visible));
 

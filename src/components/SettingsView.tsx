@@ -32,12 +32,27 @@ import {
   type NotificationState,
 } from '../hooks/useReminders';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
-import { Button, ConfirmDialog, Field, Modal, inputClass } from './ui';
+import { inputClass } from './styles';
+import { Button, ConfirmDialog, Field, Modal } from './ui';
 
 const CURRENCIES: Array<SystemSettings['currency']> = ['VND', 'USD', 'CNY'];
 
 /** Chỉ liệt kê bộ ngôn ngữ THẬT SỰ có file. Bày ra một lựa chọn rồi rơi về
  *  tiếng Việt còn khó hiểu hơn là không bày. */
+/**
+ * Bảy màu nhấn. Nhãn để nguyên tiếng Anh ở cả ba bộ ngôn ngữ — đây là tên
+ * màu, dịch ra sẽ dài hơn mà không rõ hơn, và ô màu bên cạnh đã nói hết.
+ */
+const COLOR_THEMES: Array<{ value: SystemSettings['colorTheme']; swatch: string }> = [
+  { value: 'navy', swatch: '#0f172a' },
+  { value: 'blue', swatch: '#1d4ed8' },
+  { value: 'green', swatch: '#15803d' },
+  { value: 'purple', swatch: '#6d28d9' },
+  { value: 'rose', swatch: '#be123c' },
+  { value: 'orange', swatch: '#c2410c' },
+  { value: 'teal', swatch: '#0f766e' },
+];
+
 const LANGUAGES: Array<{ value: SystemSettings['language']; label: string }> = [
   { value: 'vi', label: 'Tiếng Việt' },
   { value: 'en', label: 'English' },
@@ -85,7 +100,7 @@ export function SettingsView() {
                 onClick={() => void update({ theme: option.value })}
                 className={`rounded-lg px-3 py-1.5 text-sm transition ${
                   settings.theme === option.value
-                    ? 'bg-slate-900 text-white'
+                    ? 'bg-primary text-primary-fg'
                     : 'border border-slate-300 text-slate-600 hover:bg-slate-100'
                 }`}
               >
@@ -94,6 +109,31 @@ export function SettingsView() {
             ))}
           </div>
           <p className="mt-1 text-xs text-slate-400">{t('settings.themeHint')}</p>
+        </div>
+
+        <div>
+          <span className="block text-xs font-medium text-slate-500">
+            {t('settings.colorTheme')}
+          </span>
+          <div className="mt-1.5 flex flex-wrap gap-2">
+            {COLOR_THEMES.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => void update({ colorTheme: option.value })}
+                aria-label={option.value}
+                style={{ backgroundColor: option.swatch }}
+                className={`size-8 rounded-full transition ${
+                  settings.colorTheme === option.value
+                    ? 'ring-2 ring-slate-900 ring-offset-2'
+                    : 'hover:scale-110'
+                }`}
+              />
+            ))}
+          </div>
+          <p className="mt-1.5 text-xs leading-snug text-slate-400">
+            {t('settings.colorThemeHint')}
+          </p>
         </div>
 
         <Field label={t('settings.languageLabel')} hint={t('settings.languageHint')}>
@@ -422,7 +462,7 @@ function ReminderSection() {
                     onClick={() => void update({ reminderLeadMinutes: m })}
                     className={`rounded-lg px-3 py-1.5 text-sm transition ${
                       settings.reminderLeadMinutes === m
-                        ? 'bg-slate-900 text-white'
+                        ? 'bg-primary text-primary-fg'
                         : 'border border-slate-300 text-slate-600 hover:bg-slate-100'
                     }`}
                   >
@@ -451,6 +491,7 @@ const TABLE_KEY: Record<BackupTable, string> = {
   salaryRules: 'trash.tableSalaryRules',
   adjustments: 'trash.tableAdjustments',
   adjustmentTemplates: 'trash.tableTemplates',
+  payments: 'trash.tablePayments',
 };
 
 function TrashSection() {

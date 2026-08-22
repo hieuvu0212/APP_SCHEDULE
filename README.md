@@ -2,7 +2,15 @@
 
 Quản lý lịch cá nhân đa loại (học, làm ca, gia sư, nghiên cứu) kèm theo dõi thu nhập. Chạy hoàn toàn ở client, dữ liệu trong IndexedDB.
 
-Bảy màn hình: lịch tuần có kéo–thả, lịch tháng, danh sách có lọc và tìm kiếm, bảng lương tháng, thống kê, quản lý (danh mục + lịch lặp), cài đặt.
+Chín màn hình: tổng quan, lịch tuần có kéo–thả, lịch tháng, danh sách có lọc và tìm kiếm, bảng lương tháng, thu tiền, thống kê, quản lý (danh mục + lịch lặp), cài đặt.
+
+### `clientName` không phải "học sinh"
+
+Trường này trả lời câu **"buổi này dành cho ai / ở đâu"**: học sinh với lịch gia sư, chỗ làm với lịch đi làm, môn học với lịch đại học, đề tài với lịch nghiên cứu. Tên đặt chung từ đầu để không phải đổi khi dùng cho loại lịch khác, và bộ lọc ở Danh sách lẫn Thống kê đều lọc theo nó.
+
+Trên giao diện nó hiển thị là **"Đối tượng"** ở cả ba ngôn ngữ. Tên trường trong mã và trong DB vẫn là `clientName` — đổi tên trường là phải migrate, mà migrate thì không hoàn tác được, nên cái giá đó không đáng để đổi lấy một cái tên đẹp hơn. Nếu bạn viết chữ "học sinh" vào một nhãn nào đó, bạn đang thu hẹp trường này về đúng một trong bốn công dụng của nó.
+
+⚠️ Nó vẫn là **chuỗi gõ tay**, nên "Minh" và "Mình" là hai đối tượng khác nhau. `distinctClients()` gộp được biến thể hoa thường và khoảng trắng thừa, nhưng đó chỉ là che tạm — muốn đếm chính xác thì phải nâng nó thành thực thể có `id`, và việc đó cần `db.version(2)`.
 
 Phím tắt: `←` `→` đổi tuần/tháng, `T` về hôm nay, `N` thêm sự kiện.
 
@@ -123,6 +131,8 @@ src/
 │   ├── backup.ts        Kiểm tra file sao lưu + quy tắc trộn theo updatedAt
 │   ├── trash.ts         Mốc thời gian cho việc dọn tombstone
 │   ├── reminder.ts      Chọn buổi cần nhắc và thời điểm bắn
+│   ├── copyWeek.ts      Dựng kế hoạch nhân bản tuần (không ghi gì)
+│   ├── payment.ts       Ai còn nợ bao nhiêu — trạng thái được TÍNH RA
 │   ├── income.ts        TẦNG 1 — tiền của một buổi
 │   ├── payroll.ts       TẦNG 2 — tiền của một tháng (con số chính thức)
 │   └── __tests__/
@@ -139,11 +149,26 @@ src/
 │   └── useSettings.ts
 │
 ├── actions/schedule.ts  Dịch thao tác người dùng thành lệnh ghi DB
-├── undo/                Toast "Hoàn tác"
+├── undo/
+│   ├── context.ts       UndoContext + useUndo()
+│   └── UndoProvider.tsx Toast "Hoàn tác" — CHỈ export component
 ├── components/
-├── i18n/                i18next + bộ vi (en/zh thêm sau)
+│   ├── styles.ts        inputClass — hằng dùng chung, tách khỏi ui.tsx
+│   ├── eventValidation.ts  validate() — tách khỏi EventDialog.tsx
+│   └── …
+├── i18n/                i18next + ba bộ vi / en / zh
 └── App.tsx
 ```
+
+### Vì sao `useUndo`, `inputClass`, `validate` nằm ở file riêng
+
+Fast Refresh của Vite chỉ giữ được state của một module khi module đó **không export gì ngoài component**. Một hook, một hằng chuỗi, một hàm thuần nằm chung là đủ để mất điều kiện đó — và hậu quả rơi đúng vào lúc khó chịu nhất: sửa một dòng trong `EventDialog` là form đang gõ dở bị nạp lại từ đầu.
+
+`oxlint` cảnh báo chuyện này qua `only-export-components`. Đừng gộp chúng về lại cho gọn.
+
+### Bốn màn hình nạp theo yêu cầu
+
+`StatsView`, `PayrollView`, `DuesView`, `SettingsView` đi qua `React.lazy`. Mở app là vào Tổng quan, nên bốn màn hình đó không cần cho lần vẽ đầu tiên và có thể cả phiên không ai mở. `Suspense` bọc **cả** chuỗi render chứ không bọc riêng từng màn hình, và fallback trùng với ô "đang tải" của dữ liệu — người dùng không cần phân biệt đang chờ mã hay chờ dữ liệu.
 
 ### Luồng dữ liệu
 
@@ -182,13 +207,33 @@ Ba con số khác nhau, nên `mode` và `shortfallPolicy` **không có mặc đ�
 
 Mỗi nguồn thu nhập một danh mục riêng: `SalaryRule` gắn vào `categoryId` và mỗi danh mục chỉ mang một chế độ lương tại một thời điểm. Gộp chỗ trả khoán tháng với chỗ trả theo giờ vào chung một danh mục là `calcMonthlyPayroll` hết đường phân biệt.
 
+## Thu tiền
+
+Trả lời câu "ai còn nợ mình bao nhiêu". Dùng cho học phí gia sư, tiền công theo buổi, hay bất cứ khoản nào gắn với một đối tượng cụ thể.
+
+**Trạng thái được TÍNH RA, không lưu.** "Đã thu / thu một phần / chưa thu" là kết quả so tổng các khoản đã ghi nhận với số phải thu của tháng. Lưu nó thành một cột là tạo nguồn sự thật thứ hai: thêm một buổi vào cuối tháng thì số phải thu đổi, nhưng cột trạng thái không tự biết — và nó sẽ nói dối đúng vào lúc cần nhất.
+
+**Lương khoán tháng hiện "—" ở cột Phải thu.** Không phải thiếu dữ liệu: 8 triệu một tháng không tách được cho từng học sinh, chia đều ra là bịa số. Một buổi khoán tháng làm cả dòng thành không quy đổi được — cộng phần còn lại rồi hiện ra sẽ là con số đúng một nửa, tệ hơn không hiện gì. Tiền đã thu thật thì vẫn ghi nhận bình thường.
+
+### `db.version(2)` — và vì sao nó chỉ thêm một bảng rỗng
+
+Cách "đúng" hơn về mô hình là dựng thực thể `Client` có `id` rồi migrate mọi `clientName` cũ sang `clientId`. Nhưng migration đó phải đọc và ghi lại toàn bộ `rules` lẫn `events`, mà **nâng cấp schema là thao tác không hoàn tác được** — máy đã lên `version(2)` không quay về `version(1)` được nữa.
+
+Thêm một bảng rỗng thì Dexie chỉ tạo object store mới, không đụng một byte dữ liệu cũ nào. Rủi ro gần bằng không.
+
+Cái giá: `Payment` neo vào `clientKey` (tên đã chuẩn hóa) chứ không phải `id`, nên **đổi tên một đối tượng sẽ làm các khoản thu cũ mồ côi**. Chấp nhận được cho tới khi việc đổi tên trở thành nhu cầu thật.
+
 ## Ba phạm vi khi sửa một buổi của lịch lặp
 
 | Phạm vi | Ghi gì | Hệ quả |
 |---|---|---|
 | Chỉ buổi này | Một `ScheduleException` (`MOVE` nếu đổi ngày, `REPLACE` nếu không) | Các buổi khác giữ nguyên |
 | Buổi này và các buổi sau | Đặt `endDate` cho rule cũ + tạo rule mới từ mốc cắt | Buổi đã qua giữ nguyên → bảng lương tháng cũ không nhảy số |
-| Toàn bộ chuỗi | Sửa thẳng rule | Đổi cả quá khứ. `startDate` cố tình KHÔNG đổi theo ô Ngày |
+| Toàn bộ chuỗi | Sửa thẳng rule, **kể cả `startDate`** | Đổi cả quá khứ |
+
+Ô **Ngày** mang nghĩa khác nhau theo phạm vi, nên form đổi nhãn thành "Ngày bắt đầu chuỗi" khi ở phạm vi toàn bộ chuỗi. Trước đây nhánh đó bỏ qua ô Ngày với lý do "dời `startDate` sẽ viết lại quá khứ" — lý do đúng, cách xử lý sai: người dùng gõ ngày mới, bấm Lưu, không có gì xảy ra và cũng không có gì báo. Ai không muốn đụng vào quá khứ thì đã có sẵn phạm vi "Buổi này và các buổi sau".
+
+**Dấu vết để phân biệt hai phạm vi khi soi dữ liệu:** chuỗi hàng tuần từ 17/08 mà "dời sang 03/08" nhưng **thiếu 10/08** thì đó là một exception `MOVE` của riêng một buổi, không phải chuỗi đã dời — chuỗi thật sự dời sẽ sinh cả 10/08. Có test cho cả hai trường hợp.
 
 Kéo–thả trên lưới tuần luôn dùng phạm vi **chỉ buổi này** — kéo một khối có nghĩa rõ ràng là dời buổi đó, không ai kéo mà mong cả chuỗi sáu tháng dịch theo.
 
@@ -238,6 +283,18 @@ Quy tắc trộn cố tình **dùng chung với Phase đồng bộ Cloud** — `
 
 Sao lưu giữ nguyên cả bản ghi đã xóa mềm. Bỏ tombstone đi thì khôi phục xong, mọi thứ người dùng đã cố ý dọn đi sẽ hiện về.
 
+## Màu nhấn và chế độ tối
+
+Hai trục độc lập, hai cơ chế khác nhau: chế độ tối là **lớp** `.dark`, màu nhấn là **thuộc tính** `data-theme`. Tách ra để chúng ghép được — `.dark[data-theme='blue']` cần màu xanh sáng hơn bản nền sáng, nếu không nút chìm vào nền.
+
+`@theme` của Tailwind v4 sinh `bg-primary` / `text-primary-fg` từ biến `--color-primary`, và vì lớp đó biên dịch thành `var(--color-primary)`, gán lại biến ở `[data-theme=…]` là toàn bộ nút, tab và biểu đồ đổi theo. Bảy bộ: navy, blue, green, purple, rose, orange, teal.
+
+**Hai thứ màu nhấn KHÔNG được nuốt:**
+
+Màu danh mục đến từ dữ liệu người dùng và đi qua thuộc tính `style` inline, nên theme không chạm tới. Đó là cách phân biệt Rossi với Gia sư — để theme đè lên là mất hẳn một chiều thông tin.
+
+Dấu "hôm nay" giữ màu hổ phách. Nếu nó đổi theo theme thì ở bộ Orange, ô hôm nay và tab đang chọn sẽ cùng màu.
+
 ## Chế độ tối
 
 Đảo **bảng màu** qua biến CSS của Tailwind v4 (`index.css`), không thêm biến thể `dark:` vào từng lớp. Tailwind v4 biên dịch mọi lớp màu thành `var(--color-…)`, nên gán lại các biến đó dưới `.dark` là toàn bộ giao diện tự lật.
@@ -272,6 +329,31 @@ Nguyên tắc: hàm ghi trả về kèm cách hoàn nguyên, không có undo sta
 `upsertExceptionUndoable` chụp trạng thái cũ **trước** khi ghi đè, vì index unique chỉ cho một exception mỗi buổi. Hoàn tác kiểu "xóa bản vừa ghi" sẽ đưa buổi về ngày gốc thay vì ngày đã dời — hoàn tác sai còn tệ hơn không có hoàn tác.
 
 Ngoại lệ duy nhất: **nhập file sao lưu** và **xóa vĩnh viễn trong thùng rác** không hoàn tác được, và cả hai hộp thoại đều nói thẳng điều đó.
+
+## Nhân bản tuần
+
+Nút **Nhân bản tuần** ở màn hình Tuần chép các buổi của tuần đang xem sang một tuần khác. Dành cho lịch làm ca: ca đổi từng tuần nên không viết thành lịch lặp được, nhưng tuần này thường giống tuần trước ở phần lớn các buổi.
+
+Ghi chú cũ trong mục "Còn treo" nói rằng với kiến trúc rule-based thì chép tuần sẽ nhân đôi sự kiện. Điều đó đúng — và đó chính là lý do phép lọc phải là `ruleOriginalDate`, **không phải** `sourceType`:
+
+| Buổi | `ruleOriginalDate` | Xử lý |
+|---|---|---|
+| Sự kiện đơn lẻ | không có | **chép** |
+| Ngoại lệ loại `ADD` | không có | **chép** — nó là buổi thêm tay một lần, không lặp |
+| Do rule sinh ra | có | bỏ — chuỗi tự phủ sang tuần đích |
+| Buổi của rule đã dời/sửa | có | bỏ — vẫn là buổi của chuỗi |
+
+Buổi loại `ADD` mang `sourceType: 'RULE'` nhưng không lặp lại. Lọc theo `sourceType` sẽ đánh rơi đúng nhóm này, và đó là loại lỗi im lặng: người dùng chỉ thấy "hình như thiếu vài buổi".
+
+Ba điểm nữa:
+
+Bản sao **luôn ở trạng thái `SCHEDULED`**, kể cả khi chép từ buổi đã hoàn thành. Bản sao là kế hoạch chứ không phải bản ghi; chép nguyên `COMPLETED` sang tuần sau là khai rằng một buổi chưa diễn ra đã xong, và con số đó chảy thẳng vào Thống kê lẫn bảng lương.
+
+Buổi **đã hủy hoặc vắng mặt thì bỏ**. Chúng là bản ghi của việc đã không xảy ra, chép sang tuần sau không có nghĩa gì.
+
+`planWeekCopy()` chỉ **dựng kế hoạch**, không ghi. Hộp thoại hiển thị đúng những con số của kế hoạch đó, rồi ghi đúng mảng vừa hiển thị — không có đường nào để đếm một đằng ghi một nẻo. Hoàn tác xóa mềm toàn bộ buổi vừa tạo, kể cả buổi người dùng đã kịp sửa: họ đang rút lại nguyên thao tác chép.
+
+Ô chọn ngày nhận ngày bất kỳ nhưng **nắn về đầu tuần**. Không nắn thì chọn nhằm thứ Tư sẽ dịch cả tuần đi ba ngày — vẫn "chạy", chỉ là sai.
 
 ## Thùng rác
 
@@ -309,7 +391,6 @@ Mỗi bài trong `src/db/__tests__/undo.test.ts` tương ứng với một lỗi
 |---|---|
 | Xuất PNG | Đã in được PDF qua `window.print()`. Muốn xuất ảnh bitmap thì dùng `html2canvas-pro`, KHÔNG dùng `html2canvas` 1.4.1 — bản đó crash với Tailwind v4 vì `oklch()`. |
 | Xóa hẳn rate của riêng một buổi | Exception dùng `??` để nối tiếp giá trị gốc, nên không phân biệt được "để trống" với "xóa đi". |
-| "Copy Week" | Chưa định nghĩa lại. Với kiến trúc rule-based, copy tuần sẽ nhân đôi sự kiện. |
 | Biểu tượng PNG cho PWA | Hiện chỉ có SVG. Chrome cài được, nhưng Lighthouse muốn PNG 192px và 512px. |
 | Test cho component | `core/` và `db/` đã phủ. Tầng React thì chưa — và hai lỗi lọt lưới gần đây (ô số nằm trong `<label>`, cột biểu đồ cao 0px) đều nằm đúng ở đó. |
 | Nhắc lịch khi đã đóng app | Cần backend đẩy Web Push. Xem mục Nhắc lịch. |

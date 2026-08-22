@@ -27,6 +27,7 @@ export const BACKUP_TABLES = [
   'salaryRules',
   'adjustments',
   'adjustmentTemplates',
+  'payments',
 ] as const;
 
 export type BackupTable = (typeof BACKUP_TABLES)[number];

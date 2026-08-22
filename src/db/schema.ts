@@ -2,6 +2,7 @@ import Dexie, { type Table } from 'dexie';
 import type {
   AdjustmentTemplate,
   Category,
+  Payment,
   PayrollAdjustment,
   RecurringRule,
   SalaryRule,
@@ -10,7 +11,7 @@ import type {
 } from '../types';
 
 /** Tăng số này mỗi lần schema đổi, và ghi kèm vào file backup JSON */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export class ScheduleDB extends Dexie {
   categories!: Table<Category, string>;
@@ -20,6 +21,7 @@ export class ScheduleDB extends Dexie {
   salaryRules!: Table<SalaryRule, string>;
   adjustments!: Table<PayrollAdjustment, string>;
   adjustmentTemplates!: Table<AdjustmentTemplate, string>;
+  payments!: Table<Payment, string>;
   settings!: Table<{ key: string; value: unknown }, string>;
 
   constructor() {
@@ -46,13 +48,29 @@ export class ScheduleDB extends Dexie {
     });
 
     // ─────────────────────────────────────────────────────────────────────
-    // CÁC PHASE SAU: CHỈ ĐƯỢC THÊM version MỚI. KHÔNG BAO GIỜ SỬA version(1).
-    // Sửa version cũ sẽ làm hỏng DB của những máy đã cài bản trước.
+    //  version(2) — bảng thu tiền
     //
-    // this.version(2).stores({ ... }).upgrade(async (tx) => {
-    //   await tx.table('rules').toCollection().modify((r) => { ... });
-    // });
+    //  ⚠️ CHỈ THÊM MỘT BẢNG RỖNG, KHÔNG CÓ upgrade().
+    //
+    //  Đó là lựa chọn có chủ đích. Cách "đúng" hơn về mặt mô hình là dựng một
+    //  thực thể Client có id rồi migrate mọi `clientName` cũ sang `clientId`.
+    //  Nhưng migration đó phải đọc và ghi lại toàn bộ rules lẫn events, và
+    //  nâng cấp schema là thao tác KHÔNG HOÀN TÁC ĐƯỢC — máy nào đã lên
+    //  version(2) thì không quay về version(1) được nữa.
+    //
+    //  Thêm một bảng rỗng thì Dexie chỉ tạo object store mới, không đụng vào
+    //  một byte dữ liệu cũ nào. Rủi ro gần bằng không.
+    //
+    //  Cái giá phải trả: Payment neo vào `clientKey` (chuỗi tên đã chuẩn hóa)
+    //  chứ không phải id, nên đổi tên một đối tượng sẽ làm các khoản thu cũ
+    //  mồ côi. Chấp nhận được cho tới khi việc đổi tên trở thành nhu cầu thật.
+    //
+    //  KHÔNG BAO GIỜ SỬA version(1) ở trên. Sửa version cũ làm hỏng DB của
+    //  những máy đã cài bản trước.
     // ─────────────────────────────────────────────────────────────────────
+    this.version(2).stores({
+      payments: 'id, [clientKey+month], clientKey, month, categoryId, deletedAt',
+    });
   }
 }
 

@@ -77,6 +77,7 @@ function build(
       estimatedIncome: 'Thu nhập',
       fixedMonthlyExcluded: 'chưa gồm khoán tháng',
       weekdays: ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'],
+      bands: ['Sáng', 'Chiều', 'Tối'],
     },
     format: {
       dayLabel: (d) => d.slice(8),
@@ -119,6 +120,40 @@ describe('buildPdfModel — cột ngày', () => {
       occ({ key: 'c', startTime: '12:00', status: 'SCHEDULED' }),
     ]);
     expect(model.columns[0].events.map((e) => e.mark)).toEqual(['✓', '✗', '']);
+  });
+});
+
+describe('buildPdfModel — chia buổi Sáng/Chiều/Tối', () => {
+  it('xếp đúng nhóm theo giờ bắt đầu', () => {
+    const model = build([
+      occ({ key: 'toi', startTime: '19:00' }),
+      occ({ key: 'sang', startTime: '08:00' }),
+      occ({ key: 'chieu', startTime: '14:00' }),
+    ]);
+    const bands = model.columns[0].bands;
+    expect(bands.map((b) => b.label)).toEqual(['Sáng', 'Chiều', 'Tối']);
+    expect(bands.map((b) => b.events.map((e) => e.key))).toEqual([
+      ['sang'],
+      ['chieu'],
+      ['toi'],
+    ]);
+  });
+
+  it('`bands` và `events` là CÙNG một tập dữ liệu', () => {
+    // `events` phẳng dùng để đếm và dò ký tự, `bands` dùng để vẽ. Lệch nhau
+    // là số liệu tổng kết sẽ không khớp với thứ in ra.
+    const model = build([
+      occ({ key: 'a', startTime: '08:00' }),
+      occ({ key: 'b', startTime: '20:00' }),
+    ]);
+    const flat = model.columns[0].bands.flatMap((b) => b.events.map((e) => e.key));
+    expect(flat.sort()).toEqual(model.columns[0].events.map((e) => e.key).sort());
+  });
+
+  it('nhóm rỗng vẫn tồn tại để tầng hiển thị tự quyết định ẩn hay hiện', () => {
+    const model = build([occ({ startTime: '08:00' })]);
+    expect(model.columns[0].bands).toHaveLength(3);
+    expect(model.columns[0].bands[1].events).toEqual([]);
   });
 });
 

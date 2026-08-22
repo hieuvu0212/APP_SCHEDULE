@@ -70,6 +70,16 @@ export const styles = StyleSheet.create({
   columnBody: { padding: 3, minHeight: 380 },
   emptyDay: { fontSize: 7, color: COLORS.faint, textAlign: 'center', marginTop: 6 },
 
+  bandLabel: {
+    fontSize: 6,
+    fontWeight: 'bold',
+    color: COLORS.faint,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 1.5,
+    marginTop: 2,
+  },
+
   event: {
     borderLeftWidth: 2,
     borderRadius: 2,

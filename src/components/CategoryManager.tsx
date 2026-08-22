@@ -21,8 +21,9 @@ import {
   updateCategory,
 } from '../db/repo/categories';
 import { formatMoney } from '../i18n';
-import { useUndo } from '../undo/UndoProvider';
-import { Button, ColorDot, ConfirmDialog, Field, Modal, inputClass } from './ui';
+import { useUndo } from '../undo/context';
+import { inputClass } from './styles';
+import { Button, ColorDot, ConfirmDialog, Field, Modal } from './ui';
 
 const PRESET_COLORS = [
   '#3b82f6', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899',
@@ -135,25 +136,33 @@ function CategoryForm({
   const [rate, setRate] = useState(
     category?.defaultRatePerHour != null ? String(category.defaultRatePerHour) : '',
   );
-  const [ratedCount, setRatedCount] = useState<number | null>(null);
+  const [rated, setRated] = useState<{ categoryId: string; n: number } | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Chỉ đếm khi người dùng ĐANG TẮT một danh mục vốn đang bật — lúc khác con
   // số này không nói lên điều gì.
   const turningOff = !!category?.isIncomeEligible && !eligible;
   useEffect(() => {
-    if (!turningOff || !category) {
-      setRatedCount(null);
-      return;
-    }
+    if (!turningOff || !category) return;
     let alive = true;
     void countRatedItems(category.id).then((n) => {
-      if (alive) setRatedCount(n);
+      if (alive) setRated({ categoryId: category.id, n });
     });
     return () => {
       alive = false;
     };
   }, [turningOff, category]);
+
+  /**
+   * Con số chỉ đúng cho danh mục đã đếm, nên gắn kèm id rồi đối chiếu lúc đọc.
+   *
+   * Cách cũ là đặt lại `null` ngay trong effect. Nó vừa là setState trong
+   * effect (một vòng render thừa), vừa để lọt một nhịp hiển thị số ĐẾM CỦA
+   * DANH MỤC TRƯỚC khi người dùng mở sang danh mục khác — effect chạy sau khi
+   * đã vẽ xong.
+   */
+  const ratedCount =
+    turningOff && rated?.categoryId === category?.id ? rated.n : null;
 
   const trimmed = name.trim();
   const parsedRate = rate.replace(/\D/g, '');

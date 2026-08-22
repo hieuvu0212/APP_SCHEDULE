@@ -14,23 +14,23 @@
 //     · Thu nhập  → màn hình đó tự nạp trọn tháng qua usePayroll
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useTranslation } from 'react-i18next';
 import type { DialogTarget, EditScope, SubmitPayload } from './components/EventDialog';
 import type { Occurrence, OccurrenceStatus, RecurringRule } from './types';
+import type { EventDraft } from './core/copyWeek';
 import { addMonths, monthGridDates, todayKey, weekDates } from './core/calendar';
 import { calcOccurrenceIncome, resolveSalaryRule } from './core/income';
 import { addDays, dayOfWeek, monthBounds, monthOf } from './core/time';
 import { CategoryManager } from './components/CategoryManager';
+import { CopyWeekDialog } from './components/CopyWeekDialog';
+import { DashboardView } from './components/DashboardView';
 import { RuleManager } from './components/RuleManager';
 import { EventDialog } from './components/EventDialog';
 import { ListView } from './components/ListView';
 import { MonthView } from './components/MonthView';
 import { OccurrenceDetail } from './components/OccurrenceDetail';
-import { PayrollView } from './components/PayrollView';
-import { SettingsView } from './components/SettingsView';
-import { StatsView } from './components/StatsView';
 import { WeekView } from './components/WeekView';
 import { Button } from './components/ui';
 import { listSalaryRules } from './db/repo/salary';
@@ -38,40 +38,82 @@ import { getRule } from './db/repo/rules';
 import { getEvent } from './db/repo/events';
 import { categoryMap, useCategories, useSchedule } from './hooks/useSchedule';
 import { useReminders } from './hooks/useReminders';
-import { useApplyLanguage, useApplyTheme, useSettings } from './hooks/useSettings';
+import {
+  useApplyColorTheme,
+  useApplyLanguage,
+  useApplyTheme,
+  useSettings,
+} from './hooks/useSettings';
 import { formatDate, formatDayMonth, formatHours, formatMoney, formatMonthLabel } from './i18n';
 import {
   applySubmit,
+  copyWeek,
   deleteSeries,
   moveOccurrence,
   removeOccurrence,
   resizeOccurrence,
   setStatus,
 } from './actions/schedule';
-import { useUndo } from './undo/UndoProvider';
+import { useUndo } from './undo/context';
+
+// ─── Màn hình nạp theo yêu cầu ─────────────────────────────────────────────
+//
+// Bốn màn hình này không cần cho lần vẽ đầu tiên: mở app là vào Tổng quan.
+// Tách ra khỏi gói chính để lần tải đầu không phải chờ mã của những màn hình
+// có thể cả phiên không ai mở.
+//
+// Dùng dạng `.then(m => ({ default: m.X }))` vì các component này là export
+// có tên, còn React.lazy chỉ nhận export mặc định.
+const StatsView = lazy(() =>
+  import('./components/StatsView').then((m) => ({ default: m.StatsView })),
+);
+const PayrollView = lazy(() =>
+  import('./components/PayrollView').then((m) => ({ default: m.PayrollView })),
+);
+const DuesView = lazy(() =>
+  import('./components/DuesView').then((m) => ({ default: m.DuesView })),
+);
+const SettingsView = lazy(() =>
+  import('./components/SettingsView').then((m) => ({ default: m.SettingsView })),
+);
 
 type View =
+  | 'dashboard'
   | 'week'
   | 'month'
   | 'list'
   | 'payroll'
+  | 'dues'
   | 'stats'
   | 'manage'
   | 'settings';
 
-const VIEWS: View[] = ['week', 'month', 'list', 'payroll', 'stats', 'manage', 'settings'];
+const VIEWS: View[] = [
+  'dashboard',
+  'week',
+  'month',
+  'list',
+  'payroll',
+  'dues',
+  'stats',
+  'manage',
+  'settings',
+];
 /** Màn hình có thanh điều hướng thời gian */
-const TIME_VIEWS: View[] = ['week', 'month', 'payroll'];
+const TIME_VIEWS: View[] = ['week', 'month', 'payroll', 'dues'];
 
 export default function App() {
   const { t } = useTranslation();
   const { pushUndo } = useUndo();
   const settings = useSettings();
   useApplyTheme(settings.theme);
+  useApplyColorTheme(settings.colorTheme);
   useApplyLanguage(settings.language);
   useReminders();
 
-  const [view, setView] = useState<View>('week');
+  // Mở lên là Tổng quan: câu hỏi đầu tiên của người dùng luôn là "hôm nay
+  // tôi phải làm gì", không phải "tuần này trông thế nào".
+  const [view, setView] = useState<View>('dashboard');
   const [anchor, setAnchor] = useState<string>(() => todayKey());
   const [month, setMonth] = useState<string>(() => monthOf(todayKey()));
   const [listRange, setListRange] = useState(() => monthBounds(monthOf(todayKey())));
@@ -80,6 +122,7 @@ export default function App() {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [copyOpen, setCopyOpen] = useState(false);
 
   const categories = useCategories();
   const catMap = useMemo(() => categoryMap(categories), [categories]);
@@ -95,9 +138,17 @@ export default function App() {
   );
 
   const [windowStart, windowEnd] = useMemo((): [string, string] => {
+    // Tổng quan tự nạp dữ liệu riêng, nhưng App vẫn cần cửa sổ này để tra
+    // buổi được bấm vào và mở bảng chi tiết. Phải phủ cả NGÀY MAI — bấm một
+    // buổi của ngày mai mà cửa sổ chỉ có tuần này thì hôm Chủ nhật sẽ không
+    // mở được gì.
+    if (view === 'dashboard') {
+      const today = todayKey();
+      return [today, addDays(today, 1)];
+    }
     if (view === 'list') return [listRange.start, listRange.end];
     if (view === 'month') return [monthGrid[0], monthGrid[monthGrid.length - 1]];
-    if (view === 'payroll') {
+    if (view === 'payroll' || view === 'dues') {
       const b = monthBounds(month);
       return [b.start, b.end];
     }
@@ -115,8 +166,11 @@ export default function App() {
   // lần render.
   const step = useCallback(
     (delta: number) => {
-      if (view === 'month' || view === 'payroll') setMonth((m) => addMonths(m, delta));
-      else setAnchor((a) => addDays(a, delta * 7));
+      if (view === 'month' || view === 'payroll' || view === 'dues') {
+        setMonth((m) => addMonths(m, delta));
+      } else {
+        setAnchor((a) => addDays(a, delta * 7));
+      }
     },
     [view],
   );
@@ -133,7 +187,7 @@ export default function App() {
   };
 
   const rangeLabel =
-    view === 'month' || view === 'payroll'
+    view === 'month' || view === 'payroll' || view === 'dues'
       ? formatMonthLabel(month)
       : `${formatDayMonth(weekGrid[0])} – ${formatDayMonth(weekGrid[6])}`;
 
@@ -273,6 +327,11 @@ export default function App() {
     toast(messageKey, { title: o.title }, undo);
   };
 
+  const handleCopyWeek = async (drafts: EventDraft[]) => {
+    const { messageKey, undo } = await copyWeek(drafts);
+    toast(messageKey, { n: drafts.length }, undo);
+  };
+
   /** Thu nhập TẦNG 1 của một buổi — `null` với lương khoán tháng */
   const incomeOf = (o: Occurrence): number | null =>
     calcOccurrenceIncome(
@@ -311,6 +370,7 @@ export default function App() {
             estimatedIncome: t('print.estimatedIncome'),
             fixedMonthlyExcluded: t('print.fixedMonthlyExcluded'),
             weekdays: [0, 1, 2, 3, 4, 5, 6].map((d) => t(`weekday.s${d}`)),
+            bands: [t('print.morning'), t('print.afternoon'), t('print.evening')],
           },
           format: {
             dayLabel: formatDayMonth,
@@ -369,7 +429,7 @@ export default function App() {
                 onClick={() => setView(v)}
                 className={`shrink-0 rounded-md px-3 py-1 text-sm font-medium transition ${
                   view === v
-                    ? 'bg-white text-slate-900 shadow-sm'
+                    ? 'bg-primary text-primary-fg shadow-sm'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
@@ -411,13 +471,18 @@ export default function App() {
                 {t('common.print')}
               </Button>
               {view === 'week' && (
-                <Button
-                  variant="outline"
-                  disabled={exporting}
-                  onClick={() => void handleExportPdf()}
-                >
-                  {exporting ? t('print.generating') : t('print.exportPdf')}
-                </Button>
+                <>
+                  <Button variant="outline" onClick={() => setCopyOpen(true)}>
+                    {t('copyWeek.open')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={exporting}
+                    onClick={() => void handleExportPdf()}
+                  >
+                    {exporting ? t('print.generating') : t('print.exportPdf')}
+                  </Button>
+                </>
               )}
               <Button variant="primary" onClick={openCreate} title={t('shortcut.new')}>
                 + {t('event.add')}
@@ -432,6 +497,16 @@ export default function App() {
           </p>
         )}
 
+        {/* Suspense bọc CẢ chuỗi, không bọc riêng từng màn hình nạp chậm:
+            fallback giống hệt ô "đang tải" của dữ liệu, nên người dùng không
+            phân biệt được đang chờ mã hay chờ dữ liệu — và cũng không cần. */}
+        <Suspense
+          fallback={
+            <p className="rounded-xl border border-slate-200 bg-white px-4 py-10 text-center text-slate-400">
+              {t('common.loading')}
+            </p>
+          }
+        >
         {!ready || !categories || !occurrences ? (
           <p className="rounded-xl border border-slate-200 bg-white px-4 py-10 text-center text-slate-400">
             {t('common.loading')}
@@ -452,8 +527,15 @@ export default function App() {
           </div>
         ) : view === 'settings' ? (
           <SettingsView />
+        ) : view === 'dashboard' ? (
+          <DashboardView
+            onPick={(o) => setSelectedKey(o.key)}
+            onOpenDate={openDay}
+          />
         ) : view === 'stats' ? (
           <StatsView />
+        ) : view === 'dues' ? (
+          <DuesView month={month} />
         ) : view === 'payroll' ? (
           <PayrollView month={month} />
         ) : view === 'list' ? (
@@ -491,6 +573,7 @@ export default function App() {
             onOpenDay={openDay}
           />
         )}
+        </Suspense>
 
         {ready && (view === 'week' || view === 'month') && occurrences?.length === 0 && (
           <p className="mt-3 text-center text-sm text-slate-400">{t('week.empty')}</p>
@@ -524,6 +607,15 @@ export default function App() {
           defaultScope={dialogScope}
           onSubmit={submit}
           onClose={() => setDialog(null)}
+        />
+      )}
+
+      {copyOpen && occurrences && (
+        <CopyWeekDialog
+          source={occurrences}
+          fromWeekStart={weekGrid[0]}
+          onConfirm={handleCopyWeek}
+          onClose={() => setCopyOpen(false)}
         />
       )}
     </div>

@@ -17,6 +17,7 @@
 
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { OccurrenceStatus } from '../types';
 import type { CategoryStat } from '../core/stats';
 import { completionRate, totalStat } from '../core/stats';
 import { addMonths, todayKey, weekdayOrder } from '../core/calendar';
@@ -50,10 +51,16 @@ export function StatsView() {
   const { t } = useTranslation();
   const settings = useSettings();
   const [span, setSpan] = useState<number>(6);
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
+  const [clientNames, setClientNames] = useState<string[]>([]);
+  const [statuses, setStatuses] = useState<OccurrenceStatus[]>([]);
 
   const toMonth = monthOf(todayKey());
   const fromMonth = addMonths(toMonth, -(span - 1));
-  const data = useStats(fromMonth, toMonth);
+
+  // Dựng lại object mỗi lần render là được: useStats rút nó thành chuỗi để so
+  // sánh, chứ không so theo tham chiếu.
+  const data = useStats(fromMonth, toMonth, { categoryIds, clientNames, statuses });
 
   const catMap = useMemo(
     () => new Map((data?.categories ?? []).map((c) => [c.id, c])),
@@ -83,7 +90,7 @@ export function StatsView() {
               onClick={() => setSpan(s)}
               className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
                 span === s
-                  ? 'bg-white text-slate-900 shadow-sm'
+                  ? 'bg-primary text-primary-fg shadow-sm'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
@@ -94,6 +101,42 @@ export function StatsView() {
         <span className="ml-auto text-xs text-slate-400">
           {formatMonthLabel(fromMonth)} – {formatMonthLabel(toMonth)}
         </span>
+      </div>
+
+      <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+        <Chips
+          title={t('stats.filterCategory')}
+          items={data.categories.map((c) => ({ value: c.id, label: c.name, color: c.color }))}
+          selected={categoryIds}
+          onToggle={(v) => setCategoryIds((l) => toggle(l, v))}
+        />
+        {data.clients.length > 0 && (
+          <Chips
+            title={t('stats.filterClient')}
+            items={data.clients.map((name) => ({ value: name, label: name }))}
+            selected={clientNames}
+            onToggle={(v) => setClientNames((l) => toggle(l, v))}
+          />
+        )}
+        <Chips
+          title={t('stats.filterStatus')}
+          items={STATUSES.map((s) => ({ value: s, label: t(STATUS_KEY[s]) }))}
+          selected={statuses}
+          onToggle={(v) => setStatuses((l) => toggle(l, v as OccurrenceStatus))}
+        />
+        {(categoryIds.length > 0 || clientNames.length > 0 || statuses.length > 0) && (
+          <button
+            type="button"
+            onClick={() => {
+              setCategoryIds([]);
+              setClientNames([]);
+              setStatuses([]);
+            }}
+            className="text-xs text-slate-500 transition hover:text-slate-900"
+          >
+            {t('list.clearFilters')}
+          </button>
+        )}
       </div>
 
       {/* ── Bốn con số tóm tắt ── */}
@@ -130,6 +173,11 @@ export function StatsView() {
       {/* ── Thu nhập theo tháng ── */}
       <section className="rounded-xl border border-slate-200 bg-white p-5">
         <h3 className="text-sm font-semibold text-slate-800">{t('stats.incomeByMonth')}</h3>
+        {data.incomeIgnoresFilter && (
+          <p className="mt-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+            {t('stats.incomeFilterNote')}
+          </p>
+        )}
         <IncomeChart income={data.income} hoursPerMonth={data.hoursPerMonth} />
       </section>
 
@@ -172,6 +220,62 @@ export function StatsView() {
 
 // ───────────────────────────────────────────────────────────────────────────
 
+const STATUSES: OccurrenceStatus[] = ['SCHEDULED', 'COMPLETED', 'NO_SHOW', 'CANCELLED'];
+const STATUS_KEY: Record<OccurrenceStatus, string> = {
+  SCHEDULED: 'occurrence.scheduled',
+  COMPLETED: 'occurrence.completed',
+  CANCELLED: 'occurrence.cancelled',
+  NO_SHOW: 'occurrence.noShow',
+};
+
+function toggle<T>(list: T[], value: T): T[] {
+  return list.includes(value) ? list.filter((x) => x !== value) : [...list, value];
+}
+
+/** Một hàng chip bật/tắt. Dùng lại cho danh mục, đối tượng và trạng thái. */
+function Chips({
+  title,
+  items,
+  selected,
+  onToggle,
+}: {
+  /**
+   * Nhãn của hàng.
+   *
+   * Ba hàng chip xếp chồng nhau mà không có nhãn thì không đọc ra được hàng nào
+   * lọc theo gì — nhất là hàng Đối tượng, vì nội dung của nó là tên do người
+   * dùng tự gõ nên trông y hệt dữ liệu bình thường.
+   */
+  title: string;
+  items: Array<{ value: string; label: string; color?: string }>;
+  selected: string[];
+  onToggle: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="w-20 shrink-0 text-xs text-slate-400">{title}</span>
+      {items.map((item) => {
+        const on = selected.includes(item.value);
+        return (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => onToggle(item.value)}
+            className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition ${
+              on
+                ? 'bg-primary text-primary-fg'
+                : 'border border-slate-300 text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            {item.color && <ColorDot color={item.color} />}
+            {item.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
@@ -204,7 +308,7 @@ function IncomeChart({
                 {m.net > 0 ? compact(m.net) : ''}
               </span>
               <div
-                className="w-full rounded-t bg-slate-900"
+                className="w-full rounded-t bg-primary"
                 style={{ height: barHeight(m.net, max, INCOME_BAR_PX) }}
                 title={`${formatMoney(m.net, m.currency)} · ${formatHours(hours)} ${t('common.hours')}`}
               />

@@ -53,33 +53,40 @@ export function SchedulePdf({
                 {column.events.length === 0 ? (
                   <Text style={styles.emptyDay}>—</Text>
                 ) : (
-                  column.events.map((event) => (
-                    <View
-                      key={event.key}
-                      // `wrap={false}` giữ một buổi không bị cắt đôi khi tuần
-                      // quá dày và tài liệu buộc phải sang trang thứ hai.
-                      wrap={false}
-                      style={[
-                        styles.event,
-                        {
-                          borderLeftColor: event.color,
-                          backgroundColor: eventTint(event.color),
-                        },
-                      ]}
-                    >
-                      <Text style={styles.eventTime}>
-                        {event.time}
-                        {event.mark ? ` ${event.mark}` : ''}
-                      </Text>
-                      <Text style={styles.eventTitle}>{event.title}</Text>
-                      {!!event.categoryName && (
-                        <Text style={styles.eventMeta}>{event.categoryName}</Text>
-                      )}
-                      {!!event.location && (
-                        <Text style={styles.eventMeta}>{event.location}</Text>
-                      )}
-                    </View>
-                  ))
+                  // Chia Sáng/Chiều/Tối. Bốn ca liền nhau in ra thành một cột
+                  // chữ dài không có mốc nào để mắt bám vào; nhãn buổi trả lại
+                  // cấu trúc mà bố cục in đã phải bỏ trục thời gian đi.
+                  column.bands
+                    .filter((band) => band.events.length > 0)
+                    .map((band) => (
+                      <View key={band.label} wrap={false}>
+                        <Text style={styles.bandLabel}>{band.label}</Text>
+                        {band.events.map((event) => (
+                          <View
+                            key={event.key}
+                            style={[
+                              styles.event,
+                              {
+                                borderLeftColor: event.color,
+                                backgroundColor: eventTint(event.color),
+                              },
+                            ]}
+                          >
+                            <Text style={styles.eventTime}>
+                              {event.time}
+                              {event.mark ? ` ${event.mark}` : ''}
+                            </Text>
+                            <Text style={styles.eventTitle}>{event.title}</Text>
+                            {!!event.categoryName && (
+                              <Text style={styles.eventMeta}>{event.categoryName}</Text>
+                            )}
+                            {!!event.location && (
+                              <Text style={styles.eventMeta}>{event.location}</Text>
+                            )}
+                          </View>
+                        ))}
+                      </View>
+                    ))
                 )}
               </View>
             </View>

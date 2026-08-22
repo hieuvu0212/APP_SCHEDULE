@@ -139,7 +139,7 @@ export function OccurrenceDetail({
                 onClick={() => onSetStatus(s)}
                 className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
                   o.status === s
-                    ? 'bg-slate-900 text-white'
+                    ? 'bg-primary text-primary-fg'
                     : 'border border-slate-300 text-slate-600 hover:bg-slate-100'
                 }`}
               >

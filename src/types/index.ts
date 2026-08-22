@@ -77,7 +77,17 @@ export interface RecurringRule extends BaseEntity {
   ratePerHour?: number;
   fixedAmount?: number;
   location?: string;
-  /** Học sinh / lớp — dùng cho lịch gia sư, tránh phải tạo Category cho mỗi người */
+  /**
+   * Đối tượng của buổi — buổi này gắn với ai hoặc với cái gì.
+   *
+   * Tên trường giữ nguyên `clientName` vì đổi tên trường là phải migrate DB, mà
+   * migrate thì không hoàn tác được. Nhưng ý nghĩa của nó KHÔNG chỉ là học
+   * sinh: học sinh với lịch gia sư, chỗ làm với lịch đi làm, môn học với lịch
+   * đại học, đề tài với lịch nghiên cứu. Mọi nhãn hiển thị đều đọc là
+   * "Đối tượng" — đừng viết "học sinh" ở tầng giao diện.
+   *
+   * Tồn tại để khỏi phải tạo một Category riêng cho từng người hay từng nơi.
+   */
   clientName?: string;
   tags?: string[];
   notes?: string;
@@ -297,6 +307,41 @@ export interface MonthlyPayroll {
   adjustments: PayrollAdjustment[];
 }
 
+// ─── Thu tiền ──────────────────────────────────────────────────────────────
+
+/**
+ * Một lần thu tiền của một ĐỐI TƯỢNG trong một tháng.
+ *
+ * ⚠️ KHÔNG có trường "trạng thái". Đã thu / chưa thu / thu một phần được
+ * TÍNH RA bằng cách so tổng các khoản đã thu với số tiền phải thu của tháng
+ * đó — xem core/payment.ts.
+ *
+ * Lưu trạng thái thành một cột riêng là tạo nguồn sự thật thứ hai, và nó sẽ
+ * lệch khỏi danh sách thanh toán vào đúng lúc cần nó nhất: thêm một buổi vào
+ * cuối tháng là số phải thu đổi, nhưng cột trạng thái thì không tự biết.
+ *
+ * ⚠️ Neo vào `clientKey` — chuỗi `clientName` đã chuẩn hóa — chứ không phải
+ * một thực thể có id. Đổi lại là không phải migrate dữ liệu cũ, nhưng đổi tên
+ * đối tượng sẽ làm các khoản thu cũ mồ côi. Nâng lên thành thực thể riêng là
+ * việc của sau này.
+ */
+export interface Payment extends BaseEntity {
+  /** `clientName` đã chuẩn hóa (bỏ dấu, chữ thường) — khóa gộp nhóm */
+  clientKey: string;
+  /** Dạng người dùng gõ, để hiển thị */
+  clientLabel: string;
+  categoryId: string;
+  /** "YYYY-MM" */
+  month: string;
+  /** LUÔN dương */
+  amount: number;
+  /** "YYYY-MM-DD" — ngày thật sự nhận tiền */
+  paidAt?: string;
+  /** Tiền mặt, chuyển khoản, ví… — chuỗi tự do */
+  method?: string;
+  note?: string;
+}
+
 // ─── Cấu hình ──────────────────────────────────────────────────────────────
 
 export interface SystemSettings {
@@ -318,9 +363,17 @@ export interface SystemSettings {
   remindersEnabled: boolean;
   /** Báo trước bao nhiêu phút */
   reminderLeadMinutes: number;
+  /**
+   * Màu nhấn của giao diện.
+   *
+   * KHÔNG ảnh hưởng màu danh mục — đó là dữ liệu người dùng và là cách phân
+   * biệt loại lịch. Cũng không ảnh hưởng dấu "hôm nay". Xem index.css.
+   */
+  colorTheme: 'navy' | 'blue' | 'green' | 'purple' | 'rose' | 'orange' | 'teal';
 }
 
 export const DEFAULT_SETTINGS: SystemSettings = {
+  colorTheme: 'navy',
   remindersEnabled: false,
   reminderLeadMinutes: 15,
   language: 'vi',

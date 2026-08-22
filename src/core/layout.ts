@@ -138,6 +138,25 @@ export function bandIndexOf(startTime: string, bands: TimeBand[] = PRINT_BANDS):
 }
 
 /**
+ * Chia một danh sách thành các nhóm theo buổi, giữ nguyên thứ tự bên trong.
+ *
+ * LUÔN trả về đúng số nhóm bằng số band, kể cả nhóm rỗng — tầng hiển thị cần
+ * biết "chiều nay không có gì" để in ra dấu gạch, chứ không phải bỏ hẳn hàng
+ * đó đi rồi làm lệch bố cục giữa các ngày.
+ *
+ * Chỉ nhận thứ có `startTime` chứ không nhận riêng `Occurrence`, để cả bản in
+ * HTML lẫn mô hình PDF dùng chung được một hàm.
+ */
+export function groupByBand<T extends { startTime: string }>(
+  items: T[],
+  bands: TimeBand[] = PRINT_BANDS,
+): T[][] {
+  const groups: T[][] = bands.map(() => []);
+  for (const item of items) groups[bandIndexOf(item.startTime, bands)].push(item);
+  return groups;
+}
+
+/**
  * Khoảng giờ đáng hiển thị, để Week View không bắt người dùng cuộn qua
  * tám tiếng trống mới thấy buổi đầu tiên.
  *

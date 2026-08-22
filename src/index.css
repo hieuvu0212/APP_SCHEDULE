@@ -15,6 +15,88 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   MÀU NHẤN — một biến, bảy bộ
+
+   `@theme` của Tailwind v4 sinh ra các lớp tiện ích từ biến khai báo ở đây:
+   `--color-primary` cho ra `bg-primary`, `text-primary`, `border-primary`…
+   Và vì lớp đó biên dịch thành `var(--color-primary)`, gán lại biến ở
+   `[data-theme=…]` là toàn bộ nút, tab, thanh biểu đồ đổi theo.
+
+   ⚠️ MÀU NHẤN KHÔNG ĐƯỢC NUỐT HAI THỨ:
+
+   · Màu danh mục. Rossi cam, Gia sư xanh lá — đó là cách phân biệt loại lịch
+     và chúng đến từ dữ liệu người dùng, không phải từ theme. Chúng đi qua
+     thuộc tính `style` inline nên theme không chạm tới được.
+
+   · Dấu "hôm nay" (hổ phách). Nếu nó đổi theo theme thì ở bộ Orange, ô hôm
+     nay và tab đang chọn sẽ cùng một màu — mất hẳn một tín hiệu.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@theme {
+  --color-primary: #0f172a;
+  --color-primary-soft: #e2e8f0;
+  --color-primary-fg: #ffffff;
+}
+
+[data-theme='blue'] {
+  --color-primary: #1d4ed8;
+  --color-primary-soft: #dbeafe;
+}
+[data-theme='green'] {
+  --color-primary: #15803d;
+  --color-primary-soft: #dcfce7;
+}
+[data-theme='purple'] {
+  --color-primary: #6d28d9;
+  --color-primary-soft: #ede9fe;
+}
+[data-theme='rose'] {
+  --color-primary: #be123c;
+  --color-primary-soft: #ffe4e6;
+}
+[data-theme='orange'] {
+  --color-primary: #c2410c;
+  --color-primary-soft: #ffedd5;
+}
+[data-theme='teal'] {
+  --color-primary: #0f766e;
+  --color-primary-soft: #ccfbf1;
+}
+
+/* Ở chế độ tối, nền tối cần màu nhấn SÁNG hơn để đủ tương phản, và chữ trên
+   nút phải chuyển sang tối. Bộ Navy mặc định vốn gần như đen nên phải đảo
+   hẳn, nếu không nút chìm hoàn toàn vào nền. */
+.dark {
+  --color-primary: #e2e8f0;
+  --color-primary-soft: #1e293b;
+  --color-primary-fg: #0f172a;
+}
+.dark[data-theme='blue'] {
+  --color-primary: #60a5fa;
+  --color-primary-soft: #1e3a5f;
+}
+.dark[data-theme='green'] {
+  --color-primary: #4ade80;
+  --color-primary-soft: #14532d;
+}
+.dark[data-theme='purple'] {
+  --color-primary: #a78bfa;
+  --color-primary-soft: #3b2a63;
+}
+.dark[data-theme='rose'] {
+  --color-primary: #fb7185;
+  --color-primary-soft: #5c1a2b;
+}
+.dark[data-theme='orange'] {
+  --color-primary: #fb923c;
+  --color-primary-soft: #5a2a0e;
+}
+.dark[data-theme='teal'] {
+  --color-primary: #2dd4bf;
+  --color-primary-soft: #134e4a;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    CHẾ ĐỘ TỐI — đảo BẢNG MÀU, không đảo từng lớp
 
    Tailwind v4 biên dịch mọi lớp màu thành `var(--color-…)`. Nhờ vậy chỉ cần

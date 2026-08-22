@@ -8,6 +8,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import type {
+  AdjustmentKind,
   Category,
   MonthlyPayroll,
   Occurrence,
@@ -16,6 +17,18 @@ import type {
 } from '../types';
 import { calcOccurrenceIncome, resolveSalaryRule, sumHours } from './income';
 import { hoursOf, nightMinutes } from './time';
+
+/**
+ * Khoản này cộng vào hay trừ ra khỏi lương.
+ *
+ * `amount` trong DB LUÔN dương; dấu nằm ở `kind`. Quy tắc đó chỉ được viết ở
+ * đây, vì trước kia nó có hai bản — một trong bước tính lương, một trong form
+ * nhập — và hai bản như vậy chỉ cần lệch nhau một lần là bảng lương hiển thị
+ * một đằng, tính một nẻo.
+ */
+export function signOf(kind: AdjustmentKind): 1 | -1 {
+  return kind === 'BONUS' || kind === 'ALLOWANCE' ? 1 : -1;
+}
 
 export interface PayrollInput {
   categoryId: string;
@@ -145,7 +158,7 @@ export function calcMonthlyPayroll(input: PayrollInput): MonthlyPayroll {
     // amount LUÔN dương theo hợp đồng của schema; Math.abs là lớp phòng thủ
     // phòng khi dữ liệu cũ hoặc bản import lọt số âm vào.
     const amt = Math.abs(a.amount);
-    if (a.kind === 'BONUS' || a.kind === 'ALLOWANCE') totalBonus += amt;
+    if (signOf(a.kind) === 1) totalBonus += amt;
     else totalPenalty += amt;
   }
 

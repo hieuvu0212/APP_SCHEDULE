@@ -32,9 +32,10 @@ import {
   softDeleteAdjustmentTemplate,
   softDeleteSalaryRule,
 } from '../db/repo/salary';
+import { signOf } from '../core/payroll';
 import { formatHours, formatMoney, formatMonthLabel } from '../i18n';
-import { useUndo } from '../undo/UndoProvider';
-import { AdjustmentForm, signOf } from './AdjustmentForm';
+import { useUndo } from '../undo/context';
+import { AdjustmentForm } from './AdjustmentForm';
 import { SalaryRuleForm } from './SalaryRuleForm';
 import { Button, ColorDot } from './ui';
 

@@ -14,13 +14,16 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '../schema';
 import { ALL_TABLES } from '../tables';
 import { createCategory, softDeleteCategoryUndoable } from '../repo/categories';
-import { createEvent } from '../repo/events';
+import { bulkCreateEvents, createEvent } from '../repo/events';
+import { copyWeek } from '../../actions/schedule';
 import {
   createRule,
   restoreRule,
   softDeleteRule,
   splitRuleFrom,
+  updateRule,
 } from '../repo/rules';
+import { occurrenceDates } from '../../core/expand';
 import {
   setOccurrenceStatus,
   upsertException,
@@ -221,6 +224,68 @@ describe('splitRuleFrom — hoàn nguyên phải đảo ĐỦ BA việc', () => 
   });
 });
 
+describe('dời chuỗi lặp — ba phạm vi, ba kết quả khác hẳn nhau', () => {
+  // Kịch bản người dùng báo: chuỗi hàng tuần Thứ Hai từ 17/08/2026, muốn
+  // chuyển sang bắt đầu 03/08.
+  const mondays = () =>
+    weeklyRule({ title: 'Lớp', startDate: '2026-08-17', daysOfWeek: [1] });
+
+  const datesIn = async (ruleId: string, from: string, to: string) => {
+    const rule = await db.rules.get(ruleId);
+    return occurrenceDates(rule!, from, to);
+  };
+
+  it('SERIES dời hẳn startDate — sinh đủ CẢ 03/08 lẫn 10/08', () => {
+    // Đây là thứ người dùng mong đợi khi chọn "toàn bộ chuỗi".
+    expect(
+      occurrenceDates(
+        { ...mondays(), id: 'x', createdAt: '', updatedAt: '', startDate: '2026-08-03' },
+        '2026-08-01',
+        '2026-08-31',
+      ),
+    ).toEqual(['2026-08-03', '2026-08-10', '2026-08-17', '2026-08-24', '2026-08-31']);
+  });
+
+  it('OCCURRENCE chỉ dời MỘT buổi — 10/08 KHÔNG xuất hiện', async () => {
+    // Đây là thứ đã thực sự xảy ra trong dữ liệu của người dùng. Chuỗi vẫn
+    // bắt đầu 17/08 nên 10/08 chưa bao giờ tồn tại; buổi ở 03/08 là một
+    // ngoại lệ MOVE. Dấu vết "thiếu 10/08" chính là bằng chứng phân biệt hai
+    // trường hợp — nếu chuỗi thật sự dời thì 10/08 phải có.
+    const ruleId = await createRule(mondays());
+    await upsertException({
+      type: 'MOVE',
+      recurringRuleId: ruleId,
+      originalDate: '2026-08-17',
+      newDate: '2026-08-03',
+    });
+
+    // Rule vẫn sinh từ 17/08 — không có 03/08 lẫn 10/08 ở tầng rule.
+    expect(await datesIn(ruleId, '2026-08-01', '2026-08-31')).toEqual([
+      '2026-08-17',
+      '2026-08-24',
+      '2026-08-31',
+    ]);
+
+    const exception = (await db.exceptions.toArray())[0];
+    expect(exception.type).toBe('MOVE');
+    expect(exception.newDate).toBe('2026-08-03');
+  });
+
+  it('SERIES ghi startDate mới vào rule, hoàn tác trả lại ngày cũ', async () => {
+    // Chặn tái phát lỗi "ô Ngày bị nuốt": trước đây nhánh SERIES bỏ qua
+    // payload.date, nên người dùng gõ ngày mới rồi bấm Lưu mà không có gì
+    // xảy ra — cũng không có gì báo.
+    const ruleId = await createRule(mondays());
+    await updateRule(ruleId, { startDate: '2026-08-03' });
+
+    expect((await db.rules.get(ruleId))?.startDate).toBe('2026-08-03');
+    expect(await datesIn(ruleId, '2026-08-01', '2026-08-31')).toContain('2026-08-10');
+
+    await updateRule(ruleId, { startDate: '2026-08-17' });
+    expect(await datesIn(ruleId, '2026-08-01', '2026-08-31')).not.toContain('2026-08-10');
+  });
+});
+
 describe('softDeleteCategoryUndoable — lịch phải quay về ĐÚNG danh mục cũ', () => {
   it('xóa danh mục dời lịch sang Chưa phân loại, hoàn tác kéo về lại', async () => {
     const catId = await createCategory({
@@ -255,5 +320,64 @@ describe('softDeleteCategoryUndoable — lịch phải quay về ĐÚNG danh m�
 
   it('không cho xóa danh mục hệ thống', async () => {
     await expect(softDeleteCategoryUndoable(UNCATEGORIZED_ID)).rejects.toThrow();
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+
+describe('copyWeek — ghi hàng loạt và rút lại nguyên thao tác', () => {
+  const draft = (over = {}) => ({
+    title: 'Ca sáng',
+    categoryId: UNCATEGORIZED_ID,
+    date: '2026-08-24',
+    startTime: '08:00',
+    durationMinutes: 120,
+    status: 'SCHEDULED' as const,
+    ...over,
+  });
+
+  it('tạo đủ số buổi và trả về đúng ngần ấy id KHÁC NHAU', async () => {
+    const ids = await bulkCreateEvents([
+      draft(),
+      draft({ date: '2026-08-25' }),
+      draft({ date: '2026-08-26' }),
+    ]);
+
+    expect(ids).toHaveLength(3);
+    expect(new Set(ids).size).toBe(3);
+    expect(await db.events.count()).toBe(3);
+  });
+
+  it('mảng rỗng không ghi gì và không nổ', async () => {
+    expect(await bulkCreateEvents([])).toEqual([]);
+    expect(await db.events.count()).toBe(0);
+  });
+
+  it('hoàn tác xóa mềm TOÀN BỘ buổi vừa chép, không đụng buổi có sẵn', async () => {
+    const existing = await createEvent(draft({ title: 'Có sẵn', date: '2026-08-24' }));
+
+    const { undo } = await copyWeek([draft(), draft({ date: '2026-08-25' })]);
+    expect(await db.events.filter((e) => !e.deletedAt).count()).toBe(3);
+
+    await undo();
+
+    const alive = await db.events.filter((e) => !e.deletedAt).toArray();
+    expect(alive).toHaveLength(1);
+    expect(alive[0].id).toBe(existing);
+  });
+
+  it('hoàn tác vẫn xóa buổi đã bị sửa sau khi chép', async () => {
+    // Toast còn hiện thì người dùng vẫn sửa được buổi vừa chép. Hoàn tác là
+    // rút lại NGUYÊN thao tác chép, nên buổi đã sửa cũng phải đi theo — bỏ
+    // sót nó sẽ để lại đúng thứ mà người dùng tưởng đã biến mất.
+    const { undo } = await copyWeek([draft(), draft({ date: '2026-08-25' })]);
+    const first = (await db.events.toArray())[0];
+    await db.events.update(first.id, { title: 'Đã đổi tên' });
+
+    await undo();
+
+    expect(await db.events.filter((e) => !e.deletedAt).count()).toBe(0);
+    // Xóa MỀM: bản ghi còn đó để thùng rác thấy và để Cloud Sync biết đường.
+    expect(await db.events.count()).toBe(2);
   });
 });

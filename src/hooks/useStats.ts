@@ -15,6 +15,8 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import type { Category, Occurrence } from '../types';
 import type { CategoryStat } from '../core/stats';
+import type { OccurrenceFilter } from '../core/filter';
+import { distinctClients, filterOccurrences } from '../core/filter';
 import { expandSchedule } from '../core/expand';
 import { calcAllPayrolls } from '../core/payroll';
 import { hoursByMonth, hoursByWeekday, monthRange, statsByCategory } from '../core/stats';
@@ -44,12 +46,36 @@ export interface StatsData {
   totalNet: number;
   mixedCurrency: boolean;
   conflictCount: number;
+  /** Mọi đối tượng có trong khoảng, KHÔNG lọc — để dựng danh sách chọn */
+  clients: string[];
+  /** Có bộ lọc đang bật mà biểu đồ thu nhập không phản ánh được */
+  incomeIgnoresFilter: boolean;
 }
 
-export function useStats(fromMonth: string, toMonth: string): StatsData | undefined {
+/**
+ * ⚠️ BỘ LỌC ẢNH HƯỞNG HAI PHẦN THEO HAI CÁCH KHÁC NHAU.
+ *
+ * Giờ và tỷ lệ thực hiện: lọc thẳng trên danh sách occurrence.
+ *
+ * Thu nhập: KHÔNG lọc occurrence được. `calcMonthlyPayroll` với chế độ khoán
+ * tháng trả về `baseSalary` chứ không cộng từng buổi — bỏ bớt buổi đi không
+ * làm con số nhỏ lại, mà bỏ bớt rồi vẫn trả nguyên lương thì lại sai theo
+ * chiều ngược. Nên lọc theo DANH MỤC được (chỉ tính lương những danh mục còn
+ * lại), còn lọc theo đối tượng, trạng thái hay từ khóa thì biểu đồ thu nhập
+ * giữ nguyên và màn hình nói rõ điều đó.
+ */
+export function useStats(
+  fromMonth: string,
+  toMonth: string,
+  filter: OccurrenceFilter = {},
+): StatsData | undefined {
   const settings = useSettings();
   const currency = settings.currency;
   const autoComplete = settings.autoCompletePastOccurrences;
+
+  // useLiveQuery so sánh mảng phụ thuộc theo tham chiếu; object bộ lọc dựng
+  // lại mỗi lần render sẽ khiến truy vấn chạy vô tận. Rút thành chuỗi.
+  const filterKey = JSON.stringify(filter);
 
   return useLiveQuery(async () => {
     const months = monthRange(fromMonth, toMonth);
@@ -69,7 +95,7 @@ export function useStats(fromMonth: string, toMonth: string): StatsData | undefi
         listAdjustments(),
       ]);
 
-    const occurrences = expandSchedule({
+    const all = expandSchedule({
       rules,
       exceptions,
       events,
@@ -79,11 +105,18 @@ export function useStats(fromMonth: string, toMonth: string): StatsData | undefi
       autoCompletePast: autoComplete,
     });
 
+    const occurrences = filterOccurrences(all, filter);
+
+    // Chỉ danh mục được truyền vào phép tính lương. Xem chú thích đầu hàm.
+    const payrollCategories = filter.categoryIds?.length
+      ? categories.filter((c) => filter.categoryIds!.includes(c.id))
+      : categories;
+
     const income: MonthIncome[] = months.map((month) => {
       const payrolls = calcAllPayrolls(
-        categories,
+        payrollCategories,
         month,
-        occurrences,
+        all,
         salaryRules,
         adjustments,
         currency,
@@ -111,6 +144,10 @@ export function useStats(fromMonth: string, toMonth: string): StatsData | undefi
       // quan hệ hai chiều nên tổng độ dài chia hai là số cặp chính xác.
       conflictCount:
         occurrences.reduce((n, o) => n + o.conflictWith.length, 0) / 2,
+      clients: distinctClients(all),
+      // Bộ lọc nào KHÔNG phản ánh được vào biểu đồ thu nhập.
+      incomeIgnoresFilter:
+        !!filter.clientNames?.length || !!filter.statuses?.length || !!filter.query,
     };
-  }, [fromMonth, toMonth, currency, autoComplete]);
+  }, [fromMonth, toMonth, currency, autoComplete, filterKey]);
 }

@@ -50,6 +50,8 @@ function labelOf(table: BackupTable, row: SoftDeletableRow): string {
       return String(row.effectiveFrom ?? '?');
     case 'exceptions':
       return `${String(row.type ?? '?')} · ${String(row.originalDate ?? row.newDate ?? '?')}`;
+    case 'payments':
+      return `${String(row.clientLabel ?? '?')} · ${String(row.month ?? '')}`;
   }
 }
 

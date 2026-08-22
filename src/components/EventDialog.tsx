@@ -28,7 +28,9 @@ import type {
 } from '../types';
 import { dayOfWeek, durationFrom, endTimeOf, endsNextDay, hoursOf } from '../core/time';
 import { formatHours, formatMoney } from '../i18n';
-import { Button, ColorDot, Field, Modal, inputClass } from './ui';
+import { validate, type EndMode, type RepeatChoice } from './eventValidation';
+import { inputClass } from './styles';
+import { Button, ColorDot, Field, Modal } from './ui';
 
 export type EditScope = 'OCCURRENCE' | 'FOLLOWING' | 'SERIES';
 
@@ -63,8 +65,6 @@ export interface RecurrenceDraft {
   count?: number;
 }
 
-type RepeatChoice = 'NONE' | Frequency;
-type EndMode = 'never' | 'until' | 'count';
 type MoneyMode = 'none' | 'hourly' | 'fixed';
 
 interface FormState {
@@ -355,7 +355,20 @@ export function EventDialog({
         </Field>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Field label={t('event.date')} error={show('date')}>
+          {/* Ở phạm vi "toàn bộ chuỗi", ô này KHÔNG còn là ngày của một buổi
+              mà là ngày bắt đầu của cả chuỗi. Đổi nhãn thay vì để nguyên rồi
+              âm thầm diễn giải khác — người dùng phải biết mình đang sửa gì. */}
+          <Field
+            label={t(
+              isRuleTarget && form.scope === 'SERIES' ? 'event.seriesStart' : 'event.date',
+            )}
+            hint={
+              isRuleTarget && form.scope === 'SERIES'
+                ? t('event.seriesStartHint')
+                : undefined
+            }
+            error={show('date')}
+          >
             {(id) => (
               <input
                 id={id}
@@ -435,6 +448,7 @@ export function EventDialog({
               <input
                 id={id}
                 className={inputClass}
+                placeholder={t('event.clientPlaceholder')}
                 value={form.clientName}
                 onChange={(e) => set('clientName', e.target.value)}
               />
@@ -552,7 +566,7 @@ function RecurrenceSection({
             onClick={() => set('repeat', c)}
             className={`rounded-lg px-3 py-1.5 text-sm transition ${
               form.repeat === c
-                ? 'bg-slate-900 text-white'
+                ? 'bg-primary text-primary-fg'
                 : 'border border-slate-300 text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -599,7 +613,7 @@ function RecurrenceSection({
                       }
                       className={`size-9 rounded-lg text-xs font-medium transition ${
                         on
-                          ? 'bg-slate-900 text-white'
+                          ? 'bg-primary text-primary-fg'
                           : 'border border-slate-300 text-slate-600 hover:bg-slate-100'
                       }`}
                     >
@@ -731,7 +745,7 @@ function MoneySection({
             onClick={() => set('moneyMode', m)}
             className={`rounded-lg px-3 py-1.5 text-sm transition ${
               form.moneyMode === m
-                ? 'bg-slate-900 text-white'
+                ? 'bg-primary text-primary-fg'
                 : 'border border-slate-300 text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -789,44 +803,3 @@ function overnight(startTime: string, durationMinutes: number): boolean {
   }
 }
 
-/**
- * Kiểm tra form. Trả về KHÓA i18n, không phải câu chữ — nhờ vậy hàm thuần,
- * test được bằng cách so khóa, và tầng hiển thị giữ độc quyền việc dịch.
- */
-export function validate(
-  form: Pick<
-    FormState,
-    'title' | 'categoryId' | 'date' | 'startTime' | 'endTime' | 'repeat' | 'daysOfWeek' | 'dayOfMonth' | 'endMode' | 'endDate' | 'count'
-  >,
-  durationMinutes: number,
-): Record<string, string> {
-  const errors: Record<string, string> = {};
-
-  if (!form.title.trim()) errors.title = 'validation.required';
-  if (!form.categoryId) errors.categoryId = 'validation.required';
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(form.date)) errors.date = 'validation.dateRequired';
-  if (!/^\d{2}:\d{2}$/.test(form.startTime)) errors.startTime = 'validation.timeRequired';
-  if (!/^\d{2}:\d{2}$/.test(form.endTime)) errors.endTime = 'validation.timeRequired';
-  else if (durationMinutes <= 0) errors.endTime = 'validation.durationPositive';
-
-  if (form.repeat === 'WEEKLY' && form.daysOfWeek.length === 0) {
-    errors.recurrence = 'validation.pickWeekday';
-  }
-  if (form.repeat === 'MONTHLY') {
-    const d = Number(form.dayOfMonth);
-    if (!Number.isInteger(d) || d < 1 || d > 31) {
-      errors.recurrence = 'validation.dayOfMonthRange';
-    }
-  }
-  if (form.repeat !== 'NONE' && form.endMode === 'until') {
-    if (!form.endDate) errors.recurrence = 'validation.endDateRequired';
-    // endDate BAO GỒM, nên bằng ngày bắt đầu là hợp lệ — chuỗi chỉ có một buổi.
-    else if (form.endDate < form.date) errors.recurrence = 'validation.endDateAfterStart';
-  }
-  if (form.repeat !== 'NONE' && form.endMode === 'count') {
-    const c = Number(form.count);
-    if (!Number.isInteger(c) || c < 1) errors.recurrence = 'validation.countPositive';
-  }
-
-  return errors;
-}

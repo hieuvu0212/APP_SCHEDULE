@@ -20,15 +20,12 @@ import {
   createAdjustmentTemplate,
   updateAdjustment,
 } from '../db/repo/salary';
+import { signOf } from '../core/payroll';
 import { formatMoney } from '../i18n';
-import { Button, Field, Modal, inputClass } from './ui';
+import { inputClass } from './styles';
+import { Button, Field, Modal } from './ui';
 
 const KINDS: AdjustmentKind[] = ['BONUS', 'ALLOWANCE', 'PENALTY', 'DEDUCTION'];
-
-/** Khoản này cộng vào hay trừ ra khỏi lương */
-export function signOf(kind: AdjustmentKind): 1 | -1 {
-  return kind === 'BONUS' || kind === 'ALLOWANCE' ? 1 : -1;
-}
 
 const KIND_LABEL: Record<AdjustmentKind, string> = {
   BONUS: 'adjustment.bonus',

@@ -11,9 +11,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -22,6 +20,8 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { UndoContext } from './context';
+
 /** Bao lâu thì toast tự biến mất */
 const UNDO_TIMEOUT_MS = 8000;
 
@@ -29,19 +29,6 @@ interface UndoEntry {
   id: number;
   message: string;
   undo: () => Promise<void> | void;
-}
-
-interface UndoApi {
-  /** Ghi nhận một thao tác vừa xóa, kèm cách khôi phục */
-  pushUndo: (message: string, undo: () => Promise<void> | void) => void;
-}
-
-const UndoContext = createContext<UndoApi | null>(null);
-
-export function useUndo(): UndoApi {
-  const ctx = useContext(UndoContext);
-  if (!ctx) throw new Error('useUndo phải nằm trong <UndoProvider>');
-  return ctx;
 }
 
 export function UndoProvider({ children }: { children: ReactNode }) {

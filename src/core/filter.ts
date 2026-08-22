@@ -57,10 +57,38 @@ export interface OccurrenceFilter {
   /** Rỗng hoặc bỏ trống = lấy tất cả */
   categoryIds?: string[];
   statuses?: OccurrenceStatus[];
-  /** Tìm trong tiêu đề, ghi chú, địa điểm, tên học sinh */
+  /**
+   * Lọc theo `clientName`.
+   *
+   * ⚠️ Trường này KHÔNG chỉ là "học sinh". Nó trả lời câu "buổi này dành cho
+   * ai / ở đâu": học sinh với lịch gia sư, chỗ làm với lịch đi làm, môn học
+   * với lịch đại học. Đặt tên chung từ đầu để không phải đổi khi dùng cho
+   * loại lịch khác.
+   */
+  clientNames?: string[];
+  /** Tìm trong tiêu đề, ghi chú, địa điểm, tên đối tượng */
   query?: string;
   /** Chỉ lấy buổi đang bị trùng lịch */
   onlyConflicts?: boolean;
+}
+
+/**
+ * Các giá trị `clientName` khác nhau, đã sắp xếp — dùng để dựng bộ lọc.
+ *
+ * So khớp theo chuỗi ĐÃ CHUẨN HÓA nhưng trả về dạng người dùng gõ đầu tiên,
+ * nên "Minh" và "minh " gộp làm một mục thay vì thành hai dòng trong danh
+ * sách chọn. Đây là biện pháp che tạm: chừng nào `clientName` còn là chuỗi
+ * gõ tay chứ chưa phải thực thể có id thì "Minh" và "Mình" vẫn là hai người.
+ */
+export function distinctClients(occurrences: Occurrence[]): string[] {
+  const seen = new Map<string, string>();
+  for (const o of occurrences) {
+    const raw = o.clientName?.trim();
+    if (!raw) continue;
+    const key = normalizeText(raw);
+    if (!seen.has(key)) seen.set(key, raw);
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
 }
 
 /** Gom các trường có thể tìm kiếm của một buổi thành một chuỗi đã chuẩn hóa */
@@ -85,11 +113,16 @@ export function filterOccurrences(
 ): Occurrence[] {
   const categories = filter.categoryIds?.length ? new Set(filter.categoryIds) : null;
   const statuses = filter.statuses?.length ? new Set(filter.statuses) : null;
+  // So khớp qua chuỗi đã chuẩn hóa để "Minh" chọn trúng cả " minh ".
+  const clients = filter.clientNames?.length
+    ? new Set(filter.clientNames.map(normalizeText))
+    : null;
   const terms = filter.query ? normalizeText(filter.query).split(/\s+/).filter(Boolean) : [];
 
   return occurrences.filter((o) => {
     if (categories && !categories.has(o.categoryId)) return false;
     if (statuses && !statuses.has(o.status)) return false;
+    if (clients && !clients.has(normalizeText(o.clientName ?? ''))) return false;
     if (filter.onlyConflicts && !o.hasConflict) return false;
 
     if (terms.length) {

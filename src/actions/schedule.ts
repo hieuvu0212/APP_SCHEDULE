@@ -10,8 +10,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import type { Occurrence, OccurrenceStatus } from '../types';
+import type { EventDraft } from '../core/copyWeek';
 import type { DialogTarget, SubmitPayload } from '../components/EventDialog';
 import {
+  bulkCreateEvents,
   createEvent,
   restoreEvent,
   softDeleteEvent,
@@ -65,10 +67,20 @@ export interface Undoable {
 /**
  * Áp dụng nội dung form.
  *
- * ⚠️ Với phạm vi SERIES và FOLLOWING, `payload.date` bị BỎ QUA CÓ CHỦ Ý.
- * Đổi ngày ở mức cả chuỗi nghĩa là dời `startDate` của rule, tức là viết lại
- * cả những buổi đã diễn ra tháng trước — và bảng lương các tháng đã chốt sẽ
- * nhảy số. Muốn dời một buổi thì dùng phạm vi "chỉ buổi này".
+ * ⚠️ `payload.date` mang nghĩa KHÁC NHAU theo từng phạm vi:
+ *
+ *   OCCURRENCE  ngày mới của RIÊNG buổi này (ghi exception MOVE)
+ *   FOLLOWING   bị bỏ qua — mốc cắt là ngày gốc của buổi, không phải ô Ngày
+ *   SERIES      NGÀY BẮT ĐẦU MỚI của cả chuỗi (đổi `startDate` của rule)
+ *
+ * Trước đây SERIES cũng bỏ qua ô Ngày, với lý do dời `startDate` sẽ viết lại
+ * cả buổi đã diễn ra. Lý do đó đúng, nhưng cách xử lý thì sai: người dùng gõ
+ * một ngày mới, bấm Lưu, và không có gì xảy ra — cũng không có gì báo. Im
+ * lặng nuốt thao tác còn tệ hơn làm một việc gây tranh cãi.
+ *
+ * Giờ nó có tác dụng thật, và form đổi nhãn ô Ngày thành "Ngày bắt đầu chuỗi"
+ * khi ở phạm vi này. Ai không muốn đụng vào quá khứ thì đã có sẵn phạm vi
+ * FOLLOWING, vốn sinh ra đúng để làm việc đó.
  */
 export async function applySubmit(
   payload: SubmitPayload,
@@ -241,8 +253,12 @@ export async function applySubmit(
     };
   }
 
-  const beforeRule = pick(rule, rulePatch);
-  await updateRule(rule.id, rulePatch);
+  // `startDate` chỉ đi kèm ở nhánh này. FOLLOWING không dùng tới vì mốc cắt
+  // của nó là ngày gốc của buổi; OCCURRENCE thì ghi exception chứ không đụng
+  // vào rule.
+  const seriesPatch = { ...rulePatch, startDate: payload.date };
+  const beforeRule = pick(rule, seriesPatch);
+  await updateRule(rule.id, seriesPatch);
   return {
     messageKey: 'toast.updated',
     undo: () => updateRule(rule.id, beforeRule),
@@ -424,6 +440,27 @@ export async function resizeOccurrence(
       return { messageKey: 'toast.occurrenceResized', undo: revert };
     }
   }
+}
+
+/**
+ * Ghi các buổi của một kế hoạch nhân bản tuần.
+ *
+ * Nhận `EventDraft[]` đã dựng sẵn chứ không tự tính lại: hộp thoại xác nhận
+ * hiển thị con số lấy từ đúng mảng này, nên không có đường nào để "đếm một
+ * đằng ghi một nẻo".
+ *
+ * Hoàn tác xóa mềm toàn bộ buổi vừa tạo — kể cả khi người dùng đã sửa vài
+ * buổi trong lúc toast còn hiện. Đó là hành vi đúng: họ đang rút lại nguyên
+ * thao tác chép, không phải rút lại từng buổi.
+ */
+export async function copyWeek(drafts: EventDraft[]): Promise<Undoable> {
+  const ids = await bulkCreateEvents(drafts);
+  return {
+    messageKey: 'toast.weekCopied',
+    undo: async () => {
+      await Promise.all(ids.map((id) => softDeleteEvent(id)));
+    },
+  };
 }
 
 /** Xóa CẢ CHUỖI lịch lặp, kèm toàn bộ ngoại lệ của nó */
