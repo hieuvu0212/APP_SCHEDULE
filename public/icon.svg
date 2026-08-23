@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Nền ĐẶC, không trong suốt. Biểu tượng PWA bị hệ điều hành bo góc và
+       cắt theo mặt nạ; nền trong suốt sẽ ra một hình lịch lơ lửng trên nền
+       đen hoặc trắng tùy máy. -->
+  <rect width="512" height="512" rx="112" fill="#0f172a"/>
+
+  <!-- Vùng an toàn cho mặt nạ: mọi chi tiết nằm trong 80% giữa -->
+  <g transform="translate(96 104)">
+    <rect x="0" y="24" width="320" height="280" rx="32" fill="#f8fafc"/>
+    <rect x="0" y="24" width="320" height="72" rx="32" fill="#f59e0b"/>
+    <rect x="0" y="64" width="320" height="32" fill="#f59e0b"/>
+
+    <!-- Hai vòng treo -->
+    <rect x="72" y="0" width="28" height="56" rx="14" fill="#0f172a"/>
+    <rect x="220" y="0" width="28" height="56" rx="14" fill="#0f172a"/>
+
+    <!-- Ô ngày -->
+    <g fill="#cbd5e1">
+      <rect x="40" y="136" width="48" height="40" rx="10"/>
+      <rect x="136" y="136" width="48" height="40" rx="10"/>
+      <rect x="232" y="136" width="48" height="40" rx="10"/>
+      <rect x="40" y="208" width="48" height="40" rx="10"/>
+      <rect x="232" y="208" width="48" height="40" rx="10"/>
+    </g>
+    <!-- Ngày hôm nay -->
+    <rect x="136" y="208" width="48" height="40" rx="10" fill="#10b981"/>
+  </g>
+</svg>

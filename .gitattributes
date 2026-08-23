@@ -1,0 +1,24 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  Chuẩn hóa xuống dòng
+#
+#  Repo luôn lưu LF. Lúc checkout thì tùy nền tảng, trừ những file BẮT BUỘC
+#  phải là LF kể cả trên Windows.
+# ═══════════════════════════════════════════════════════════════════════════
+
+* text=auto
+
+# Script shell PHẢI giữ LF.
+#
+# Trên Windows core.autocrlf=true sẽ đổi file .sh thành CRLF lúc checkout.
+# Dòng shebang khi đó là "#!/usr/bin/env bash\r", và \r bị tính là một phần
+# tên trình thông dịch → bash báo "bad interpreter: No such file or directory".
+# Lỗi này trông như thiếu bash chứ không giống lỗi xuống dòng, nên rất mất
+# thời gian mới lần ra.
+*.sh text eol=lf
+
+# Nhị phân — đừng đụng vào, cũng đừng cố diff
+*.docx binary
+*.zip  binary
+*.png  binary
+*.jpg  binary
+*.ico  binary
