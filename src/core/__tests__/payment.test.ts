@@ -47,7 +47,7 @@ function pay(over: Partial<Payment> = {}): Payment {
   return {
     ...meta,
     id: `p-${Math.random()}`,
-    clientKey: 'minh',
+    clientId: 'minh',
     clientLabel: 'Minh',
     categoryId: 'giasu',
     month: MONTH,
@@ -221,7 +221,7 @@ describe('duesTotals', () => {
         occ({ clientName: 'An', durationMinutes: 60 }),
         occ({ clientName: 'Bình', durationMinutes: 120 }),
       ],
-      [pay({ clientKey: 'an', amount: 50_000 })],
+      [pay({ clientId: 'an', amount: 50_000 })],
     );
     const totals = duesTotals(rows);
     expect(totals.due).toBe(300_000);
@@ -233,7 +233,7 @@ describe('duesTotals', () => {
   it('dòng không quy đổi được KHÔNG vào tổng phải thu, nhưng tiền đã thu thì có', () => {
     const rows: Parameters<typeof duesTotals>[0] = [
       {
-        clientKey: 'a',
+        clientId: 'a',
         clientLabel: 'A',
         categoryId: 'x',
         sessions: 1,
@@ -244,7 +244,7 @@ describe('duesTotals', () => {
         status: 'partial',
       },
       {
-        clientKey: 'b',
+        clientId: 'b',
         clientLabel: 'B',
         categoryId: 'x',
         sessions: 1,

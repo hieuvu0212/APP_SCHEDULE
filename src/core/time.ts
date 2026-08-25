@@ -26,6 +26,20 @@ export function toHHMM(minutes: number): string {
 }
 
 /**
+ * Mốc nửa tiếng kế tiếp — giờ khởi điểm mặc định khi người dùng không nói giờ.
+ *
+ * Lấy thẳng đồng hồ sẽ ra "14:37", một giờ mà không ai chủ động đặt lịch vào.
+ * Người dùng phải sửa nó gần như mọi lần, nên nó là mặc định tồi.
+ *
+ * Nhận `now` qua tham số để hàm vẫn thuần và test được — cùng quy ước với
+ * `todayKey()` bên calendar.ts.
+ */
+export function nextHalfHour(now: Date = new Date()): string {
+  const slot = Math.ceil((now.getHours() * 60 + now.getMinutes() + 1) / 30) * 30;
+  return toHHMM(slot);
+}
+
+/**
  * Giờ treo tường → epoch ms.
  * CHỈ dùng để so trùng lịch và sắp xếp. KHÔNG lưu vào DB.
  */

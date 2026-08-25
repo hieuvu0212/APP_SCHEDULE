@@ -16,6 +16,31 @@ dist-ssr
 # repo chỉ làm phình dung lượng mà không thêm thông tin gì.
 *.zip
 
+# Cấu hình Supabase của riêng từng máy.
+#
+# Anon key VỐN LÀ công khai — nó đi thẳng vào bundle JS phía trình duyệt, và
+# thứ bảo vệ dữ liệu là RLS chứ không phải sự bí mật của key này. Chặn ở đây
+# không phải vì bí mật, mà vì URL dự án là thứ của riêng mỗi người: commit nó
+# lên nghĩa là ai clone repo cũng đồng bộ vào đúng dự án Supabase của bạn.
+#
+# Muốn biết cần điền gì thì xem .env.example (file đó CÓ được commit).
+.env
+.env.local
+.env.*.local
+
+# Kỹ năng của công cụ AI cài vào dự án (impeccable, v.v.).
+#
+# Không commit vì ba lý do: chúng cài bằng lệnh và nâng cấp bằng lệnh nên
+# commit chỉ tạo ra một bản sao sẽ cũ đi; mỗi người dùng công cụ khác nhau
+# (.claude/.gemini/.cursor) nên đây là lựa chọn cá nhân chứ không phải cấu
+# hình chung của dự án; và chúng nặng hàng MB mã đã đóng gói.
+#
+# `.oxlintrc.json` cũng loại chúng khỏi lint — mã của người khác, không sửa
+# được, mà cảnh báo của nó sẽ dìm chết cảnh báo thật của mình.
+.claude/skills/
+.gemini/
+.cursor/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

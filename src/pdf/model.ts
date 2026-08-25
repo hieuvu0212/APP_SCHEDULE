@@ -99,6 +99,7 @@ export interface PdfModelInput {
     weekdays: string[];
     /** Ba nhãn buổi, cùng thứ tự với PRINT_BANDS */
     bands: string[];
+    bandLabel: string;
   };
   format: {
     dayLabel: (date: string) => string;
@@ -169,6 +170,7 @@ export function buildPdfModel(input: PdfModelInput): PdfModel {
     appName: labels.appName,
     rangeLabel: labels.rangeLabel,
     exportedLabel: labels.exportedLabel,
+    bandLabel: labels.bandLabel,
     columns,
     summary: {
       label: labels.summary,

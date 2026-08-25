@@ -29,8 +29,7 @@ import { hoursOf, monthOf } from './time';
 export type PaymentStatus = 'unpaid' | 'partial' | 'paid' | 'notApplicable';
 
 export interface ClientDues {
-  clientKey: string;
-  /** Dạng người dùng gõ đầu tiên */
+  clientId: string;
   clientLabel: string;
   categoryId: string;
   sessions: number;
@@ -83,15 +82,17 @@ export function computeDues(input: DuesInput): ClientDues[] {
   const rows = new Map<string, ClientDues>();
 
   for (const occurrence of input.occurrences) {
-    const label = occurrence.clientName?.trim();
-    if (!label) continue;
-    if (occurrence.status === 'CANCELLED' || occurrence.status === 'NO_SHOW') continue;
+    if (occurrence.status !== 'COMPLETED' && occurrence.status !== 'NO_SHOW') continue;
 
-    const key = normalizeText(label);
+    const key = occurrence.clientId;
+    if (!key) continue;
+
+    const label = occurrence.clientName?.trim() || 'Unknown';
+
     let row = rows.get(key);
     if (!row) {
       row = {
-        clientKey: key,
+        clientId: key,
         clientLabel: label,
         categoryId: occurrence.categoryId,
         sessions: 0,
@@ -124,14 +125,14 @@ export function computeDues(input: DuesInput): ClientDues[] {
     if (payment.deletedAt) continue;
     if (payment.month !== input.month) continue;
     paidByKey.set(
-      payment.clientKey,
-      (paidByKey.get(payment.clientKey) ?? 0) + Math.abs(payment.amount),
+      payment.clientId,
+      (paidByKey.get(payment.clientId) ?? 0) + Math.abs(payment.amount),
     );
   }
 
   for (const row of rows.values()) {
     row.due = row.due == null ? null : Math.round(row.due);
-    row.paid = Math.round(paidByKey.get(row.clientKey) ?? 0);
+    row.paid = Math.round(paidByKey.get(row.clientId) ?? 0);
     row.remaining = row.due == null ? null : Math.max(0, row.due - row.paid);
     row.status = statusOf(row.due, row.paid);
   }

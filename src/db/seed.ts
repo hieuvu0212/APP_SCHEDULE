@@ -1,6 +1,6 @@
 import type { Category } from '../types';
-import { UNCATEGORIZED_ID } from '../types';
-import { db, newId, nowISO } from './schema';
+import { SEEDED_CATEGORY_IDS, UNCATEGORIZED_ID } from '../types';
+import { db, nowISO } from './schema';
 
 /**
  * Seed danh mục ban đầu. Chạy đúng một lần, khi DB còn rỗng.
@@ -22,6 +22,17 @@ import { db, newId, nowISO } from './schema';
  *
  * Vì thế "Đi làm" ở đây là MỘT chỗ làm, không phải nhóm gộp mọi chỗ làm. Có
  * chỗ làm thứ hai thì tạo danh mục thứ hai.
+ *
+ * ⚠️ ID PHẢI LÀ HẰNG SỐ, TUYỆT ĐỐI KHÔNG DÙNG `newId()`.
+ *
+ * Bản trước dùng `newId()` cho năm danh mục dưới, và đó là một lỗi mất dữ
+ * liệu thật: mỗi IndexedDB mới sinh một bộ id khác cho cùng năm khái niệm,
+ * rồi đồng bộ đẩy chúng lên như bản ghi mới. "Gia sư" nhân thành ba. Chi tiết
+ * ở `SEEDED_CATEGORY_IDS` trong types/index.ts.
+ *
+ * Với id cố định, hai máy cùng seed ra cùng một bộ id, và `planSync` coi
+ * chúng là MỘT bản ghi. Khóa chính ghép `(user_id, id)` bên Supabase lo phần
+ * hai người dùng khác nhau cùng có `sys-tutor`.
  */
 export async function seedIfEmpty(): Promise<boolean> {
   const count = await db.categories.count();
@@ -40,11 +51,11 @@ export async function seedIfEmpty(): Promise<boolean> {
       isSystem: true,
       sortOrder: 999,
     },
-    { ...base, id: newId(), name: 'Đại học', color: '#3b82f6', isIncomeEligible: false, sortOrder: 1 },
-    { ...base, id: newId(), name: 'Đi làm', color: '#f59e0b', isIncomeEligible: true, sortOrder: 2 },
-    { ...base, id: newId(), name: 'Gia sư', color: '#10b981', isIncomeEligible: true, sortOrder: 3 },
-    { ...base, id: newId(), name: 'Nghiên cứu', color: '#8b5cf6', isIncomeEligible: false, sortOrder: 4 },
-    { ...base, id: newId(), name: 'Cá nhân', color: '#ec4899', isIncomeEligible: false, sortOrder: 5 },
+    { ...base, id: SEEDED_CATEGORY_IDS.university, name: 'Đại học', color: '#3b82f6', isIncomeEligible: false, sortOrder: 1 },
+    { ...base, id: SEEDED_CATEGORY_IDS.work, name: 'Đi làm', color: '#f59e0b', isIncomeEligible: true, sortOrder: 2 },
+    { ...base, id: SEEDED_CATEGORY_IDS.tutor, name: 'Gia sư', color: '#10b981', isIncomeEligible: true, sortOrder: 3 },
+    { ...base, id: SEEDED_CATEGORY_IDS.research, name: 'Nghiên cứu', color: '#8b5cf6', isIncomeEligible: false, sortOrder: 4 },
+    { ...base, id: SEEDED_CATEGORY_IDS.personal, name: 'Cá nhân', color: '#ec4899', isIncomeEligible: false, sortOrder: 5 },
   ];
 
   await db.categories.bulkAdd(categories);

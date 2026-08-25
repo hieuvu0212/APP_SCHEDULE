@@ -99,7 +99,7 @@ export function DuesView({ month }: { month: string }) {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {data.rows.map((row) => (
-                <tr key={row.clientKey}>
+                <tr key={row.clientId}>
                   <td className="px-4 py-2.5">
                     <span className="flex items-center gap-2">
                       <ColorDot color={catMap.get(row.categoryId)?.color ?? '#94a3b8'} />
@@ -171,7 +171,7 @@ export function DuesView({ month }: { month: string }) {
                 </span>
                 <button
                   type="button"
-                  onClick={() => void removePayment(p.id, p.clientLabel)}
+                  onClick={() => void removePayment(p.id, p.clientLabel || 'Unknown')}
                   className="rounded px-1.5 py-0.5 text-xs text-red-600 transition hover:bg-red-50"
                 >
                   {t('common.delete')}

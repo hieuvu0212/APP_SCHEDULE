@@ -13,6 +13,7 @@
 import { Document, Page, Text, View } from '@react-pdf/renderer';
 import type { PdfModel } from './model';
 import { eventTint, styles } from './pdfStyles';
+import { COLORS } from './palette';
 
 export function SchedulePdf({
   model,
@@ -42,55 +43,87 @@ export function SchedulePdf({
         </View>
 
         <View style={styles.grid}>
-          {model.columns.map((column) => (
-            <View key={column.date} style={styles.column}>
-              <View style={styles.columnHead}>
+          {/* Hàng tiêu đề */}
+          <View style={styles.headRow} wrap={false}>
+            <View style={styles.bandHeadCell}>
+              <Text style={styles.bandLabel}>{model.bandLabel}</Text>
+            </View>
+            {model.columns.map((column, idx) => (
+              <View
+                key={column.date}
+                style={[
+                  styles.dayHeadCell,
+                  idx < model.columns.length - 1
+                    ? { borderRightWidth: 0.5, borderRightColor: COLORS.line }
+                    : {},
+                ]}
+              >
                 <Text style={styles.weekday}>{column.weekday}</Text>
                 <Text style={styles.dayLabel}>{column.dayLabel}</Text>
               </View>
+            ))}
+          </View>
 
-              <View style={styles.columnBody}>
-                {column.events.length === 0 ? (
-                  <Text style={styles.emptyDay}>—</Text>
-                ) : (
-                  // Chia Sáng/Chiều/Tối. Bốn ca liền nhau in ra thành một cột
-                  // chữ dài không có mốc nào để mắt bám vào; nhãn buổi trả lại
-                  // cấu trúc mà bố cục in đã phải bỏ trục thời gian đi.
-                  column.bands
-                    .filter((band) => band.events.length > 0)
-                    .map((band) => (
-                      <View key={band.label} wrap={false}>
-                        <Text style={styles.bandLabel}>{band.label}</Text>
-                        {band.events.map((event) => (
-                          <View
-                            key={event.key}
-                            style={[
-                              styles.event,
-                              {
-                                borderLeftColor: event.color,
-                                backgroundColor: eventTint(event.color),
-                              },
-                            ]}
-                          >
-                            <Text style={styles.eventTime}>
-                              {event.time}
-                              {event.mark ? ` ${event.mark}` : ''}
-                            </Text>
-                            <Text style={styles.eventTitle}>{event.title}</Text>
-                            {!!event.categoryName && (
-                              <Text style={styles.eventMeta}>{event.categoryName}</Text>
-                            )}
-                            {!!event.location && (
-                              <Text style={styles.eventMeta}>{event.location}</Text>
-                            )}
-                          </View>
-                        ))}
+          {/* 3 Hàng Sáng/Chiều/Tối */}
+          {[0, 1, 2].map((bandIndex) => {
+            const isLastBand = bandIndex === 2;
+            const bandLabel = model.columns[0]?.bands[bandIndex]?.label ?? '';
+
+            // Ẩn nếu cả tuần không có buổi nào trong khung giờ này
+            const hasEvents = model.columns.some((c) => c.bands[bandIndex].events.length > 0);
+            if (!hasEvents) return null;
+
+            return (
+              <View
+                key={bandIndex}
+                style={[
+                  styles.bandRow,
+                  !isLastBand ? { borderBottomWidth: 0.5, borderBottomColor: COLORS.line } : {},
+                ]}
+                wrap={false}
+              >
+                <View style={styles.bandLabelCell}>
+                  <Text style={styles.bandLabel}>{bandLabel}</Text>
+                </View>
+                {model.columns.map((column, colIdx) => (
+                  <View
+                    key={column.date}
+                    style={[
+                      styles.dayCell,
+                      colIdx < model.columns.length - 1
+                        ? { borderRightWidth: 0.5, borderRightColor: COLORS.line }
+                        : {},
+                    ]}
+                  >
+                    {column.bands[bandIndex].events.map((event) => (
+                      <View
+                        key={event.key}
+                        style={[
+                          styles.event,
+                          {
+                            borderLeftColor: event.color,
+                            backgroundColor: eventTint(event.color),
+                          },
+                        ]}
+                      >
+                        <Text style={styles.eventTime}>
+                          {event.time}
+                          {event.mark ? ` ${event.mark}` : ''}
+                        </Text>
+                        <Text style={styles.eventTitle}>{event.title}</Text>
+                        {!!event.categoryName && (
+                          <Text style={styles.eventMeta}>{event.categoryName}</Text>
+                        )}
+                        {!!event.location && (
+                          <Text style={styles.eventMeta}>{event.location}</Text>
+                        )}
                       </View>
-                    ))
-                )}
+                    ))}
+                  </View>
+                ))}
               </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
 
         <View style={styles.footer}>

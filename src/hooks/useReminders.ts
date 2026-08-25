@@ -39,7 +39,43 @@ export function notificationState(): NotificationState {
 
 export async function requestNotificationPermission(): Promise<NotificationState> {
   if (typeof Notification === 'undefined') return 'unsupported';
-  return (await Notification.requestPermission()) as NotificationState;
+  const permission = await Notification.requestPermission();
+  
+  if (permission === 'granted' && 'serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        // VAPID public key from Supabase (demo)
+        const vapidPublicKey = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuB-5-SqWf1cZRYD40wAAQ';
+        const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: convertedVapidKey,
+        });
+        
+        // Gửi sub này lên DB, demo code:
+        console.log('Push subscription ready:', JSON.stringify(sub));
+        // await fetch('/api/subscribe', { method: 'POST', body: JSON.stringify(sub) });
+      }
+    } catch (e) {
+      console.error('Failed to subscribe for push notifications:', e);
+    }
+  }
+  
+  return permission as NotificationState;
+}
+
+// Utility to convert Base64 URL to Uint8Array for VAPID
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
 }
 
 export function useReminders(): void {

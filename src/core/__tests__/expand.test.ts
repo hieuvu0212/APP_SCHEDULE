@@ -393,3 +393,67 @@ describe('detectConflicts', () => {
     expect(out[0].conflictWith).toHaveLength(1);
   });
 });
+
+describe('expandSchedule — override rate (Phát sinh từ Việc 3)', () => {
+  const r = rule({ ratePerHour: 100_000 });
+  const wStart = '2026-08-01';
+  const wEnd = '2026-08-31';
+  const now = new Date('2026-08-15T12:00:00Z');
+
+  it('buổi được gán cứng rate thì giữ nguyên, kể cả rate 0', () => {
+    const eZero = exc({
+      type: 'REPLACE',
+      recurringRuleId: r.id,
+      originalDate: '2026-08-03',
+      newRatePerHour: 0,
+    });
+    const eOverride = exc({
+      type: 'REPLACE',
+      recurringRuleId: r.id,
+      originalDate: '2026-08-10',
+      newRatePerHour: 150_000,
+    });
+
+    const occs = expandSchedule({
+      rules: [r],
+      exceptions: [eZero, eOverride],
+      events: [],
+      windowStart: wStart,
+      windowEnd: wEnd,
+      now,
+      autoCompletePast: false,
+    });
+    
+    const o03 = occs.find((o) => o.date === '2026-08-03')!;
+    const o10 = occs.find((o) => o.date === '2026-08-10')!;
+    const o17 = occs.find((o) => o.date === '2026-08-17')!;
+
+    expect(o03.ratePerHour).toBe(0);
+    expect(o10.ratePerHour).toBe(150_000);
+    // Không có exception -> thừa kế từ rule
+    expect(o17.ratePerHour).toBe(100_000);
+  });
+
+  it('buổi bị xóa rate override (newRatePerHour = undefined) thì thừa kế rate của rule', () => {
+    // newRatePerHour bị undefined, có nghĩa là user chọn "Theo danh mục"
+    const eUndefined = exc({
+      type: 'REPLACE',
+      recurringRuleId: r.id,
+      originalDate: '2026-08-03',
+      newRatePerHour: undefined,
+    });
+
+    const occs = expandSchedule({
+      rules: [r],
+      exceptions: [eUndefined],
+      events: [],
+      windowStart: wStart,
+      windowEnd: wEnd,
+      now,
+      autoCompletePast: false,
+    });
+    const o03 = occs.find((o) => o.date === '2026-08-03')!;
+
+    expect(o03.ratePerHour).toBe(100_000); // Thừa kế rate của rule
+  });
+});

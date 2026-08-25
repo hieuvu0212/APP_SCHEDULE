@@ -31,6 +31,13 @@ export interface BaseEntity {
   deletedAt?: string;
 }
 
+export interface Client extends BaseEntity {
+  name: string;
+  email?: string;
+  phone?: string;
+  note?: string;
+}
+
 // ─── Category ──────────────────────────────────────────────────────────────
 
 export interface Category extends BaseEntity {
@@ -88,6 +95,7 @@ export interface RecurringRule extends BaseEntity {
    *
    * Tồn tại để khỏi phải tạo một Category riêng cho từng người hay từng nơi.
    */
+  clientId?: string;
   clientName?: string;
   tags?: string[];
   notes?: string;
@@ -131,6 +139,7 @@ export interface ScheduleException extends BaseEntity {
   newDurationMinutes?: number;
   newTitle?: string;
   newCategoryId?: string;
+  newClientId?: string;
   newRatePerHour?: number;
   newFixedAmount?: number;
 
@@ -148,6 +157,7 @@ export interface SingleEvent extends BaseEntity {
   startTime: string;
   durationMinutes: number;
   location?: string;
+  clientId?: string;
   clientName?: string;
   tags?: string[];
   notes?: string;
@@ -280,6 +290,8 @@ export interface Occurrence {
   ratePerHour?: number;
   fixedAmount?: number;
   location?: string;
+  clientId?: string;
+  /** Tên đối tượng, được join vào tại tầng hook để UI dễ bề hiển thị */
   clientName?: string;
   notes?: string;
 
@@ -320,16 +332,13 @@ export interface MonthlyPayroll {
  * lệch khỏi danh sách thanh toán vào đúng lúc cần nó nhất: thêm một buổi vào
  * cuối tháng là số phải thu đổi, nhưng cột trạng thái thì không tự biết.
  *
- * ⚠️ Neo vào `clientKey` — chuỗi `clientName` đã chuẩn hóa — chứ không phải
- * một thực thể có id. Đổi lại là không phải migrate dữ liệu cũ, nhưng đổi tên
- * đối tượng sẽ làm các khoản thu cũ mồ côi. Nâng lên thành thực thể riêng là
- * việc của sau này.
+ * ⚠️ Neo vào `clientId` — thực thể Client riêng biệt. Các UI cần hiển thị tên sẽ
+ * join với bảng clients để lấy tên ra.
  */
 export interface Payment extends BaseEntity {
-  /** `clientName` đã chuẩn hóa (bỏ dấu, chữ thường) — khóa gộp nhóm */
-  clientKey: string;
-  /** Dạng người dùng gõ, để hiển thị */
-  clientLabel: string;
+  clientId: string;
+  clientKey?: string;
+  clientLabel?: string;
   categoryId: string;
   /** "YYYY-MM" */
   month: string;
@@ -364,6 +373,17 @@ export interface SystemSettings {
   /** Báo trước bao nhiêu phút */
   reminderLeadMinutes: number;
   /**
+   * Tự đồng bộ đám mây khi mở app, khi quay lại tab, và khi có mạng trở lại.
+   *
+   * ⚠️ CỐ Ý KHÔNG kích hoạt khi dữ liệu cục bộ đổi. Đồng bộ có chiều kéo về,
+   * kéo về là ghi vào Dexie, và ghi vào Dexie lại là một thay đổi cục bộ —
+   * vòng lặp khép kín chạy nhanh hết mức mạng cho phép. Xem core/autoSync.ts.
+   *
+   * Mặc định TẮT: nó gửi dữ liệu ra khỏi máy, và một tính năng làm việc đó
+   * phải do người dùng chủ động bật.
+   */
+  autoSyncEnabled: boolean;
+  /**
    * Màu nhấn của giao diện.
    *
    * KHÔNG ảnh hưởng màu danh mục — đó là dữ liệu người dùng và là cách phân
@@ -376,6 +396,7 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   colorTheme: 'navy',
   remindersEnabled: false,
   reminderLeadMinutes: 15,
+  autoSyncEnabled: false,
   language: 'vi',
   currency: 'VND',
   weekStartsOn: 1,
@@ -386,3 +407,47 @@ export const DEFAULT_SETTINGS: SystemSettings = {
 
 /** ID cố định của danh mục hệ thống — dùng làm nơi gom event khi xóa Category */
 export const UNCATEGORIZED_ID = 'sys-uncategorized';
+
+/**
+ * ID CỐ ĐỊNH cho năm danh mục mẫu. Không được đổi sau khi đã phát hành.
+ *
+ * ⚠️ VÌ SAO CHÚNG KHÔNG PHẢI UUID NGẪU NHIÊN — ĐÂY LÀ MỘT LỖI CÓ THẬT.
+ *
+ * Bản trước gọi `newId()` cho năm danh mục này, nên MỖI IndexedDB mới sinh ra
+ * một bộ danh tính hoàn toàn khác cho cùng năm khái niệm. IndexedDB tách theo
+ * origin, nên "mới" xảy ra thường xuyên hơn nhiều so với cảm giác: đổi trình
+ * duyệt, xóa dữ liệu duyệt web, cửa sổ ẩn danh, hay chỉ là `localhost:5173`
+ * so với `127.0.0.1:5173`.
+ *
+ * Rồi đồng bộ nhìn thấy năm bản ghi mà đám mây chưa có và đẩy lên, đồng thời
+ * kéo về năm bản ghi cũ. Mỗi vòng cộng thêm một bộ: "Gia sư" xuất hiện hai
+ * lần, ba lần, bốn lần.
+ *
+ * Điều làm lỗi này khó thấy: nó không sai ở tầng đồng bộ. HTTP 200, không
+ * ngoại lệ, báo cáo xanh — vì đồng bộ làm ĐÚNG việc được giao trên dữ liệu mà
+ * tầng dưới đã bịa ra hai danh tính cho cùng một thứ. Và `UNCATEGORIZED_ID`
+ * thì KHÔNG nhân bản, nên nhìn qua tưởng là chuyện ngẫu nhiên.
+ *
+ * Đây là mặt trái của đúng một câu hỏi với lỗi khóa chính `(user_id, id)`:
+ * danh mục mặc định có danh tính ổn định giữa các máy hay không. Câu trả lời
+ * cũ — "có với một cái, không với năm cái kia" — là câu tệ nhất có thể, vì nó
+ * làm cả hai kiểu hỏng đều không lộ ra.
+ */
+export const SEEDED_CATEGORY_IDS = {
+  university: 'sys-university',
+  work: 'sys-work',
+  tutor: 'sys-tutor',
+  research: 'sys-research',
+  personal: 'sys-personal',
+} as const;
+
+/**
+ * Danh mục này có phải do seed tạo ra không.
+ *
+ * Dùng cho việc tự dọn sau đồng bộ: một danh mục seed CHƯA ĐƯỢC DÙNG mà trùng
+ * tên với danh mục kéo về từ đám mây thì bỏ đi được — không tham chiếu nào
+ * nghĩa là chắc chắn không mất gì.
+ */
+export function isSeededCategoryId(id: string): boolean {
+  return id.startsWith('sys-') && id !== UNCATEGORIZED_ID;
+}

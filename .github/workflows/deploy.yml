@@ -33,18 +33,45 @@ jobs:
       # không tự nâng phiên bản. Bản deploy phải khớp bản đã chạy test ở máy.
       - run: npm ci
 
-      # Năm bước dưới là CỔNG CHẶN. Bất kỳ cái nào đỏ thì không có gì được
-      # deploy — đó là toàn bộ lý do bộ test tồn tại.
-      #
-      # `check:core` viết bằng bash và trên Windows hay bị bỏ qua vì thiếu
-      # bash. Runner của GitHub luôn có, nên đây là chỗ nó thật sự chạy được
-      # mỗi lần, không phụ thuộc vào việc ai đó nhớ gõ lệnh.
+      # Năm cổng dưới đây là CỔNG CHẶN. Bất kỳ cái nào đỏ thì không có gì được
+      # deploy — đó là toàn bộ lý do bộ test tồn tại. Cùng một danh sách với
+      # `npm run verify` ở máy, giữ nguyên thứ tự: cái nào rẻ và chỉ ra lỗi rõ
+      # nhất thì chạy trước.
       - run: npm run check:core
+
+      # So supabase_schema.sql với types/index.ts. Không có cổng này thì lệch
+      # lược đồ chỉ lộ ra khi người dùng thật bấm Đồng bộ — test, tsc và lint
+      # đều không đọc file .sql. Xem scripts/check-cloud-schema.mjs.
+      - run: npm run check:cloud
+
+      # Mọi khóa `t('…')` phải có ở cả ba bộ vi/en/zh, và không được dùng dạng
+      # có chuỗi dự phòng inline — đó là thứ đã che giấu việc toàn bộ mục Cloud
+      # của Phase 2 không có lấy một khóa nào. Xem scripts/check-i18n.mjs.
+      - run: npm run check:i18n
+
       - run: npm run lint
       - run: npm test
       # `tsc -b`, KHÔNG phải `tsc --noEmit` — xem phần cảnh báo trong README.
       - run: npm run typecheck
+
+      # ⚠️ VITE_* PHẢI CÓ MẶT Ở BƯỚC BUILD, KHÔNG PHẢI LÚC CHẠY.
+      #
+      # Vite nhúng `import.meta.env.VITE_*` thành hằng chuỗi lúc biên dịch.
+      # Thiếu ở đây thì bundle mang chuỗi rỗng vĩnh viễn, và không có cách nào
+      # cấu hình sau khi deploy — mục Đồng bộ Đám mây trên bản GitHub Pages sẽ
+      # báo "chưa cấu hình" dù Supabase đã dựng xong.
+      #
+      # Anon key của Supabase VỐN LÀ công khai: nó đi thẳng vào JS phía trình
+      # duyệt trong mọi trường hợp, và thứ bảo vệ dữ liệu là RLS chứ không phải
+      # sự bí mật của key này. Để ở `vars` chứ không phải `secrets` là để nói
+      # đúng điều đó — giấu nó vào `secrets` tạo cảm giác an toàn giả.
+      #
+      # Đặt tại: Settings → Secrets and variables → Actions → Variables.
+      # Bỏ trống cũng được: app vẫn build và chạy, chỉ là không có Cloud Sync.
       - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
 
       - uses: actions/upload-pages-artifact@v3
         with:

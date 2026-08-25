@@ -10,8 +10,29 @@
     />
 
     <link rel="icon" type="image/svg+xml" href="./icon.svg" />
-    <link rel="apple-touch-icon" href="./icon.svg" />
+    <link rel="apple-touch-icon" href="./icon-192.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
+
+    <!-- Xem trước khi dán liên kết vào Zalo, Messenger, Slack, Discord…
+         Ảnh sinh bằng scripts/generate-icons.mjs, 1200×630.
+
+         ⚠️ Đường dẫn TƯƠNG ĐỐI, không tuyệt đối. Đặc tả Open Graph đòi URL
+         tuyệt đối, nhưng ta không biết tên miền lúc build — `vite.config.ts`
+         đặt `base: './'` chính là để không phải biết. Ghi cứng một tên miền
+         vào đây là tạo ra một giá trị sẽ sai ngay khi ai đó fork dự án, đúng
+         loại cấu hình chết mà chúng ta vừa mất công dọn ở Phase 2.
+         Facebook, X, Slack và Discord đều tự nối đường dẫn tương đối với URL
+         trang. LinkedIn thì kén hơn và có thể bỏ qua ảnh. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Personal Schedule System" />
+    <meta
+      property="og:description"
+      content="Lịch cá nhân đa loại kèm theo dõi thu nhập. Dữ liệu nằm hoàn toàn trên máy bạn."
+    />
+    <meta property="og:image" content="./og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
 
     <!-- Màu thanh trạng thái khi cài như ứng dụng. Hai giá trị theo chế độ
          sáng/tối để thanh không chọi với nền trang. -->

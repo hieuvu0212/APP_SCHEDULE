@@ -18,13 +18,13 @@ import type { BackupFile, BackupError, BackupTable } from '../core/backup';
 import { backupFileName, countRecords, validateBackup } from '../core/backup';
 import { daysSinceDeleted, purgeCutoff } from '../core/trash';
 import { exportBackup, importBackup, type ImportReport } from '../db/backup';
-import {
-  listTrash,
-  purgeOlderThan,
-  purgeOne,
-  restoreFromTrash,
-  type TrashItem,
-} from '../db/repo/trash';
+import { exportIcs, previewIcsExport } from '../db/exportIcs';
+import { findDuplicates, mergeCategories } from '../db/dedupe';
+import { useUndo } from '../undo/context';
+import { listTrash, restoreFromTrash, type TrashItem } from '../db/repo/trash';
+// Xóa vĩnh viễn đi qua db/purge.ts, KHÔNG qua repo/trash.ts trực tiếp: nó phải
+// xóa cả trên đám mây, nếu không bản ghi sống lại ở lần đồng bộ sau.
+import { purgeOlderThan, purgeOne, type PurgeResult } from '../db/purge';
 import { SCHEMA_VERSION } from '../db/schema';
 import {
   notificationState,
@@ -33,7 +33,7 @@ import {
 } from '../hooks/useReminders';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
 import { inputClass } from './styles';
-import { Button, ConfirmDialog, Field, Modal } from './ui';
+import { Button, ColorDot, ConfirmDialog, Field, Modal, Toggle } from './ui';
 
 const CURRENCIES: Array<SystemSettings['currency']> = ['VND', 'USD', 'CNY'];
 
@@ -75,7 +75,7 @@ const BACKUP_ERROR_KEY: Record<BackupError, string> = {
   tableNotArray: 'backup.errorTableNotArray',
 };
 
-export function SettingsView() {
+export function SettingsView({ onOpenPrivacy }: { onOpenPrivacy: () => void }) {
   const { t } = useTranslation();
   const settings = useSettings();
   const update = useUpdateSettings();
@@ -204,9 +204,24 @@ export function SettingsView() {
       </section>
 
       <ReminderSection />
-
+      <DuplicateSection />
       <BackupSection />
+      <CalendarExportSection />
       <TrashSection />
+
+      {/* Đồng bộ đám mây đã dời sang màn hình Tài khoản. Để lại một dòng trỏ
+          đường: người dùng đã quen tìm nó ở đây, và một tính năng "biến mất"
+          mà không nói đi đâu sẽ bị hiểu là đã bị gỡ bỏ. */}
+      <p className="px-1 text-xs text-slate-500">
+        {t('settings.cloudMoved')}{' '}
+        <button
+          type="button"
+          onClick={onOpenPrivacy}
+          className="underline underline-offset-2 hover:text-slate-800"
+        >
+          {t('privacy.title')}
+        </button>
+      </p>
     </div>
   );
 }
@@ -498,7 +513,7 @@ function TrashSection() {
   const { t } = useTranslation();
   const items = useLiveQuery(() => listTrash(), []);
   const [confirming, setConfirming] = useState<TrashItem | 'old' | null>(null);
-  const [purged, setPurged] = useState<number | null>(null);
+  const [result, setResult] = useState<PurgeResult | null>(null);
 
   if (!items) return null;
 
@@ -507,12 +522,12 @@ function TrashSection() {
 
   const doPurgeOld = async () => {
     setConfirming(null);
-    setPurged(await purgeOlderThan(cutoff));
+    setResult(await purgeOlderThan(cutoff));
   };
 
   const doPurgeOne = async (item: TrashItem) => {
     setConfirming(null);
-    await purgeOne(item.table, item.id);
+    setResult(await purgeOne(item.table, item.id));
   };
 
   return (
@@ -539,10 +554,23 @@ function TrashSection() {
         )}
       </div>
 
-      {purged != null && (
-        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-          {t('trash.purgeDone', { n: purged })}
-        </p>
+      {result != null && (
+        <div className="space-y-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          <p>{t('trash.purgeDone', { n: result.removed })}</p>
+
+          {/* Nói rõ phần đám mây, đừng gộp vào một dấu tích.
+              Xóa cứng ở máy mà không xóa trên mây nghĩa là bản ghi sẽ QUAY VỀ
+              ở lần đồng bộ kế tiếp — người dùng cần biết trước điều đó, chứ
+              không phải tự phát hiện sau khi nó xảy ra. */}
+          {result.cloud.kind === 'skipped' && result.cloud.reason === 'notSignedIn' && (
+            <p className="text-amber-700">{t('trash.cloudSkipped')}</p>
+          )}
+          {result.cloud.kind === 'failed' && (
+            <p className="text-red-600">
+              {t('trash.cloudFailed')} {result.cloud.message}
+            </p>
+          )}
+        </div>
       )}
 
       {items.length === 0 ? (
@@ -612,29 +640,144 @@ function TrashSection() {
 
 // ───────────────────────────────────────────────────────────────────────────
 
-function Toggle({
-  checked,
-  onChange,
-  label,
-  hint,
-}: {
-  checked: boolean;
-  onChange: (value: boolean) => void;
-  label: string;
-  hint: string;
-}) {
+/**
+ * Danh mục trùng tên — dọn dẹp có xét duyệt.
+ *
+ * ⚠️ KHÔNG BAO GIỜ GỘP TỰ ĐỘNG, VÀ ĐÂY LÀ LÝ DO.
+ *
+ * Chú thích trong db/seed.ts nói rõ: "Đi làm ở đây là MỘT chỗ làm, không phải
+ * nhóm gộp mọi chỗ làm. Có chỗ làm thứ hai thì tạo danh mục thứ hai." Hai chỗ
+ * làm cùng tên "Đi làm" là hoàn toàn hợp lệ — gộp chúng lại sẽ ép hai cấu
+ * hình lương khác nhau về làm một, đúng thứ mà `calcMonthlyPayroll` không có
+ * đường phân biệt.
+ *
+ * Nên mục này chỉ ĐỀ XUẤT. Nó hiện số bản ghi sẽ phải chuyển của từng nhóm,
+ * rồi để người dùng quyết từng nhóm một.
+ *
+ * Cả mục tự ẩn khi không có gì trùng — một mục "Danh mục trùng lặp: 0" nằm
+ * thường trực trong Cài đặt chỉ làm người ta lo lắng vô cớ.
+ */
+function DuplicateSection() {
+  const { t } = useTranslation();
+  const { pushUndo } = useUndo();
+  const report = useLiveQuery(() => findDuplicates(), []);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  if (!report || report.groups.length === 0) return null;
+
+  const handleMerge = async (group: (typeof report.groups)[number]) => {
+    setBusy(group.key);
+    try {
+      const result = await mergeCategories(
+        group.keep.category.id,
+        group.merge.map((m) => m.category.id),
+      );
+      pushUndo(
+        t('duplicates.merged', { name: group.label, n: result.repointed }),
+        result.undo,
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
-    <label className="flex cursor-pointer items-start gap-3">
-      <input
-        type="checkbox"
-        className="mt-1"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-      <span className="text-sm">
-        <span className="font-medium text-slate-800">{label}</span>
-        <span className="block text-xs leading-snug text-slate-500">{hint}</span>
-      </span>
-    </label>
+    <section className="space-y-3 rounded-xl border border-amber-300 bg-amber-50/60 p-5">
+      <div>
+        <h3 className="text-sm font-semibold text-amber-900">{t('duplicates.title')}</h3>
+        <p className="mt-1 text-xs leading-relaxed text-amber-800">{t('duplicates.why')}</p>
+      </div>
+
+      <p className="text-xs leading-relaxed text-amber-800">{t('duplicates.notAlwaysWrong')}</p>
+
+      <ul className="space-y-2">
+        {report.groups.map((group) => (
+          <li
+            key={group.key}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2"
+          >
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 text-sm font-medium text-slate-800">
+                <ColorDot color={group.keep.category.color} />
+                {group.label}
+                <span className="font-normal text-slate-500">
+                  {t('duplicates.copies', { n: group.merge.length + 1 })}
+                </span>
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                {t('duplicates.willMove', { n: group.movingRefs })}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              disabled={busy !== null}
+              onClick={() => void handleMerge(group)}
+            >
+              {busy === group.key ? t('duplicates.merging') : t('duplicates.merge')}
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Xuất lịch sang định dạng iCalendar.
+ *
+ * ⚠️ ĐÂY KHÔNG PHẢI SAO LƯU, VÀ MỤC NÀY PHẢI NÓI RÕ ĐIỀU ĐÓ.
+ *
+ * File .ics chỉ mang lịch: không có cấu hình lương, không có khoản thu, không
+ * có danh mục, không có tombstone. Nhập nó lại vào ứng dụng cũng không khôi
+ * phục được gì. Hai nút nằm cạnh nhau mà một cái là bản sao lưu đầy đủ, một
+ * cái là bản trích xuất một phần — nhầm lẫn ở đây nghĩa là ai đó tin rằng
+ * mình đã có bản dự phòng trong khi không có.
+ */
+function CalendarExportSection() {
+  const { t } = useTranslation();
+  const counts = useLiveQuery(() => previewIcsExport(), []);
+  const [busy, setBusy] = useState(false);
+
+  const handleExport = async () => {
+    setBusy(true);
+    try {
+      await exportIcs();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const total = counts ? counts.rules + counts.events + counts.overrides : 0;
+
+  return (
+    <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
+      <div>
+        <h3 className="text-sm font-semibold text-slate-800">{t('ics.title')}</h3>
+        <p className="mt-1 text-xs leading-relaxed text-slate-500">{t('ics.why')}</p>
+      </div>
+
+      <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+        {t('ics.notBackup')}
+      </p>
+
+      {counts && (
+        <p className="text-xs text-slate-500">
+          {t('ics.summary', {
+            rules: counts.rules,
+            events: counts.events,
+            overrides: counts.overrides,
+          })}
+        </p>
+      )}
+
+      <Button variant="outline" disabled={busy || total === 0} onClick={() => void handleExport()}>
+        {busy ? t('ics.exporting') : t('ics.export')}
+      </Button>
+    </section>
+  );
+}
+
+// `Toggle` đã chuyển sang ui.tsx — màn hình Tài khoản cũng cần nó, và hai bản
+// sao của cùng một công tắc sẽ lệch nhau về khoảng cách và cỡ chữ.

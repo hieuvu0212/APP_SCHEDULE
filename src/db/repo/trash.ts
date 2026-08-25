@@ -100,19 +100,31 @@ export async function restoreFromTrash(table: BackupTable, id: string): Promise<
   }
 }
 
-/** Xóa vĩnh viễn đúng một bản ghi */
+/**
+ * Bản ghi đã bị xóa cứng ở máy này.
+ *
+ * Trả về danh sách chứ không phải con số, vì phía đám mây cần biết ĐÚNG những
+ * id nào để xóa theo. Xem db/purge.ts — thiếu bước đó thì bản ghi sống lại ở
+ * lần đồng bộ kế tiếp.
+ */
+export interface PurgedRef {
+  table: BackupTable;
+  id: string;
+}
+
+/** Xóa vĩnh viễn đúng một bản ghi Ở MÁY NÀY. Đám mây do db/purge.ts lo. */
 export async function purgeOne(table: BackupTable, id: string): Promise<void> {
   await tableOf(table).delete(id);
 }
 
 /**
- * Xóa vĩnh viễn mọi bản ghi có `deletedAt` cũ hơn `cutoff`.
+ * Xóa vĩnh viễn mọi bản ghi có `deletedAt` cũ hơn `cutoff`, Ở MÁY NÀY.
  *
  * Chạy trong MỘT giao dịch: dọn được một nửa rồi đứt sẽ để lại exception mồ
  * côi trỏ tới rule đã bị xóa cứng.
  */
-export async function purgeOlderThan(cutoff: string): Promise<number> {
-  let removed = 0;
+export async function purgeOlderThan(cutoff: string): Promise<PurgedRef[]> {
+  const purged: PurgedRef[] = [];
 
   await db.transaction(
     'rw',
@@ -125,11 +137,11 @@ export async function purgeOlderThan(cutoff: string): Promise<number> {
           .map((row) => row.id);
         if (doomed.length) {
           await tableOf(table).bulkDelete(doomed);
-          removed += doomed.length;
+          for (const id of doomed) purged.push({ table, id });
         }
       }
     },
   );
 
-  return removed;
+  return purged;
 }

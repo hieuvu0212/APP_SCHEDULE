@@ -15,7 +15,7 @@ import { db } from '../schema';
 import { ALL_TABLES } from '../tables';
 import { createCategory, softDeleteCategoryUndoable } from '../repo/categories';
 import { bulkCreateEvents, createEvent } from '../repo/events';
-import { copyWeek } from '../../actions/schedule';
+import { applySubmit, copyWeek } from '../../actions/schedule';
 import {
   createRule,
   restoreRule,
@@ -379,5 +379,54 @@ describe('copyWeek — ghi hàng loạt và rút lại nguyên thao tác', () =>
     expect(await db.events.filter((e) => !e.deletedAt).count()).toBe(0);
     // Xóa MỀM: bản ghi còn đó để thùng rác thấy và để Cloud Sync biết đường.
     expect(await db.events.count()).toBe(2);
+  });
+});
+
+describe('applySubmit — hoàn tác cho buổi ADD', () => {
+  it('buổi ADD lấy đúng rate của exception để chụp snapshot hoàn tác', async () => {
+    // Việc 3: Đảm bảo khi hoàn tác sửa buổi ADD, rate của nó không bị biến
+    // thành rate fallback từ category.
+    const ruleId = await createRule(weeklyRule());
+    const exceptionId = await upsertException({
+      type: 'ADD',
+      recurringRuleId: ruleId,
+      newDate: '2026-08-04',
+      newStartTime: '08:00',
+      newDurationMinutes: 60,
+      newRatePerHour: undefined, // Thừa kế
+    });
+
+    const target = {
+      kind: 'rule' as const,
+      rule: await db.rules.get(ruleId) as any,
+      occurrence: {
+        exceptionId,
+        date: '2026-08-04',
+        startTime: '08:00',
+        durationMinutes: 60,
+        ratePerHour: 100_000, // Rate được resolve do thừa kế
+      } as any,
+    };
+
+    const payload = {
+      scope: 'OCCURRENCE' as const,
+      date: '2026-08-04',
+      startTime: '08:00',
+      durationMinutes: 60,
+      ratePerHour: 200_000, // Gán cứng
+    };
+
+    const { undo } = await applySubmit(payload as any, target);
+
+    // Rate đã bị ghi đè thành 200k
+    let exc = await db.exceptions.get(exceptionId);
+    expect(exc?.newRatePerHour).toBe(200_000);
+
+    // Hoàn tác
+    await undo();
+
+    exc = await db.exceptions.get(exceptionId);
+    // Phải trở về undefined (rate thừa kế), không phải 100k
+    expect(exc?.newRatePerHour).toBeUndefined();
   });
 });

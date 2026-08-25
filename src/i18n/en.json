@@ -15,7 +15,10 @@
     "settings": "Settings",
     "today": "Today",
     "previous": "Back",
-    "next": "Forward"
+    "next": "Forward",
+    "account": "Account",
+    "label": "Screens",
+    "privacy": "Privacy"
   },
   "copyWeek": {
     "open": "Copy week",
@@ -140,6 +143,9 @@
       "fixedLabel": "Amount for the session",
       "fixedHint": "This amount is NOT multiplied by hours — use it for flat-fee sessions."
     }
+  },
+  "quickAdd": {
+    "placeholder": "Quick add — e.g. Maths 6-8pm Tuesday"
   },
   "scope": {
     "legend": "What are you editing?",
@@ -281,7 +287,8 @@
     "autoComplete": "Mark past sessions as completed automatically",
     "autoCompleteHint": "Sessions that ended before now count as attended unless you set another status. Turn it off to mark each one by hand.",
     "showConflicts": "Warn about overlaps",
-    "showConflictsHint": "Shows ⚠ on overlapping sessions. A warning only, never a block — sometimes you overlap on purpose."
+    "showConflictsHint": "Shows ⚠ on overlapping sessions. A warning only, never a block — sometimes you overlap on purpose.",
+    "cloudMoved": "Cloud sync has moved to the Account screen. See also:"
   },
   "dues": {
     "collected": "Collected",
@@ -320,7 +327,8 @@
     "clientsHint": "Students, workplaces, courses, topics — counted by the name you typed, so spelling variants split into two.",
     "today": "Today",
     "tomorrow": "Tomorrow",
-    "empty": "Nothing scheduled."
+    "empty": "Nothing scheduled.",
+    "emptyHint": "Use the quick add bar to schedule something."
   },
   "stats": {
     "incomeFilterNote": "The income chart follows the CATEGORY filter only. Filtering by person or status cannot change it, because fixed-monthly jobs cannot be split per session.",
@@ -357,7 +365,9 @@
     "failed": "Could not create the PDF: {{message}}",
     "fontMissing": "Font files missing from public/fonts/. See the README.",
     "fontFormat": "{{url}} is not a valid font — what was read: {{found}}. Check three things: the file is in public/fonts/, it is the .ttf from the static folder (not the variable font, not the .zip), and the size looks right (~500 KB for Noto Sans, ~10 MB for Noto Sans SC).",
-    "cjkFontMissing": "This week contains Han, kana, Hangul or emoji, which needs NotoSansSC-Regular.ttf in public/fonts/ (see the README). In the meantime use Print and choose “Save as PDF” — the browser uses system fonts and renders them correctly."
+    "cjkFontMissing": "This week contains Han, kana, Hangul or emoji, which needs NotoSansSC-Regular.ttf in public/fonts/ (see the README). In the meantime use Print and choose “Save as PDF” — the browser uses system fonts and renders them correctly.",
+    "exportPng": "Export PNG",
+    "bandLabel": "Period"
   },
   "reminder": {
     "title": "Reminders",
@@ -393,7 +403,19 @@
     "tableSalaryRules": "Pay settings",
     "tableAdjustments": "Adjustment",
     "tableTemplates": "Template",
-    "tablePayments": "Payment"
+    "tablePayments": "Payment",
+    "cloudSkipped": "Not signed in, so this only deleted locally. The cloud copy remains and will come back on the next sync.",
+    "cloudFailed": "Could not delete the cloud copy:"
+  },
+  "duplicates": {
+    "title": "Duplicate categories",
+    "why": "The same category name appears more than once. Usual cause: every browser, and every time site data is cleared, created a fresh set of sample categories which sync then pushed up. The seeding bug behind this is fixed — this section cleans up what already got created.",
+    "notAlwaysWrong": "Sharing a name does NOT always mean a mistake: two workplaces both called \"Work\" is valid, and merging them would force two different salary settings into one. Check the record count before you merge.",
+    "copies": "({{n}} copies)",
+    "willMove": "Merging moves {{n}} records to the kept category.",
+    "merge": "Merge",
+    "merging": "Merging…",
+    "merged": "Merged \"{{name}}\", moved {{n}} records"
   },
   "backup": {
     "title": "Backup and restore",
@@ -415,6 +437,82 @@
     "errorMissingData": "The file has no data block.",
     "errorNewerSchema": "This file came from a newer version. Importing it would drop fields this version does not know — update the app first.",
     "errorTableNotArray": "The data structure in the file is broken."
+  },
+  "ics": {
+    "title": "Export to calendar app (.ics)",
+    "why": "Send your schedule to Google Calendar, Apple Calendar, Outlook or your phone calendar. Recurring rules stay a single editable series instead of being flattened into separate entries.",
+    "notBackup": "⚠️ This is NOT a backup. An .ics file carries only the calendar — no salary settings, dues or categories — and importing it back restores nothing. For a real backup use Export backup above.",
+    "summary": "Will export: {{rules}} recurring rules, {{events}} single events, {{overrides}} per-occurrence edits.",
+    "export": "Export .ics file",
+    "exporting": "Exporting…"
+  },
+  "cloud": {
+    "title": "Cloud sync",
+    "hint": "Keep the same schedule on several devices. Your data still lives in this browser; the cloud is only a mirror.",
+    "notConfigured": "No sync server is configured, so this section is off. Your data is still safe in this browser and can still be moved with a backup file.",
+    "email": "Email",
+    "password": "Password",
+    "login": "Sign in",
+    "signup": "Sign up",
+    "signUpSent": "Sign-up request sent. Check your inbox if the server asks you to confirm, then sign in.",
+    "logout": "Sign out",
+    "loggedInAs": "Signed in as:",
+    "syncNow": "Sync now",
+    "syncing": "Syncing…",
+    "syncResult": "Done — {{pushed}} pushed, {{pulled}} pulled.",
+    "tableFailed": "Table {{table}} failed:",
+    "error": {
+      "notConfigured": "No sync server is configured.",
+      "notSignedIn": "Your session has expired. Sign in again and retry.",
+      "unknown": "Sync failed."
+    },
+    "autoSync": "Auto-sync",
+    "autoSyncHint": "Syncs when the app opens, when you return to the tab, and when the network comes back. It does NOT run on every edit — see the README for why.",
+    "lastSync": "Last synced: {{when}}",
+    "neverSynced": "Never synced on this device."
+  },
+  "account": {
+    "hint": "Sign in to keep the same schedule on several devices. Not required.",
+    "optionalTitle": "Everything works without an account",
+    "optionalBody": "Every feature — calendar, payroll, dues, statistics, printing, backup — runs without signing in. An account adds exactly one thing: keeping your data the same across devices. Without one, your data stays entirely in this browser, and that is a perfectly valid choice."
+  },
+  "privacy": {
+    "title": "Privacy Policy",
+    "lastUpdated": "Last updated: {{date}}",
+    "back": "Back to Settings",
+    "tagline": "By default, no data leaves this browser. Your schedule, income and notes live in IndexedDB on your own machine. Cloud sync is optional and off by default. No ads, no trackers, no behavioural analytics.",
+    "local": {
+      "title": "Where your data lives",
+      "body": "All categories, recurring rules, occurrences, salary settings and payments are stored in this browser’s IndexedDB. Nothing is sent anywhere unless you turn on Cloud sync yourself. Clearing browsing data or uninstalling the app loses them permanently — use Settings → Export backup."
+    },
+    "cloud": {
+      "title": "If you turn on Cloud sync",
+      "body": "Sync uses Supabase. If and only if you sign in and press Sync, the following is sent to the server:",
+      "i1": "Your email address, managed by Supabase Auth. The app never sees or stores your password.",
+      "i2": "Eight data tables: categories, recurring rules, exceptions, events, salary rules, payroll adjustments, adjustment templates and payments — including titles, notes, locations, subject names and amounts.",
+      "i3": "Row Level Security isolates data per account: one user cannot read another user’s rows, even knowing the exact id.",
+      "i4": "The anon key embedded in the app is public by design — it ships inside JavaScript that anyone can download. What protects your data is RLS, not the secrecy of that key."
+    },
+    "notCollected": {
+      "title": "What is NOT collected",
+      "body": "The app loads no third-party scripts.",
+      "i1": "No analytics, no visit counting, no behavioural tracking.",
+      "i2": "No tracking cookies. Local storage is used only for your own data and sign-in session.",
+      "i3": "No location, contacts, system calendar or any device permission — other than the notification permission you grant yourself for reminders.",
+      "i4": "No advertising. No sharing or selling of data to anyone."
+    },
+    "retention": {
+      "title": "How long deleted records stay",
+      "body": "Every delete in the app is a soft delete: the record remains with a deletion timestamp, so Undo has a way back and so the deletion can propagate to your other devices. By default they are purged only after 30 days; you can purge sooner in Settings → Trash. Permanent deletion removes the cloud copy as well — provided you are signed in at the time. If you are not, only the local copy goes, and the screen says so rather than leaving you to find out later."
+    },
+    "deletion": {
+      "title": "Deleting your data",
+      "body": "Local data: Settings → Trash → Delete permanently, or clear site data in your browser. Cloud data: delete the account in the project’s Supabase dashboard — foreign keys use ON DELETE CASCADE, so every row belonging to that account goes with it."
+    },
+    "operator": {
+      "title": "Who runs the server",
+      "body": "This is open-source software that each person deploys themselves. Whoever set up the Supabase project you sync to has full access to that database, and Supabase is the third-party processor hosting it. If you deployed it yourself, that person is you. With sync off, no third party is involved at all."
+    }
   },
   "occurrence": {
     "scheduled": "Scheduled",
@@ -438,6 +536,11 @@
     "endDateRequired": "Pick an end date",
     "endDateAfterStart": "The end date cannot be before the start date",
     "countPositive": "Session count must be greater than 0"
+  },
+  "error": {
+    "viewCrashed": "This screen failed to open.",
+    "retry": "Try again",
+    "reload": "Reload page"
   },
   "toast": {
     "created": "Created “{{title}}”",

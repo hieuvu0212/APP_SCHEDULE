@@ -226,15 +226,15 @@ function PrintEvent({
     <li
       // `break-inside: avoid` để một buổi không bị cắt đôi giữa hai trang khi
       // tuần quá dày và bảng buộc phải tràn sang tờ thứ hai.
-      className="overflow-hidden rounded border-l-2 px-1 py-0.5 leading-tight [break-inside:avoid]"
-      style={{ backgroundColor: tint(color, '26'), borderLeftColor: color }}
+      className="overflow-hidden rounded border-2 px-1 py-0.5 leading-tight [break-inside:avoid]"
+      style={{ backgroundColor: tint(color, '26'), borderColor: color }}
     >
-      <span className="block tabular-nums font-semibold text-slate-900">
+      <span className="block tabular-nums font-bold text-slate-900">
         {o.startTime}–{endTimeOf(o.startTime, o.durationMinutes)}
       </span>
       {/* `break-words` chặn tiêu đề dài tràn ra khỏi ô — cột chỉ rộng
           khoảng 38mm trên giấy A4 ngang. */}
-      <span className="block break-words font-medium text-slate-800">{o.title}</span>
+      <span className="block break-words font-bold text-slate-900">{o.title}</span>
       {category && <span className="block text-slate-500">{category.name}</span>}
       {o.location && <span className="block break-words text-slate-500">{o.location}</span>}
       {/* Đánh dấu trạng thái bằng ký hiệu chứ không bằng màu: bản in có thể

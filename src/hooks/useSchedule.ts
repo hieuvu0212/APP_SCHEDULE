@@ -52,6 +52,15 @@ export function useSchedule(
       autoCompletePast: autoComplete,
     });
 
+    const { db } = await import('../db/schema');
+    const clients = await db.clients.toArray();
+    const clientMap = new Map(clients.map((c: any) => [c.id, c.name]));
+    for (const occ of occurrences) {
+      if (occ.clientId) {
+        occ.clientName = clientMap.get(occ.clientId);
+      }
+    }
+
     return detectConflicts(occurrences);
   }, [windowStart, windowEnd, autoComplete]);
 }

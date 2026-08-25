@@ -11,10 +11,18 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -b",
-    "check:core": "node scripts/check-core-boundary.mjs"
+    "check:core": "node scripts/check-core-boundary.mjs",
+    "check:cloud": "node scripts/check-cloud-schema.mjs",
+    "check:i18n": "node scripts/check-i18n.mjs",
+    "verify": "npm run check:core && npm run check:cloud && npm run check:i18n && npm run lint && npm test && npm run typecheck"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
     "@react-pdf/renderer": "^4.3.1",
+    "@supabase/supabase-js": "^2.112.3",
     "dexie": "^4.4.5",
     "dexie-react-hooks": "^4.4.0",
     "html2canvas-pro": "^2.3.9",
@@ -34,6 +42,7 @@
     "fake-indexeddb": "^6.0.0",
     "jsdom": "^30.0.1",
     "oxlint": "^1.75.0",
+    "sharp": "^0.35.3",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
     "vite": "^8.2.0",

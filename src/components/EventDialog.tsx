@@ -35,7 +35,19 @@ import { Button, ColorDot, Field, Modal } from './ui';
 export type EditScope = 'OCCURRENCE' | 'FOLLOWING' | 'SERIES';
 
 export type DialogTarget =
-  | { kind: 'create'; date: string; startTime: string }
+  | {
+      kind: 'create';
+      date: string;
+      startTime: string;
+      title?: string;
+      endTime?: string;
+      /** Đối tượng mà Thêm nhanh nhận ra được — xem core/quickAdd.ts */
+      clientName?: string;
+      /** Các thứ trong tuần Thêm nhanh bóc được. Rỗng/thiếu = chỉ ngày `date`. */
+      daysOfWeek?: number[];
+      /** Bật sẵn chế độ lặp hàng tuần trong form */
+      repeats?: boolean;
+    }
   | { kind: 'event'; event: SingleEvent }
   | { kind: 'rule'; rule: RecurringRule; occurrence: Occurrence };
 
@@ -141,12 +153,20 @@ function initialState(
   };
 
   if (target.kind === 'create') {
+    // Thêm nhanh có thể đã bóc ra được Đối tượng và danh sách thứ. Khi nó nói
+    // từ hai thứ trở lên thì bật sẵn chế độ lặp hàng tuần — một buổi không
+    // thể vừa diễn ra thứ Hai vừa diễn ra thứ Năm, nên để `repeat: 'NONE'` là
+    // chắc chắn đánh rơi một nửa số buổi người dùng vừa gõ.
+    const seeded = target.daysOfWeek?.length ? target.daysOfWeek : [dayOfWeek(target.date)];
     return {
       ...base,
+      title: target.title ?? '',
       date: target.date,
       startTime: target.startTime,
-      endTime: endTimeOf(target.startTime, 60),
-      daysOfWeek: [dayOfWeek(target.date)],
+      endTime: target.endTime ?? endTimeOf(target.startTime, 60),
+      clientName: target.clientName ?? '',
+      repeat: target.repeats ? 'WEEKLY' : 'NONE',
+      daysOfWeek: seeded,
       dayOfMonth: String(Number(target.date.slice(8))),
     };
   }

@@ -153,6 +153,7 @@ function makeOccurrence(args: {
   ratePerHour?: number;
   fixedAmount?: number;
   location?: string;
+  clientId?: string;
   clientName?: string;
   notes?: string;
 }): Occurrence {
@@ -230,6 +231,7 @@ export function expandSchedule(input: ExpandInput): Occurrence[] {
       ratePerHour: ev.ratePerHour,
       fixedAmount: ev.fixedAmount,
       location: ev.location,
+      clientId: ev.clientId,
       clientName: ev.clientName,
       notes: ev.notes,
     });
@@ -265,6 +267,7 @@ export function expandSchedule(input: ExpandInput): Occurrence[] {
       ratePerHour: exc?.newRatePerHour ?? rule.ratePerHour,
       fixedAmount: exc?.newFixedAmount ?? rule.fixedAmount,
       location: rule.location,
+      clientId: exc?.newClientId ?? rule.clientId,
       clientName: rule.clientName,
       notes: rule.notes,
     });
@@ -324,6 +327,7 @@ export function expandSchedule(input: ExpandInput): Occurrence[] {
       ratePerHour: e.newRatePerHour ?? base?.ratePerHour,
       fixedAmount: e.newFixedAmount ?? base?.fixedAmount,
       location: base?.location,
+      clientId: e.newClientId ?? base?.clientId,
       clientName: base?.clientName,
       notes: e.reason ?? base?.notes,
     });

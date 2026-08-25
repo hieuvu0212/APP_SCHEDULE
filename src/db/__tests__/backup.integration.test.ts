@@ -184,9 +184,12 @@ describe('thùng rác', () => {
     await db.categories.update(catId, { deletedAt: '2020-01-01T00:00:00Z' });
     await db.events.update(events[0].id, { deletedAt: new Date().toISOString() });
 
+    // Trả về DANH SÁCH id chứ không phải số đếm: `db/purge.ts` cần biết đúng
+    // những id nào để xóa theo ở phía đám mây. Thiếu chúng thì bản ghi sống
+    // lại ở lần đồng bộ kế tiếp — xem db/__tests__/purge.test.ts.
     const removed = await purgeOlderThan(purgeCutoff(30));
 
-    expect(removed).toBe(1);
+    expect(removed).toEqual([{ table: 'categories', id: catId }]);
     expect(await db.categories.get(catId)).toBeUndefined();
     // Vừa xóa hôm nay → chưa tới lượt.
     expect(await db.events.count()).toBe(1);
