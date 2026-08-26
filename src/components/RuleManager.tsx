@@ -19,6 +19,7 @@
 
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useClientNames } from '../hooks/useClientNames';
 import { useTranslation } from 'react-i18next';
 import type { Category, Occurrence, RecurringRule } from '../types';
 import type { RuleStatus } from '../core/expand';
@@ -54,6 +55,7 @@ export function RuleManager({
 }) {
   const { t } = useTranslation();
   const rules = useLiveQuery(() => listRules(), []);
+  const clientNames = useClientNames();
   const [showEnded, setShowEnded] = useState(false);
   const today = todayKey();
 
@@ -132,7 +134,7 @@ export function RuleManager({
               )}
 
               <span className="ml-auto flex gap-1">
-                <Button variant="ghost" onClick={() => onEditRule(rule, sampleOf(rule))}>
+                <Button variant="ghost" onClick={() => onEditRule(rule, sampleOf(rule, clientNames))}>
                   {t('common.edit')}
                 </Button>
                 <Button
@@ -161,7 +163,7 @@ export function RuleManager({
  * buổi đầu tiên của chuỗi — và mở form với phạm vi mặc định là CẢ CHUỖI, nên
  * ngày cụ thể không ảnh hưởng gì tới kết quả.
  */
-function sampleOf(rule: RecurringRule): Occurrence {
+function sampleOf(rule: RecurringRule, clientNames: Map<string, string>): Occurrence {
   const startAbs = toAbsolute(rule.startDate, rule.startTime);
   return {
     key: `rule:${rule.id}:${rule.startDate}`,
@@ -180,7 +182,8 @@ function sampleOf(rule: RecurringRule): Occurrence {
     ratePerHour: rule.ratePerHour,
     fixedAmount: rule.fixedAmount,
     location: rule.location,
-    clientName: rule.clientName,
+    clientName: rule.clientId ? clientNames.get(rule.clientId) : undefined,
+    clientId: rule.clientId,
     notes: rule.notes,
     hasConflict: false,
     conflictWith: [],

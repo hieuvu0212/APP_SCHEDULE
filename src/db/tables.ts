@@ -41,6 +41,7 @@ export interface SoftDeletableRow {
 export function tableOf(name: BackupTable): Table<SoftDeletableRow, string> {
   const tables: Record<BackupTable, unknown> = {
     categories: db.categories,
+    clients: db.clients,
     rules: db.rules,
     exceptions: db.exceptions,
     events: db.events,
@@ -55,6 +56,7 @@ export function tableOf(name: BackupTable): Table<SoftDeletableRow, string> {
 /** Mọi bảng có xóa mềm — dùng cho giao dịch chạy trên toàn bộ */
 export const ALL_TABLES = [
   db.categories,
+  db.clients,
   db.rules,
   db.exceptions,
   db.events,

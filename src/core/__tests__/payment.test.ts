@@ -22,6 +22,11 @@ function occ(
   const startTime = over.startTime ?? '18:00';
   const durationMinutes = over.durationMinutes ?? 120;
   const startAbs = toAbsolute(date, startTime);
+  const clientName = 'clientName' in over ? over.clientName : 'Minh';
+  const clientId = 'clientId' in over 
+    ? over.clientId 
+    : (clientName ? 'client-' + clientName.trim().toLowerCase() : undefined);
+
   return {
     key: over.key ?? `k-${Math.random()}`,
     sourceType: 'RULE',
@@ -34,8 +39,9 @@ function occ(
     endsNextDay: false,
     startAbs,
     endAbs: startAbs + durationMinutes * 60_000,
-    status: 'SCHEDULED',
-    clientName: 'Minh',
+    status: 'COMPLETED',
+    clientId,
+    clientName,
     ratePerHour: 100_000,
     hasConflict: false,
     conflictWith: [],
@@ -47,7 +53,7 @@ function pay(over: Partial<Payment> = {}): Payment {
   return {
     ...meta,
     id: `p-${Math.random()}`,
-    clientId: 'minh',
+    clientId: 'client-minh',
     clientLabel: 'Minh',
     categoryId: 'giasu',
     month: MONTH,
@@ -81,6 +87,10 @@ describe('computeDues — gộp theo đối tượng', () => {
     expect(rows[0].sessions).toBe(2);
     // Giữ dạng gõ đầu tiên để hiển thị.
     expect(rows[0].clientLabel).toBe('Minh');
+  });
+
+  it('bỏ qua buổi KHÔNG có clientId', () => {
+    expect(build([occ({ clientId: undefined })])).toEqual([]);
   });
 
   it('bỏ qua buổi KHÔNG có tên đối tượng', () => {
@@ -221,7 +231,7 @@ describe('duesTotals', () => {
         occ({ clientName: 'An', durationMinutes: 60 }),
         occ({ clientName: 'Bình', durationMinutes: 120 }),
       ],
-      [pay({ clientId: 'an', amount: 50_000 })],
+      [pay({ clientId: 'client-an', amount: 50_000 })],
     );
     const totals = duesTotals(rows);
     expect(totals.due).toBe(300_000);

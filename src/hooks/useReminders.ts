@@ -30,6 +30,11 @@ import { listRules } from '../db/repo/rules';
 import { useSettings } from './useSettings';
 
 /** Trạng thái quyền thông báo, để màn hình Cài đặt hiển thị đúng */
+export function isPushConfigured(): boolean {
+  const key = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+  return typeof key === 'string' && key.length === 87;
+}
+
 export type NotificationState = 'unsupported' | 'default' | 'granted' | 'denied';
 
 export function notificationState(): NotificationState {
@@ -47,7 +52,7 @@ export async function requestNotificationPermission(): Promise<NotificationState
       let sub = await reg.pushManager.getSubscription();
       if (!sub) {
         // VAPID public key from Supabase (demo)
-        const vapidPublicKey = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuB-5-SqWf1cZRYD40wAAQ';
+        const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
         const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
         sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,

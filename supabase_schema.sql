@@ -58,15 +58,35 @@
 -- Phần dưới dùng CREATE TABLE IF NOT EXISTS, nên chạy lại bao nhiêu lần cũng
 -- an toàn. Chỉ mở khối này khi bạn THẬT SỰ muốn dựng lại từ đầu.
 --
--- DROP TABLE IF EXISTS public.payments            CASCADE;
--- DROP TABLE IF EXISTS public.adjustment_templates CASCADE;
--- DROP TABLE IF EXISTS public.adjustments         CASCADE;
--- DROP TABLE IF EXISTS public.salary_rules        CASCADE;
--- DROP TABLE IF EXISTS public.events              CASCADE;
--- DROP TABLE IF EXISTS public.exceptions          CASCADE;
--- DROP TABLE IF EXISTS public.rules               CASCADE;
--- DROP TABLE IF EXISTS public.categories          CASCADE;
+DROP TABLE IF EXISTS public.payments            CASCADE;
+DROP TABLE IF EXISTS public.adjustment_templates CASCADE;
+DROP TABLE IF EXISTS public.adjustments         CASCADE;
+DROP TABLE IF EXISTS public.salary_rules        CASCADE;
+DROP TABLE IF EXISTS public.events              CASCADE;
+DROP TABLE IF EXISTS public.exceptions          CASCADE;
+DROP TABLE IF EXISTS public.rules               CASCADE;
+DROP TABLE IF EXISTS public.categories          CASCADE;
+DROP TABLE IF EXISTS public.clients             CASCADE;
 
+
+
+-- ─── clients ───────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.clients (
+  user_id                uuid NOT NULL REFERENCES auth.users ON DELETE CASCADE,
+  id                     text NOT NULL,
+
+  name                   text NOT NULL,
+  email                  text,
+  phone                  text,
+  note                   text,
+
+  created_at             text NOT NULL,
+  updated_at             text NOT NULL,
+  deleted_at             text,
+
+  PRIMARY KEY (user_id, id)
+);
 
 -- ─── categories ────────────────────────────────────────────────────────────
 
@@ -114,7 +134,7 @@ CREATE TABLE IF NOT EXISTS public.rules (
   rate_per_hour      numeric,
   fixed_amount       numeric,
   location           text,
-  client_name        text,
+  client_id          text,
   tags               text[],
   notes              text,
 
@@ -127,6 +147,7 @@ CREATE TABLE IF NOT EXISTS public.rules (
   -- Khóa ngoại GHÉP: kèm user_id nghĩa là không thể trỏ sang danh mục của
   -- người khác, kể cả khi đoán trúng id. Ràng buộc bảo mật, không chỉ toàn vẹn.
   FOREIGN KEY (user_id, category_id) REFERENCES public.categories (user_id, id),
+  FOREIGN KEY (user_id, client_id)   REFERENCES public.clients (user_id, id),
 
   CONSTRAINT rules_freq_valid     CHECK (freq IN ('DAILY', 'WEEKLY', 'MONTHLY')),
   CONSTRAINT rules_interval_valid CHECK (interval >= 1),
@@ -149,6 +170,7 @@ CREATE TABLE IF NOT EXISTS public.exceptions (
   new_duration_minutes  integer,
   new_title             text,
   new_category_id       text,
+  new_client_id         text,
   new_rate_per_hour     numeric,
   new_fixed_amount      numeric,
 
@@ -163,6 +185,7 @@ CREATE TABLE IF NOT EXISTS public.exceptions (
 
   FOREIGN KEY (user_id, recurring_rule_id) REFERENCES public.rules (user_id, id),
   FOREIGN KEY (user_id, new_category_id)   REFERENCES public.categories (user_id, id),
+  FOREIGN KEY (user_id, new_client_id)     REFERENCES public.clients (user_id, id),
 
   CONSTRAINT exceptions_type_valid CHECK (
     type IN ('CANCEL', 'MOVE', 'RESIZE', 'REPLACE', 'ADD', 'STATUS')
@@ -197,7 +220,7 @@ CREATE TABLE IF NOT EXISTS public.events (
   duration_minutes  integer NOT NULL,
 
   location          text,
-  client_name       text,
+  client_id         text,
   tags              text[],
   notes             text,
   rate_per_hour     numeric,
@@ -211,6 +234,7 @@ CREATE TABLE IF NOT EXISTS public.events (
   PRIMARY KEY (user_id, id),
 
   FOREIGN KEY (user_id, category_id) REFERENCES public.categories (user_id, id),
+  FOREIGN KEY (user_id, client_id)   REFERENCES public.clients (user_id, id),
 
   CONSTRAINT events_status_valid CHECK (
     status IN ('SCHEDULED', 'COMPLETED', 'CANCELLED', 'NO_SHOW')
@@ -350,8 +374,8 @@ CREATE TABLE IF NOT EXISTS public.payments (
   user_id       uuid NOT NULL REFERENCES auth.users ON DELETE CASCADE,
   id            text NOT NULL,
 
-  client_key    text NOT NULL,
-  client_label  text NOT NULL,
+  client_label  text,
+  client_id     text,
   category_id   text,
   month         text NOT NULL,
   amount        numeric NOT NULL,
@@ -366,6 +390,7 @@ CREATE TABLE IF NOT EXISTS public.payments (
   PRIMARY KEY (user_id, id),
 
   FOREIGN KEY (user_id, category_id) REFERENCES public.categories (user_id, id),
+  FOREIGN KEY (user_id, client_id)   REFERENCES public.clients (user_id, id),
 
   CONSTRAINT payments_amount_positive CHECK (amount >= 0)
 );
@@ -376,6 +401,7 @@ CREATE TABLE IF NOT EXISTS public.payments (
 -- Đồng bộ gia tăng sẽ hỏi "có gì đổi sau mốc X?" trên từng bảng. Không có
 -- index này thì mỗi lần đồng bộ là một lần quét toàn bảng.
 
+CREATE INDEX IF NOT EXISTS clients_sync_idx              ON public.clients              (user_id, updated_at);
 CREATE INDEX IF NOT EXISTS categories_sync_idx           ON public.categories           (user_id, updated_at);
 CREATE INDEX IF NOT EXISTS rules_sync_idx                ON public.rules                (user_id, updated_at);
 CREATE INDEX IF NOT EXISTS exceptions_sync_idx           ON public.exceptions           (user_id, updated_at);
@@ -393,6 +419,7 @@ CREATE INDEX IF NOT EXISTS payments_sync_idx             ON public.payments     
 -- dùng; nó phải đọc được mà không cần tra tài liệu để biết chiều ghi cũng
 -- được canh.
 
+ALTER TABLE public.clients              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.categories           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.rules                ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.exceptions           ENABLE ROW LEVEL SECURITY;
@@ -402,6 +429,7 @@ ALTER TABLE public.adjustments          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.adjustment_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments             ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS own_clients              ON public.clients;
 DROP POLICY IF EXISTS own_categories           ON public.categories;
 DROP POLICY IF EXISTS own_rules                ON public.rules;
 DROP POLICY IF EXISTS own_exceptions           ON public.exceptions;
@@ -411,6 +439,8 @@ DROP POLICY IF EXISTS own_adjustments          ON public.adjustments;
 DROP POLICY IF EXISTS own_adjustment_templates ON public.adjustment_templates;
 DROP POLICY IF EXISTS own_payments             ON public.payments;
 
+CREATE POLICY own_clients ON public.clients
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 CREATE POLICY own_categories ON public.categories
   FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 CREATE POLICY own_rules ON public.rules

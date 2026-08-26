@@ -20,6 +20,62 @@
 import type { Category } from '../types';
 import { isSeededCategoryId } from '../types';
 import { normalizeText } from './filter';
+import { clientIdFromName } from './clientId';
+import type { Client } from '../types';
+
+export function findDuplicateClients(
+  clients: Client[],
+  refs: RefCounts,
+): DuplicateGroup[] {
+  const byName = new Map<string, Client[]>();
+
+  for (const c of clients) {
+    if (c.deletedAt) continue;
+    const key = normalizeText(c.name);
+    if (!key) continue;
+    const list = byName.get(key) ?? [];
+    list.push(c);
+    byName.set(key, list);
+  }
+
+  const groups: DuplicateGroup[] = [];
+
+  for (const [key, members] of byName) {
+    if (members.length < 2) continue;
+
+    const ranked = [...members].sort((a, b) => {
+      // 1. Khớp clientIdFromName(name)
+      const expectedA = clientIdFromName(a.name);
+      const expectedB = clientIdFromName(b.name);
+      const aIsDeterministic = a.id === expectedA;
+      const bIsDeterministic = b.id === expectedB;
+      if (aIsDeterministic && !bIsDeterministic) return -1;
+      if (!aIsDeterministic && bIsDeterministic) return 1;
+
+      // 2. Nhiều tham chiếu nhất
+      const byRefs = (refs[b.id] ?? 0) - (refs[a.id] ?? 0);
+      if (byRefs !== 0) return byRefs;
+
+      // 3. createdAt sớm nhất
+      return (a.createdAt ?? '').localeCompare(b.createdAt ?? '');
+    });
+
+    const [winner, ...losers] = ranked;
+
+    const withRefs = (c: Client): DuplicateMember => ({ category: c as any, refs: refs[c.id] ?? 0 });
+    const merge = losers.map(withRefs).sort((a, b) => b.refs - a.refs);
+
+    groups.push({
+      key,
+      label: winner.name,
+      keep: withRefs(winner),
+      merge,
+      movingRefs: merge.reduce((n, m) => n + m.refs, 0),
+    });
+  }
+
+  return groups.sort((a, b) => b.movingRefs - a.movingRefs || a.label.localeCompare(b.label));
+}
 
 /** Số bản ghi đang trỏ tới một danh mục, gộp cả bảy nơi tham chiếu */
 export type RefCounts = Record<string, number>;

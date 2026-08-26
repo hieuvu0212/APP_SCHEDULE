@@ -22,7 +22,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import type { Category, Occurrence, Payment, SalaryRule } from '../types';
-import { normalizeText } from './filter';
 import { calcOccurrenceIncome, resolveSalaryRule } from './income';
 import { hoursOf, monthOf } from './time';
 
@@ -82,7 +81,7 @@ export function computeDues(input: DuesInput): ClientDues[] {
   const rows = new Map<string, ClientDues>();
 
   for (const occurrence of input.occurrences) {
-    if (occurrence.status !== 'COMPLETED' && occurrence.status !== 'NO_SHOW') continue;
+    if (occurrence.status !== 'COMPLETED') continue;
 
     const key = occurrence.clientId;
     if (!key) continue;

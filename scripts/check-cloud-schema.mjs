@@ -29,6 +29,7 @@ const SQL_FILE = 'supabase_schema.sql';
 /** Bảng SQL ↔ interface TypeScript. Thêm bảng mới thì thêm vào đây. */
 const TABLE_TO_INTERFACE = {
   categories: 'Category',
+  clients: 'Client',
   rules: 'RecurringRule',
   exceptions: 'ScheduleException',
   events: 'SingleEvent',

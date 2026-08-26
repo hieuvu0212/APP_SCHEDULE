@@ -10,6 +10,7 @@ import type {
   ScheduleException,
   SingleEvent,
 } from '../types';
+import { clientIdFromName } from '../core/clientId';
 
 /** Tăng số này mỗi lần schema đổi, và ghi kèm vào file backup JSON */
 export const SCHEMA_VERSION = 3;
@@ -85,7 +86,6 @@ export class ScheduleDB extends Dexie {
       const rules = await tx.table('rules').toArray();
       const events = await tx.table('events').toArray();
       const payments = await tx.table('payments').toArray();
-      const exceptions = await tx.table('exceptions').toArray();
 
       const uniqueNames = new Set<string>();
       rules.forEach(r => { if (r.clientName) uniqueNames.add(r.clientName); });
@@ -94,12 +94,19 @@ export class ScheduleDB extends Dexie {
       
       const t = new Date().toISOString();
       const nameToId = new Map<string, string>();
+      const createdIds = new Set<string>();
       
       const newClients: any[] = [];
+
       uniqueNames.forEach(name => {
-        const id = 'client-' + Math.random().toString(36).slice(2) + '-' + Date.now().toString(36);
+        let id = clientIdFromName(name);
+        if (!id) id = newId();
+        
         nameToId.set(name, id);
-        newClients.push({ id, name, createdAt: t, updatedAt: t });
+        if (!createdIds.has(id)) {
+          createdIds.add(id);
+          newClients.push({ id, name, createdAt: t, updatedAt: t });
+        }
       });
 
       // Tạo bảng clients
@@ -110,6 +117,7 @@ export class ScheduleDB extends Dexie {
         if (r.clientName) {
           r.clientId = nameToId.get(r.clientName);
           delete r.clientName;
+          r.updatedAt = t;
           await tx.table('rules').put(r);
         }
       }
@@ -119,25 +127,17 @@ export class ScheduleDB extends Dexie {
         if (e.clientName) {
           e.clientId = nameToId.get(e.clientName);
           delete e.clientName;
+          e.updatedAt = t;
           await tx.table('events').put(e);
         }
       }
 
-      // Cập nhật exceptions
-      for (const ex of exceptions) {
-        if (ex.newClientName) {
-          ex.newClientId = nameToId.get(ex.newClientName) || ex.newClientName;
-          delete ex.newClientName;
-          await tx.table('exceptions').put(ex);
-        }
-      }
-
-      // Cập nhật payments
+      // Cập nhật payments (giữ clientLabel, bỏ clientKey)
       for (const p of payments) {
         if (p.clientLabel) {
           p.clientId = nameToId.get(p.clientLabel);
           delete p.clientKey;
-          delete p.clientLabel;
+          p.updatedAt = t;
           await tx.table('payments').put(p);
         }
       }

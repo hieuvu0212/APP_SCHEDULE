@@ -409,6 +409,8 @@
   },
   "duplicates": {
     "title": "Danh mục bị trùng",
+    "clientsTitle": "Đối tượng bị trùng",
+    "clientsWhy": "Cùng một đối tượng xuất hiện nhiều lần. Thường gặp ở tên không sinh được id tất định (ví dụ tên thuần chữ Hán), hoặc ở dữ liệu tạo ra trước khi Đối tượng thành thực thể riêng. Gộp lại để Thống kê và Thu tiền đếm đúng.",
     "why": "Cùng một tên danh mục xuất hiện nhiều lần. Nguyên nhân thường gặp: mỗi trình duyệt hay mỗi lần xóa dữ liệu duyệt web lại tạo ra một bộ danh mục mẫu mới, rồi đồng bộ đẩy tất cả lên. Lỗi này đã được sửa ở phần tạo dữ liệu ban đầu — mục này để dọn những bản đã lỡ sinh ra.",
     "notAlwaysWrong": "Trùng tên KHÔNG chắc là nhầm: hai chỗ làm cùng đặt tên \"Đi làm\" là hợp lệ, và gộp chúng lại sẽ ép hai cấu hình lương khác nhau về làm một. Xem số bản ghi sẽ chuyển trước khi bấm.",
     "copies": "({{n}} bản)",

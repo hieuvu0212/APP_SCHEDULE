@@ -38,6 +38,7 @@ export interface TrashItem {
  */
 function labelOf(table: BackupTable, row: SoftDeletableRow): string {
   switch (table) {
+    case 'clients':
     case 'categories':
       return String(row.name ?? '?');
     case 'rules':

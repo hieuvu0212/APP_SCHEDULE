@@ -181,7 +181,7 @@ function initialState(
       startTime: e.startTime,
       endTime: endTimeOf(e.startTime, e.durationMinutes),
       location: e.location ?? '',
-      clientName: e.clientName ?? '',
+      
       notes: e.notes ?? '',
       status: e.status,
       moneyMode: e.fixedAmount != null ? 'fixed' : e.ratePerHour != null ? 'hourly' : 'none',

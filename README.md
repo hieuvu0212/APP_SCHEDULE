@@ -6,17 +6,43 @@ Mười màn hình trên thanh điều hướng: tổng quan, lịch tuần có 
 
 **Nếu bạn sắp sửa mã trong dự án này, đọc [Tiêu chuẩn và quy trình](#tiêu-chuẩn-và-quy-trình) trước.**
 
-### `clientName` không phải "học sinh"
+### `Client` không phải "học sinh"
 
-Trường này trả lời câu **"buổi này dành cho ai / ở đâu"**: học sinh với lịch gia sư, chỗ làm với lịch đi làm, môn học với lịch đại học, đề tài với lịch nghiên cứu. Tên đặt chung từ đầu để không phải đổi khi dùng cho loại lịch khác, và bộ lọc ở Danh sách lẫn Thống kê đều lọc theo nó.
+Thực thể này trả lời câu **"buổi này dành cho ai / ở đâu"**: học sinh với lịch gia sư, chỗ làm với lịch đi làm, môn học với lịch đại học, đề tài với lịch nghiên cứu. Tên đặt chung từ đầu để không phải đổi khi dùng cho loại lịch khác, và bộ lọc ở Danh sách lẫn Thống kê đều lọc theo nó.
 
-Trên giao diện nó hiển thị là **"Đối tượng"** ở cả ba ngôn ngữ. Tên trường trong mã và trong DB vẫn là `clientName` — đổi tên trường là phải migrate, mà migrate thì không hoàn tác được, nên cái giá đó không đáng để đổi lấy một cái tên đẹp hơn. Nếu bạn viết chữ "học sinh" vào một nhãn nào đó, bạn đang thu hẹp trường này về đúng một trong bốn công dụng của nó.
+Trên giao diện nó hiển thị là **"Đối tượng"** ở cả ba ngôn ngữ. Trong mã và trong DB nó là bảng `clients`; `rules`, `events`, `exceptions` và `payments` chỉ giữ khóa `clientId`. Nếu bạn viết chữ "học sinh" vào một nhãn nào đó, bạn đang thu hẹp nó về đúng một trong bốn công dụng của nó.
 
-⚠️ Nó vẫn là **chuỗi gõ tay**, nên "Minh" và "Mình" là hai đối tượng khác nhau. `distinctClients()` gộp được biến thể hoa thường và khoảng trắng thừa, nhưng đó chỉ là che tạm — muốn đếm chính xác thì phải nâng nó thành thực thể có `id`, và việc đó cần `db.version(2)`.
+Từ `db.version(3)` nó **không còn là chuỗi gõ tay**. `clientIdFromName()` sinh id tất định từ tên đã bỏ dấu — `Minh` → `client-minh` — nên gõ lại cùng một tên sẽ trỏ về đúng đối tượng cũ thay vì đẻ thêm một bản ghi nữa. Đổi tên một đối tượng giờ không làm mồ côi khoản thu nào, vì `Payment` neo vào `clientId` chứ không phải vào tên.
+
+⚠️ Cái giá của "tất định là bỏ dấu": **"Minh" và "Mình" gộp làm một.** Đó là chủ ý — trước kia chúng là hai đối tượng rời và đó mới là thứ không ai muốn — nhưng nếu bạn thật sự có hai người khác nhau đúng ở mỗi cái dấu, phải phân biệt bằng tên đầy đủ. `ensureClient()` chỉ tách ra id ngẫu nhiên khi id trùng mà tên chuẩn hóa **khác** nhau (`Minh!` so với `Minh`).
 
 Phím tắt: `←` `→` đổi tuần/tháng, `T` về hôm nay, `N` thêm sự kiện.
 
 Tiêu đề và ghi chú là **dữ liệu người dùng**, không đi qua i18n — gõ 中文 thì hiện 中文. Font stack khai báo sẵn CJK để không rơi vào font dự phòng tùy máy, và tìm kiếm bỏ dấu vẫn hoạt động trên chuỗi trộn Việt–Trung (có test).
+
+## Trạng thái dự án (Project Status)
+
+### Completed
+- Kiến trúc cơ sở, i18n, IndexedDB.
+- Tính năng cốt lõi: Quản lý lịch tuần/tháng, Thống kê, Tài khoản, Cài đặt.
+- Tính năng thu tiền (DuesView), xuất PDF, ICS.
+- Thực thể `Client` độc lập với id tất định, thay cho chuỗi gõ tay (`db.version(3)`).
+- Bọc ứng dụng qua nền tảng Capacitor (Native Android/iOS).
+
+### In Progress
+- **Web Push mới có khung, chưa chạy được.** Edge Function và khóa VAPID đã dựng, nhưng subscription chưa được lưu và chưa có bộ lập lịch — xem mục "Khung Web Push đã dựng". Nhắc lịch thực tế vẫn là `setTimeout` trong trang.
+
+### Next Tasks
+- *(Theo quyết định của người dùng)*
+
+### Known Issues
+- **Tên thuần chữ Hán/Nhật sinh id ngẫu nhiên, không tất định.** `clientIdFromName()` lọc bỏ mọi ký tự ngoài `[a-z0-9-]`, nên `小明` cho ra chuỗi rỗng và rơi về `newId()`. Hệ quả: gõ lại đúng tên đó tạo thêm một đối tượng mới mỗi lần. Dọn tạm bằng **Gộp đối tượng trùng** ở Cài đặt; sửa gốc thì phải đổi cách sinh id, mà việc đó đụng vào `version(3)` đã chạy nên cần cân nhắc riêng.
+
+### Security Status
+- Tích hợp RLS (nếu cấu hình Supabase).
+- Sử dụng HTTPS/TLS ở môi trường production.
+- Không lộ secrets (Sử dụng `import.meta.env`).
+- Database migration script chạy cục bộ (Dexie), ngăn rủi ro SQL Injection hoặc sai sót Role.
 
 ## Chạy
 
@@ -33,14 +59,17 @@ Bật một lần trong repo: Settings → Pages → Source → **GitHub Actions
 
 ### Biến môi trường cho bản deploy
 
-Muốn bản trên GitHub Pages dùng được Đồng bộ Cloud thì đặt hai biến ở Settings → Secrets and variables → Actions → **Variables**:
+Muốn bản trên GitHub Pages dùng được Đồng bộ Cloud thì đặt các biến này ở Settings → Secrets and variables → Actions → **Variables**:
 
 ```
 VITE_SUPABASE_URL
 VITE_SUPABASE_ANON_KEY
+VITE_VAPID_PUBLIC_KEY   (chỉ cần khi nối xong Web Push — hiện chưa)
 ```
 
 **Ở `Variables`, không phải `Secrets`.** Anon key của Supabase vốn là công khai — nó đi thẳng vào bundle JS phía trình duyệt trong mọi trường hợp, và thứ bảo vệ dữ liệu là RLS chứ không phải sự bí mật của key này. Giấu nó vào `Secrets` không tăng chút an toàn nào, chỉ tạo cảm giác an toàn giả.
+
+Khóa VAPID **công khai** cùng một lý lẽ: nó phải nằm trong bundle thì trình duyệt mới đăng ký push được. Chỉ khóa VAPID **riêng tư** mới là secret thật — và nó nằm ở biến môi trường của Edge Function, không bao giờ đi qua bước build này. Lẫn hai khóa đó với nhau là cách làm lộ khóa riêng tư nhanh nhất.
 
 Bỏ trống cũng được: app vẫn build và chạy bình thường, mục Đồng bộ trong Cài đặt hiện dòng "chưa cấu hình".
 
@@ -293,7 +322,7 @@ Component gọi thẳng Dexie thì không còn chỗ nào để đặt logic xó
 Canh bằng `npm run check:cloud`. Thêm trường vào một interface thì thêm cột vào SQL trong cùng lần thay đổi.
 
 **4. Chỉ được THÊM `version(n)` vào Dexie, không bao giờ sửa version cũ.**
-Nâng cấp schema không hoàn tác được. Máy đã lên `version(2)` không quay về `version(1)`.
+Nâng cấp schema không hoàn tác được. Hiện tại đang ở `version(3)`, và máy đã lên v3 không quay về v2. Kèm theo đó: **thêm `version(4)` không vá được máy đã chạy qua v3** — sai sót của một migration đã chạy phải sửa bằng công cụ chạy trên dữ liệu đang có (xem "Gộp đối tượng trùng"), không phải bằng một version mới.
 
 ## Cấu trúc
 
@@ -428,13 +457,29 @@ Trả lời câu "ai còn nợ mình bao nhiêu". Dùng cho học phí gia sư, 
 
 **Lương khoán tháng hiện "—" ở cột Phải thu.** Không phải thiếu dữ liệu: 8 triệu một tháng không tách được cho từng học sinh, chia đều ra là bịa số. Một buổi khoán tháng làm cả dòng thành không quy đổi được — cộng phần còn lại rồi hiện ra sẽ là con số đúng một nửa, tệ hơn không hiện gì. Tiền đã thu thật thì vẫn ghi nhận bình thường.
 
-### `db.version(2)` — và vì sao nó chỉ thêm một bảng rỗng
+### `db.version(3)` — migration một chiều, và ba thứ giữ cho nó an toàn
 
-Cách "đúng" hơn về mô hình là dựng thực thể `Client` có `id` rồi migrate mọi `clientName` cũ sang `clientId`. Nhưng migration đó phải đọc và ghi lại toàn bộ `rules` lẫn `events`, mà **nâng cấp schema là thao tác không hoàn tác được** — máy đã lên `version(2)` không quay về `version(1)` được nữa.
+`version(2)` chỉ thêm một bảng rỗng: Dexie tạo object store mới, không đụng một byte dữ liệu cũ, rủi ro gần bằng không. `version(3)` thì ngược hẳn — nó **đọc và ghi lại toàn bộ** `rules`, `events` và `payments` để đổi `clientName` thành `clientId`, rồi bỏ hẳn `clientKey`. Đây là migration đắt nhất của dự án, và **nâng cấp schema không hoàn tác được**: máy đã lên `version(3)` không quay về `version(2)`.
 
-Thêm một bảng rỗng thì Dexie chỉ tạo object store mới, không đụng một byte dữ liệu cũ nào. Rủi ro gần bằng không.
+Ba thứ giữ cho nó an toàn:
 
-Cái giá: `Payment` neo vào `clientKey` (tên đã chuẩn hóa) chứ không phải `id`, nên **đổi tên một đối tượng sẽ làm các khoản thu cũ mồ côi**. Chấp nhận được cho tới khi việc đổi tên trở thành nhu cầu thật.
+- **Id tất định.** Migration gọi đúng `clientIdFromName()` mà ứng dụng dùng lúc chạy, nên hai máy migrate độc lập cho ra cùng một bộ id — đồng bộ xong không đẻ ra hai đối tượng cho cùng một người.
+- **`updatedAt = t` trên mọi bản ghi bị sửa.** Thiếu dòng này thì bản ghi vừa migrate vẫn mang dấu thời gian cũ, lần đồng bộ kế tiếp thấy bản trên mây "mới hơn" và **ghi đè ngược lại `clientName` vừa bỏ đi**. Migration đúng nhưng bị đồng bộ nuốt mất là lỗi khó thấy nhất trong nhóm này.
+- **`clientLabel` giữ lại trên `payments`** (nullable). Nó là bản sao đọc được của tên tại thời điểm thu tiền — xóa một đối tượng thì khoản thu cũ vẫn còn chữ để hiển thị, thay vì một id trần.
+
+⚠️ **Không tạo `version(4)` để vá kết quả của `version(3)`.** Máy đã chạy qua v3 sẽ không chạy lại upgrade đó lần nữa, nên v4 chỉ vá được máy cài mới — đúng những máy không cần vá. Sai sót do trùng id phải xử bằng **Gộp đối tượng trùng** ở Cài đặt: nó chạy trên dữ liệu đang có, ở mọi máy, bao nhiêu lần cũng được.
+
+### Khóa ngoại của `clients` là khóa ghép, không phải `id` trần
+
+Trong `supabase_schema.sql`, bốn bảng tham chiếu đều khai báo:
+
+```sql
+FOREIGN KEY (user_id, client_id) REFERENCES public.clients (user_id, id)
+```
+
+Ghép `user_id` vào khóa là **ràng buộc bảo mật, không chỉ toàn vẹn**: nó khiến một người không thể trỏ bản ghi của mình vào đối tượng của người khác, kể cả khi đoán trúng `id`. Bỏ `user_id` ra khỏi cặp khóa là mở lại đúng lỗ đó, và RLS ở tầng trên không bịt hộ được.
+
+Vì `id` do client sinh (`client-minh`) chứ không phải `uuid` do Postgres sinh, kiểu cột là `text`. Thêm bảng nào tham chiếu `clients` thì chép nguyên dạng khóa ghép này — `npm run check:cloud` bắt được cột thiếu, nhưng **không** bắt được khóa ngoại khai sai.
 
 ## Ba phạm vi khi sửa một buổi của lịch lặp
 
@@ -818,7 +863,19 @@ Khôi phục một `RecurringRule` kéo theo cả exception bị dọn **cùng l
 
 Nên cơ chế là hẹn giờ trong trang: chỉ chạy khi tab hoặc app đang mở. Màn hình Cài đặt nói thẳng điều đó **ngay dưới tiêu đề**, không giấu xuống cuối — một tính năng nhắc lịch hứa nhiều hơn thực tế là cách nhanh nhất khiến người ta bỏ lỡ ca làm rồi mất niềm tin vào cả ứng dụng.
 
-Muốn nhắc thật khi đóng app thì phải có backend đẩy Web Push. Đó là một dự án khác.
+Muốn nhắc thật khi đóng app thì phải có backend đẩy Web Push.
+
+### Khung Web Push đã dựng — và ba mảnh còn thiếu
+
+Phase 3 dựng phần vỏ: `supabase/functions/push-reminder/`, biến `VITE_VAPID_PUBLIC_KEY`, và `requestNotificationPermission()` đã gọi `pushManager.subscribe()`. **Đừng nhầm cái vỏ đó với một tính năng chạy được** — đường đi hiện tại đứt ở ba chỗ:
+
+| Mảnh thiếu | Ở đâu | Hệ quả |
+|---|---|---|
+| Subscription không được lưu | `useReminders.ts` — lấy xong `console.log` rồi bỏ, dòng `fetch` còn nằm trong chú thích | Máy chủ không có địa chỉ nào để đẩy tới |
+| Không có bảng chứa subscription | `supabase_schema.sql` — chưa có bảng nào | Có gửi lên cũng không có chỗ ghi |
+| Edge Function chưa có bộ lập lịch | `push-reminder/index.ts` — chỉ nhận POST rồi đẩy lại ngay, `supabaseClient` khai ra mà không dùng | Không ai quét "buổi sắp tới trong 15 phút" để mà bắn |
+
+Nên thứ đang thật sự nhắc bạn vẫn là `setTimeout` trong trang, và mục Cài đặt vẫn phải nói đúng như cũ: **chỉ chạy khi tab hoặc app đang mở.** Nối ba mảnh trên thì mới được phép đổi câu đó.
 
 ## Trợ năng
 
@@ -888,8 +945,8 @@ Mỗi bài trong `src/db/__tests__/undo.test.ts` tương ứng với một lỗi
 | ~~Đồng bộ tự động~~ | Bốn kích hoạt, ba lớp chống chạy chồng. Cố ý KHÔNG chạy khi dữ liệu đổi — xem mục "Tự đồng bộ". |
 | ~~Xuất sang ứng dụng lịch~~ | `.ics` với `RRULE`, `EXDATE` và `RECURRENCE-ID`. Xem mục "Xuất sang ứng dụng lịch". |
 | Giải quyết xung đột ở mức TRƯỜNG | Hiện là "cả bản ghi nào mới hơn thì thắng". Hai máy sửa hai trường khác nhau của cùng một buổi thì một bên mất thay đổi. Cần lưu dấu thời gian theo từng trường — đắt, và chỉ đáng làm khi thật sự có hai người dùng chung. |
-| `clientName` thành thực thể có `id` | Đổi tên một đối tượng vẫn làm các khoản thu cũ mồ côi. Cần `db.version(3)` + migration, mà migration thì **không hoàn tác được** — đừng làm cho tới khi đổi tên trở thành nhu cầu thật. |
-| Nhắc lịch khi đã đóng app | Đòi hỏi máy chủ đẩy Web Push. Ngoài phạm vi ứng dụng thuần tĩnh. |
+| ~~`clientName` thành thực thể có `id`~~ | Xong ở Phase 3 bằng `db.version(3)`. `Payment` neo vào `clientId` nên đổi tên không còn làm mồ côi khoản thu nào. Xem mục "`db.version(3)`". |
+| Nhắc lịch khi đã đóng app | Phase 3 mới dựng **khung**: Edge Function `push-reminder` và biến `VITE_VAPID_PUBLIC_KEY`. Vẫn chưa chạy được — xem mục "Nhắc lịch" để biết còn thiếu ba mảnh nào. |
 
 ## Ngôn ngữ
 

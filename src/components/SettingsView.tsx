@@ -19,7 +19,7 @@ import { backupFileName, countRecords, validateBackup } from '../core/backup';
 import { daysSinceDeleted, purgeCutoff } from '../core/trash';
 import { exportBackup, importBackup, type ImportReport } from '../db/backup';
 import { exportIcs, previewIcsExport } from '../db/exportIcs';
-import { findDuplicates, mergeCategories } from '../db/dedupe';
+import { findDuplicates, mergeCategories, findDuplicateClientsReport, mergeClients } from '../db/dedupe';
 import { useUndo } from '../undo/context';
 import { listTrash, restoreFromTrash, type TrashItem } from '../db/repo/trash';
 // Xóa vĩnh viễn đi qua db/purge.ts, KHÔNG qua repo/trash.ts trực tiếp: nó phải
@@ -205,6 +205,7 @@ export function SettingsView({ onOpenPrivacy }: { onOpenPrivacy: () => void }) {
 
       <ReminderSection />
       <DuplicateSection />
+      <ClientDuplicateSection />
       <BackupSection />
       <CalendarExportSection />
       <TrashSection />
@@ -507,6 +508,7 @@ const TABLE_KEY: Record<BackupTable, string> = {
   adjustments: 'trash.tableAdjustments',
   adjustmentTemplates: 'trash.tableTemplates',
   payments: 'trash.tablePayments',
+  clients: 'Đối tượng',
 };
 
 function TrashSection() {
@@ -670,7 +672,7 @@ function DuplicateSection() {
     try {
       const result = await mergeCategories(
         group.keep.category.id,
-        group.merge.map((m) => m.category.id),
+        group.merge.map((m: any) => m.category.id),
       );
       pushUndo(
         t('duplicates.merged', { name: group.label, n: result.repointed }),
@@ -691,7 +693,7 @@ function DuplicateSection() {
       <p className="text-xs leading-relaxed text-amber-800">{t('duplicates.notAlwaysWrong')}</p>
 
       <ul className="space-y-2">
-        {report.groups.map((group) => (
+        {report.groups.map((group: any) => (
           <li
             key={group.key}
             className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2"
@@ -699,6 +701,72 @@ function DuplicateSection() {
             <div className="min-w-0">
               <p className="flex items-center gap-1.5 text-sm font-medium text-slate-800">
                 <ColorDot color={group.keep.category.color} />
+                {group.label}
+                <span className="font-normal text-slate-500">
+                  {t('duplicates.copies', { n: group.merge.length + 1 })}
+                </span>
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                {t('duplicates.willMove', { n: group.movingRefs })}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              disabled={busy !== null}
+              onClick={() => void handleMerge(group)}
+            >
+              {busy === group.key ? t('duplicates.merging') : t('duplicates.merge')}
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+
+function ClientDuplicateSection() {
+  const { t } = useTranslation();
+  const { pushUndo } = useUndo();
+  const report = useLiveQuery(() => findDuplicateClientsReport(), []);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  if (!report || report.groups.length === 0) return null;
+
+  const handleMerge = async (group: (typeof report.groups)[number]) => {
+    setBusy(group.key);
+    try {
+      const result = await mergeClients(
+        group.keep.category.id,
+        group.merge.map((m: any) => m.category.id),
+      );
+      pushUndo(
+        t('duplicates.merged', { name: group.label, n: result.repointed }),
+        result.undo,
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <section className="space-y-3 rounded-xl border border-amber-300 bg-amber-50/60 p-5">
+      <div>
+        <h3 className="text-sm font-semibold text-amber-900">{t('duplicates.clientsTitle')}</h3>
+        <p className="mt-1 text-xs leading-relaxed text-amber-800">
+          {t('duplicates.clientsWhy')}
+        </p>
+      </div>
+
+      <ul className="space-y-2">
+        {report.groups.map((group: any) => (
+          <li
+            key={group.key}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2"
+          >
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 text-sm font-medium text-slate-800">
                 {group.label}
                 <span className="font-normal text-slate-500">
                   {t('duplicates.copies', { n: group.merge.length + 1 })}

@@ -232,7 +232,7 @@ export function expandSchedule(input: ExpandInput): Occurrence[] {
       fixedAmount: ev.fixedAmount,
       location: ev.location,
       clientId: ev.clientId,
-      clientName: ev.clientName,
+      
       notes: ev.notes,
     });
     o.status = resolveStatus(
@@ -268,7 +268,7 @@ export function expandSchedule(input: ExpandInput): Occurrence[] {
       fixedAmount: exc?.newFixedAmount ?? rule.fixedAmount,
       location: rule.location,
       clientId: exc?.newClientId ?? rule.clientId,
-      clientName: rule.clientName,
+      
       notes: rule.notes,
     });
     o.status = resolveStatus(exc?.status, o.endAbs, now, autoCompletePast);
@@ -328,7 +328,7 @@ export function expandSchedule(input: ExpandInput): Occurrence[] {
       fixedAmount: e.newFixedAmount ?? base?.fixedAmount,
       location: base?.location,
       clientId: e.newClientId ?? base?.clientId,
-      clientName: base?.clientName,
+      
       notes: e.reason ?? base?.notes,
     });
     o.status = resolveStatus(e.status, o.endAbs, now, autoCompletePast);

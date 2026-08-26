@@ -4,7 +4,7 @@ import { todayKey } from '../core/calendar';
 import { parseQuickAdd, type QuickAddResult } from '../core/quickAdd';
 import { useKnownClients } from '../hooks/useKnownClients';
 import { Button } from './ui';
-import { inputClass } from './styles';
+import { } from './styles';
 
 interface QuickAddProps {
   /** Nhận kết quả đã bóc tách. Trường nào không tìm thấy là `null`. */

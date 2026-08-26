@@ -21,6 +21,7 @@ export const BACKUP_FORMAT = 'personal-schedule-backup';
 /** Các bảng được sao lưu. Thêm bảng mới thì phải thêm vào đây. */
 export const BACKUP_TABLES = [
   'categories',
+  'clients',
   'rules',
   'exceptions',
   'events',

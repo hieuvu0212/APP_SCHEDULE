@@ -66,12 +66,17 @@ jobs:
       # sự bí mật của key này. Để ở `vars` chứ không phải `secrets` là để nói
       # đúng điều đó — giấu nó vào `secrets` tạo cảm giác an toàn giả.
       #
+      # Khóa VAPID *công khai* cùng loại: nó phải nằm trong bundle thì trình
+      # duyệt mới đăng ký push được. Chỉ khóa VAPID *riêng tư* mới là secret,
+      # và nó ở phía Edge Function, không bao giờ đi qua bước build này.
+      #
       # Đặt tại: Settings → Secrets and variables → Actions → Variables.
       # Bỏ trống cũng được: app vẫn build và chạy, chỉ là không có Cloud Sync.
       - run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_VAPID_PUBLIC_KEY: ${{ vars.VITE_VAPID_PUBLIC_KEY }}
 
       - uses: actions/upload-pages-artifact@v3
         with:

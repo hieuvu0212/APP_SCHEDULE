@@ -409,6 +409,8 @@
   },
   "duplicates": {
     "title": "Duplicate categories",
+    "clientsTitle": "Duplicate clients",
+    "clientsWhy": "The same client appears more than once. This usually happens with names that cannot produce a deterministic id (for example a name written entirely in Han characters), or with data created before clients became their own entity. Merge them so Statistics and Dues count correctly.",
     "why": "The same category name appears more than once. Usual cause: every browser, and every time site data is cleared, created a fresh set of sample categories which sync then pushed up. The seeding bug behind this is fixed — this section cleans up what already got created.",
     "notAlwaysWrong": "Sharing a name does NOT always mean a mistake: two workplaces both called \"Work\" is valid, and merging them would force two different salary settings into one. Check the record count before you merge.",
     "copies": "({{n}} copies)",

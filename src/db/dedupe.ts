@@ -27,7 +27,17 @@
 
 import type { Category } from '../types';
 import type { RefCounts } from '../core/dedupe';
-import { findDuplicateCategories, unusedSeedDuplicates, type DuplicateGroup } from '../core/dedupe';
+import { findDuplicateCategories, unusedSeedDuplicates, findDuplicateClients, type DuplicateGroup } from '../core/dedupe';
+export async function findDuplicateClientsReport(): Promise<DuplicateReport> {
+  const [clients, refs] = await Promise.all([db.clients.toArray(), countRefs(CLIENT_REFS)]);
+  const groups = findDuplicateClients(clients as any, refs);
+  return { groups, totalExtra: groups.reduce((n, g) => n + g.merge.length, 0) };
+}
+
+export async function mergeClients(keepId: string, mergeIds: string[]): Promise<MergeResult> {
+  return mergeEntity(db.clients, CLIENT_REFS, keepId, mergeIds);
+}
+
 import { db, nowISO } from './schema';
 import { ALL_TABLES } from './tables';
 
@@ -38,7 +48,7 @@ import { ALL_TABLES } from './tables';
  * mới có `categoryId` thì thêm đúng một dòng ở đây, và cả việc đếm lẫn việc
  * trỏ lại đều tự bao phủ nó — hai chỗ không thể lệch nhau.
  */
-const REFERENCES = [
+export const CATEGORY_REFS = [
   { table: () => db.rules, field: 'categoryId' },
   { table: () => db.events, field: 'categoryId' },
   { table: () => db.salaryRules, field: 'categoryId' },
@@ -48,11 +58,23 @@ const REFERENCES = [
   { table: () => db.exceptions, field: 'newCategoryId' },
 ] as const;
 
-/** Đếm bản ghi đang trỏ tới từng danh mục, trên cả bảy nơi */
+export const CLIENT_REFS = [
+  { table: () => db.rules, field: 'clientId' },
+  { table: () => db.events, field: 'clientId' },
+  { table: () => db.exceptions, field: 'newClientId' },
+  { table: () => db.payments, field: 'clientId' },
+] as const;
+
+
+
 export async function countCategoryRefs(): Promise<RefCounts> {
+  return countRefs(CATEGORY_REFS);
+}
+
+export async function countRefs(refsArr: readonly { table: () => any, field: string }[]): Promise<RefCounts> {
   const counts: RefCounts = {};
 
-  for (const ref of REFERENCES) {
+  for (const ref of refsArr) {
     // Ép qua `unknown`: bảy bảng có bảy kiểu hàng khác nhau, và ở đây ta chỉ
     // quan tâm đúng hai trường chung — `id` và trường trỏ tới danh mục. Cùng
     // lý do với phép ép trong db/tables.ts, chỉ khác là gom về một chỗ.
@@ -97,6 +119,15 @@ export interface MergeResult {
  * không chỉ "trỏ hết về cái nào đó".
  */
 export async function mergeCategories(keepId: string, mergeIds: string[]): Promise<MergeResult> {
+  return mergeEntity(db.categories, CATEGORY_REFS, keepId, mergeIds);
+}
+
+export async function mergeEntity(
+  entityTable: any,
+  refsArr: readonly { table: () => any, field: string }[],
+  keepId: string,
+  mergeIds: string[]
+): Promise<MergeResult> {
   if (mergeIds.includes(keepId)) {
     throw new Error('Không thể gộp một danh mục vào chính nó');
   }
@@ -109,7 +140,7 @@ export async function mergeCategories(keepId: string, mergeIds: string[]): Promi
   let removed = 0;
 
   await db.transaction('rw', ALL_TABLES, async () => {
-    for (const [index, ref] of REFERENCES.entries()) {
+    for (const [index, ref] of refsArr.entries()) {
       const table = ref.table() as unknown as {
         toArray: () => Promise<Array<Record<string, unknown>>>;
         update: (id: string, changes: Record<string, unknown>) => Promise<number>;
@@ -129,7 +160,7 @@ export async function mergeCategories(keepId: string, mergeIds: string[]): Promi
       // Xóa MỀM, không xóa cứng. Tombstone là thứ mang lệnh xóa sang máy khác
       // — xóa cứng ở đây thì máy kia sẽ đẩy danh mục đó sống lại ở lần đồng
       // bộ sau, và người dùng thấy bản trùng quay về.
-      const updated = await db.categories.update(id, { deletedAt: t, updatedAt: t });
+      const updated = await entityTable.update(id, { deletedAt: t, updatedAt: t });
       removed += updated;
     }
   });
@@ -138,7 +169,7 @@ export async function mergeCategories(keepId: string, mergeIds: string[]): Promi
     const back = nowISO();
     await db.transaction('rw', ALL_TABLES, async () => {
       for (const item of touched) {
-        const ref = REFERENCES[item.index];
+        const ref = refsArr[item.index];
         const table = ref.table() as unknown as {
           update: (id: string, changes: Record<string, unknown>) => Promise<number>;
         };
@@ -147,7 +178,7 @@ export async function mergeCategories(keepId: string, mergeIds: string[]): Promi
       for (const id of mergeIds) {
         // `undefined` là lệnh XÓA THUỘC TÍNH với Dexie — đó là cách gỡ
         // tombstone. Xem README, mục Hoàn tác.
-        await db.categories.update(id, { deletedAt: undefined, updatedAt: back });
+        await entityTable.update(id, { deletedAt: undefined, updatedAt: back });
       }
     });
   };

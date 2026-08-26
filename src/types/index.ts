@@ -96,7 +96,6 @@ export interface RecurringRule extends BaseEntity {
    * Tồn tại để khỏi phải tạo một Category riêng cho từng người hay từng nơi.
    */
   clientId?: string;
-  clientName?: string;
   tags?: string[];
   notes?: string;
 }
@@ -158,7 +157,6 @@ export interface SingleEvent extends BaseEntity {
   durationMinutes: number;
   location?: string;
   clientId?: string;
-  clientName?: string;
   tags?: string[];
   notes?: string;
   ratePerHour?: number;
@@ -291,8 +289,8 @@ export interface Occurrence {
   fixedAmount?: number;
   location?: string;
   clientId?: string;
-  /** Tên đối tượng, được join vào tại tầng hook để UI dễ bề hiển thị */
   clientName?: string;
+  /** Tên đối tượng, được join vào tại tầng hook để UI dễ bề hiển thị */
   notes?: string;
 
   hasConflict: boolean;
@@ -337,7 +335,6 @@ export interface MonthlyPayroll {
  */
 export interface Payment extends BaseEntity {
   clientId: string;
-  clientKey?: string;
   clientLabel?: string;
   categoryId: string;
   /** "YYYY-MM" */
