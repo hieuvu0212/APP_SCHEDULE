@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PersonalSchedule</string>
+    <string name="title_activity_main">PersonalSchedule</string>
+    <string name="package_name">com.example.schedule</string>
+    <string name="custom_url_scheme">com.example.schedule</string>
+</resources>

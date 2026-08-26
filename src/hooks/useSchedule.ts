@@ -52,6 +52,14 @@ export function useSchedule(
       autoCompletePast: autoComplete,
     });
 
+    const { fetchClientNames } = await import('./useClientNames');
+    const clientMap = await fetchClientNames();
+    for (const occ of occurrences) {
+      if (occ.clientId) {
+        occ.clientName = clientMap.get(occ.clientId);
+      }
+    }
+
     return detectConflicts(occurrences);
   }, [windowStart, windowEnd, autoComplete]);
 }

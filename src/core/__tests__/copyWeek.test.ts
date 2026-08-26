@@ -79,7 +79,7 @@ describe('planWeekCopy — dời ngày', () => {
         startTime: '22:00',
         durationMinutes: 240,
         location: 'Rossi',
-        clientName: 'Rossi',
+        
         notes: 'nhớ mang thẻ',
         ratePerHour: 37_037,
       }),
@@ -91,7 +91,7 @@ describe('planWeekCopy — dời ngày', () => {
       startTime: '22:00',
       durationMinutes: 240,
       location: 'Rossi',
-      clientName: 'Rossi',
+      
       notes: 'nhớ mang thẻ',
       ratePerHour: 37_037,
     });

@@ -12,7 +12,20 @@
 //
 //  Font cũng theo nguyên tắc đó, xem pdf/fonts.ts: bộ Latin ~500 KB tải khi
 //  xuất lần đầu, bộ CJK ~10 MB CHỈ tải khi lịch thật sự có chữ Hán.
+//
+//  ─── Vì sao tắt `only-export-components` ở đây ────────────────────────────
+//
+//  Quy tắc đó bảo vệ Fast Refresh: một module vừa export component vừa export
+//  thứ khác thì Vite không giữ được state khi sửa nóng. File này export ĐÚNG
+//  KHÔNG component nào — chỉ có hàm và kiểu. Không có state nào để mất.
+//
+//  Nó vẫn phải mang đuôi .tsx vì dòng `pdf(<SchedulePdf …/>)` là JSX thật, và
+//  quy tắc kia kích hoạt theo đuôi file chứ không theo nội dung. Cảnh báo này
+//  là dương tính giả, nên tắt kèm lý do còn hơn để nó kêu mãi rồi cả đội quen
+//  mắt và bỏ qua luôn những cảnh báo thật.
 // ═══════════════════════════════════════════════════════════════════════════
+
+/* eslint-disable react/only-export-components */
 
 import type { Category, Occurrence, SalaryRule } from '../types';
 import { ensureFonts } from './fonts';

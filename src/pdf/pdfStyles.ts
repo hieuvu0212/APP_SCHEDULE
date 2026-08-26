@@ -6,23 +6,18 @@
 //  đọc CSS của trang. Mọi giá trị phải viết tường minh.
 //
 //  Đơn vị mặc định là POINT. A4 ngang = 841,89 × 595,28 pt. Trừ lề 28pt mỗi
-//  bên còn 786 × 539 pt, chia bảy cột là 112 pt mỗi cột.
+//  bên còn 786 × 539 pt: cột "Buổi" 56pt + bảy cột ngày (~104 pt mỗi cột).
 //
-//  ⚠️ MÀU CỐ ĐỊNH SÁNG. Bản PDF không bao giờ đi theo chế độ tối của ứng
-//  dụng: nền tối vừa tốn mực vừa không đọc được khi in ra giấy, và người ta
-//  gửi file PDF cho người khác chứ không chỉ tự xem.
+//  Bảng là HÀNG, không còn là cột: một cột "Buổi" bên trái + bảy cột ngày,
+//  rồi ba hàng Sáng/Chiều/Tối. Xếp theo hàng để ba buổi thẳng hàng ngang qua
+//  các ngày — với cột, chiều cao từng khối phụ thuộc nội dung nên không có
+//  gì bảo đảm "Sáng" của T2 ngang hàng "Sáng" của T5.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { StyleSheet } from '@react-pdf/renderer';
+import { COLORS } from './palette';
 
-export const COLORS = {
-  ink: '#0f172a',
-  body: '#334155',
-  muted: '#64748b',
-  faint: '#94a3b8',
-  line: '#cbd5e1',
-  headerBg: '#f1f5f9',
-} as const;
+export { eventTint } from './palette';
 
 export const styles = StyleSheet.create({
   page: {
@@ -49,26 +44,48 @@ export const styles = StyleSheet.create({
   rangeLabel: { fontSize: 8, color: COLORS.muted, marginTop: 2 },
   exportedLabel: { fontSize: 6.5, color: COLORS.faint },
 
-  grid: { flexDirection: 'row', width: '100%' },
-  column: {
+  // Viền ngoài của bảng nằm ở `grid`; viền trong do từng ô tự vẽ mép phải và
+  // từng hàng tự vẽ mép dưới. react-pdf không có border-collapse nên phải
+  // tự tránh vẽ đôi: ô cuối hàng và hàng cuối không vẽ.
+  grid: {
+    flexDirection: 'column',
+    width: '100%',
     flex: 1,
     borderWidth: 0.5,
     borderColor: COLORS.line,
-    // Bảy viền cạnh nhau sẽ dày gấp đôi ở chỗ giáp nhau. Bù bằng lề âm.
-    marginRight: -0.5,
   },
-  columnHead: {
+  headRow: {
+    flexDirection: 'row',
+    width: '100%',
     backgroundColor: COLORS.headerBg,
     borderBottomWidth: 0.5,
     borderBottomColor: COLORS.line,
+  },
+  bandHeadCell: {
+    width: 56,
     paddingVertical: 3,
     alignItems: 'center',
+    justifyContent: 'center',
+    borderRightWidth: 0.5,
+    borderRightColor: COLORS.line,
+  },
+  dayHeadCell: {
+    flex: 1,
+    paddingVertical: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   weekday: { fontSize: 8, fontWeight: 'bold', color: COLORS.ink },
   dayLabel: { fontSize: 6.5, color: COLORS.muted, marginTop: 1 },
 
-  columnBody: { padding: 3, minHeight: 380 },
-  emptyDay: { fontSize: 7, color: COLORS.faint, textAlign: 'center', marginTop: 6 },
+  bandRow: { flexDirection: 'row', width: '100%', flex: 1 },
+  bandLabelCell: {
+    width: 56,
+    padding: 3,
+    borderRightWidth: 0.5,
+    borderRightColor: COLORS.line,
+  },
+  dayCell: { flex: 1, padding: 3 },
 
   bandLabel: {
     fontSize: 6,
@@ -76,8 +93,6 @@ export const styles = StyleSheet.create({
     color: COLORS.faint,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
-    marginBottom: 1.5,
-    marginTop: 2,
   },
 
   event: {
@@ -110,8 +125,3 @@ export const styles = StyleSheet.create({
   legendDot: { width: 5, height: 5, borderRadius: 2.5, marginRight: 3 },
   legendText: { fontSize: 6.5, color: COLORS.muted },
 });
-
-/** Pha loãng màu danh mục làm nền khối sự kiện, dạng hex 8 ký tự */
-export function eventTint(hex: string): string {
-  return /^#[0-9a-f]{6}$/i.test(hex.trim()) ? `${hex}22` : '#f8fafc';
-}

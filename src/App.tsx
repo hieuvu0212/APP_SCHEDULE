@@ -22,16 +22,27 @@ import type { Occurrence, OccurrenceStatus, RecurringRule } from './types';
 import type { EventDraft } from './core/copyWeek';
 import { addMonths, monthGridDates, todayKey, weekDates } from './core/calendar';
 import { calcOccurrenceIncome, resolveSalaryRule } from './core/income';
-import { addDays, dayOfWeek, monthBounds, monthOf } from './core/time';
+import { addDays, dayOfWeek, monthBounds, monthOf, nextHalfHour } from './core/time';
+import {
+  DEFAULT_VIEW,
+  NAV_VIEWS,
+  QUICK_ADD_VIEWS,
+  TIME_VIEWS,
+  viewFromHash,
+  type View,
+} from './routes';
+import { useDocumentTitle, useHashRoute } from './hooks/useHashRoute';
 import { CategoryManager } from './components/CategoryManager';
 import { CopyWeekDialog } from './components/CopyWeekDialog';
 import { DashboardView } from './components/DashboardView';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { RuleManager } from './components/RuleManager';
 import { EventDialog } from './components/EventDialog';
 import { ListView } from './components/ListView';
 import { MonthView } from './components/MonthView';
 import { OccurrenceDetail } from './components/OccurrenceDetail';
 import { WeekView } from './components/WeekView';
+import { QuickAdd } from './components/QuickAdd';
 import { Button } from './components/ui';
 import { listSalaryRules } from './db/repo/salary';
 import { getRule } from './db/repo/rules';
@@ -76,31 +87,12 @@ const DuesView = lazy(() =>
 const SettingsView = lazy(() =>
   import('./components/SettingsView').then((m) => ({ default: m.SettingsView })),
 );
-
-type View =
-  | 'dashboard'
-  | 'week'
-  | 'month'
-  | 'list'
-  | 'payroll'
-  | 'dues'
-  | 'stats'
-  | 'manage'
-  | 'settings';
-
-const VIEWS: View[] = [
-  'dashboard',
-  'week',
-  'month',
-  'list',
-  'payroll',
-  'dues',
-  'stats',
-  'manage',
-  'settings',
-];
-/** Màn hình có thanh điều hướng thời gian */
-const TIME_VIEWS: View[] = ['week', 'month', 'payroll', 'dues'];
+const AccountView = lazy(() =>
+  import('./components/AccountView').then((m) => ({ default: m.AccountView })),
+);
+const PrivacyView = lazy(() =>
+  import('./components/PrivacyView').then((m) => ({ default: m.PrivacyView })),
+);
 
 export default function App() {
   const { t } = useTranslation();
@@ -113,7 +105,15 @@ export default function App() {
 
   // Mở lên là Tổng quan: câu hỏi đầu tiên của người dùng luôn là "hôm nay
   // tôi phải làm gì", không phải "tuần này trông thế nào".
-  const [view, setView] = useState<View>('dashboard');
+  //
+  // ⚠️ Đọc hash NGAY TRONG hàm khởi tạo state, không phải trong một effect.
+  // Đọc bằng effect sẽ đua với effect đồng bộ ngược và làm bookmark nhảy về
+  // Tổng quan — xem chú thích trong hooks/useHashRoute.ts.
+  const [view, setView] = useState<View>(
+    () => viewFromHash(window.location.hash) ?? DEFAULT_VIEW,
+  );
+  useHashRoute(view, setView);
+  useDocumentTitle(view);
   const [anchor, setAnchor] = useState<string>(() => todayKey());
   const [month, setMonth] = useState<string>(() => monthOf(todayKey()));
   const [listRange, setListRange] = useState(() => monthBounds(monthOf(todayKey())));
@@ -371,6 +371,7 @@ export default function App() {
             fixedMonthlyExcluded: t('print.fixedMonthlyExcluded'),
             weekdays: [0, 1, 2, 3, 4, 5, 6].map((d) => t(`weekday.s${d}`)),
             bands: [t('print.morning'), t('print.afternoon'), t('print.evening')],
+            bandLabel: t('print.bandLabel'),
           },
           format: {
             dayLabel: formatDayMonth,
@@ -403,6 +404,46 @@ export default function App() {
     }
   };
 
+  const handleExportPng = async () => {
+    if (exporting || !occurrences) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const { exportSchedulePng } = await import('./png/exportSchedulePng');
+      await exportSchedulePng({
+        dates: weekGrid,
+        occurrences,
+        categories: catMap,
+        salaryRules: salaryRules ?? [],
+        labels: {
+          appName: t('app.name'),
+          rangeLabel: `${formatDate(weekGrid[0])} — ${formatDate(weekGrid[6])}`,
+          exportedLabel: t('print.exportedOn', { date: formatDate(todayKey()) }),
+          summary: t('print.summary'),
+          plannedHours: t('print.plannedHours'),
+          completedHours: t('print.completedHours'),
+          estimatedIncome: t('print.estimatedIncome'),
+          fixedMonthlyExcluded: t('print.fixedMonthlyExcluded'),
+          weekdays: [0, 1, 2, 3, 4, 5, 6].map((d) => t(`weekday.s${d}`)),
+          bands: [t('print.morning'), t('print.afternoon'), t('print.evening')],
+          bandLabel: t('print.bandLabel'),
+        },
+        format: {
+          dayLabel: formatDayMonth,
+          hours: (h) => `${formatHours(h)} ${t('common.hours')}`,
+          money: (amount) => formatMoney(amount, settings.currency),
+          dayOfWeek,
+        },
+      });
+    } catch (e) {
+      setExportError(
+        t('print.failed', { message: e instanceof Error ? e.message : String(e) }),
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const ready = categories != null && occurrences != null;
 
   return (
@@ -419,14 +460,23 @@ export default function App() {
         <header className="mb-5 flex flex-wrap items-center gap-3 print:hidden">
           <h1 className="text-lg font-semibold">{t('app.name')}</h1>
 
-          {/* Bảy tab không vừa màn hình điện thoại. Cuộn ngang thay vì xuống
+          {/* Mười tab không vừa màn hình điện thoại. Cuộn ngang thay vì xuống
               dòng: xuống dòng làm header cao gấp đôi và đẩy cả lịch xuống. */}
-          <nav className="flex max-w-full gap-1 overflow-x-auto rounded-lg bg-slate-200/60 p-1">
-            {VIEWS.map((v) => (
+          {/* `aria-current="page"` chứ KHÔNG phải role="tablist".
+              Mẫu tablist của ARIA hứa hẹn điều hướng bằng phím mũi tên, mà
+              `←` `→` ở app này đã dành cho việc đổi tuần. Khai một vai trò rồi
+              không cài hành vi đi kèm còn tệ hơn không khai: người dùng trình
+              đọc màn hình được hứa một cách dùng không tồn tại. */}
+          <nav
+            aria-label={t('nav.label')}
+            className="flex max-w-full gap-1 overflow-x-auto rounded-lg bg-slate-200/60 p-1"
+          >
+            {NAV_VIEWS.map((v) => (
               <button
                 key={v}
                 type="button"
                 onClick={() => setView(v)}
+                aria-current={view === v ? 'page' : undefined}
                 className={`shrink-0 rounded-md px-3 py-1 text-sm font-medium transition ${
                   view === v
                     ? 'bg-primary text-primary-fg shadow-sm'
@@ -478,6 +528,13 @@ export default function App() {
                   <Button
                     variant="outline"
                     disabled={exporting}
+                    onClick={() => void handleExportPng()}
+                  >
+                    {exporting ? t('print.generating') : t('print.exportPng')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={exporting}
                     onClick={() => void handleExportPdf()}
                   >
                     {exporting ? t('print.generating') : t('print.exportPdf')}
@@ -490,6 +547,32 @@ export default function App() {
             </span>
           )}
         </header>
+        
+        {QUICK_ADD_VIEWS.includes(view) && (
+          <div className="mb-4 flex justify-end print:hidden">
+            <QuickAdd
+              onAdd={(parsed) => {
+                // Parser trả `null` cho phần nó không tìm thấy, KHÔNG đoán bừa.
+                // Giá trị mặc định được chọn ở đây, nơi biết "bây giờ" là lúc
+                // nào — core/quickAdd.ts là hàm thuần và không được đọc đồng hồ.
+                setDialog({
+                  kind: 'create',
+                  title: parsed.title || undefined,
+                  date: parsed.date ?? todayKey(),
+                  startTime: parsed.startTime ?? nextHalfHour(),
+                  endTime: parsed.endTime ?? undefined,
+                  clientName: parsed.clientName ?? undefined,
+                  daysOfWeek: parsed.daysOfWeek,
+                  repeats: parsed.repeats,
+                });
+                // Lịch lặp nhiều thứ phải sửa ở mức CẢ CHUỖI, không phải một
+                // buổi — mặc định 'OCCURRENCE' sẽ khóa mất phần lặp trong form
+                // và người dùng gõ "thứ 2,5" xong lại chỉ nhận được một buổi.
+                if (parsed.repeats) setDialogScope('SERIES');
+              }}
+            />
+          </div>
+        )}
 
         {exportError && (
           <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 print:hidden">
@@ -497,6 +580,24 @@ export default function App() {
           </p>
         )}
 
+        {/* ErrorBoundary NẰM NGOÀI Suspense, không phải trong.
+            Lỗi nạp chunk lazy nổi lên QUA Suspense chứ không bị nó giữ lại —
+            đặt ranh giới bên trong thì nó không bao giờ thấy lỗi, và React gỡ
+            cả cây thành trang trắng. Xem components/ErrorBoundary.tsx. */}
+        <ErrorBoundary
+          fallback={(error, reset) => (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-8 text-center">
+              <p className="text-sm font-medium text-red-800">{t('error.viewCrashed')}</p>
+              <p className="mt-1 text-xs text-red-600">{error.message}</p>
+              <div className="mt-4 flex justify-center gap-2">
+                <Button variant="outline" onClick={reset}>{t('error.retry')}</Button>
+                <Button variant="outline" onClick={() => window.location.reload()}>
+                  {t('error.reload')}
+                </Button>
+              </div>
+            </div>
+          )}
+        >
         {/* Suspense bọc CẢ chuỗi, không bọc riêng từng màn hình nạp chậm:
             fallback giống hệt ô "đang tải" của dữ liệu, nên người dùng không
             phân biệt được đang chờ mã hay chờ dữ liệu — và cũng không cần. */}
@@ -526,7 +627,11 @@ export default function App() {
             />
           </div>
         ) : view === 'settings' ? (
-          <SettingsView />
+          <SettingsView onOpenPrivacy={() => setView('privacy')} />
+        ) : view === 'account' ? (
+          <AccountView />
+        ) : view === 'privacy' ? (
+          <PrivacyView onBack={() => setView('settings')} />
         ) : view === 'dashboard' ? (
           <DashboardView
             onPick={(o) => setSelectedKey(o.key)}
@@ -574,6 +679,7 @@ export default function App() {
           />
         )}
         </Suspense>
+        </ErrorBoundary>
 
         {ready && (view === 'week' || view === 'month') && occurrences?.length === 0 && (
           <p className="mt-3 text-center text-sm text-slate-400">{t('week.empty')}</p>

@@ -87,7 +87,7 @@ export function planWeekCopy(input: CopyWeekInput): CopyWeekPlan {
       startTime: o.startTime,
       durationMinutes: o.durationMinutes,
       location: o.location,
-      clientName: o.clientName,
+      
       notes: o.notes,
       ratePerHour: o.ratePerHour,
       fixedAmount: o.fixedAmount,

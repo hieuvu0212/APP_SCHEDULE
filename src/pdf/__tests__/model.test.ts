@@ -78,6 +78,7 @@ function build(
       fixedMonthlyExcluded: 'chưa gồm khoán tháng',
       weekdays: ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'],
       bands: ['Sáng', 'Chiều', 'Tối'],
+      bandLabel: 'Buổi',
     },
     format: {
       dayLabel: (d) => d.slice(8),

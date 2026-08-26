@@ -4,6 +4,7 @@ import './i18n';
 import './index.css';
 import App from './App';
 import { seedIfEmpty } from './db/seed';
+import { SyncProvider } from './sync/SyncProvider';
 import { UndoProvider } from './undo/UndoProvider';
 
 void seedIfEmpty();
@@ -22,7 +23,12 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <UndoProvider>
-      <App />
+      {/* SyncProvider nằm TRONG UndoProvider: nó không dùng Hoàn tác, nhưng
+          đặt nó ở ngoài cùng cũng chẳng lợi gì, còn thứ tự này giữ cho lớp
+          gần App nhất là lớp mới thêm — dễ gỡ ra hơn nếu cần. */}
+      <SyncProvider>
+        <App />
+      </SyncProvider>
     </UndoProvider>
   </StrictMode>,
 );

@@ -1,0 +1,8 @@
+{
+  "name": "serena-ide",
+  "description": "Serena MCP integration for semantic code retrieval and refactoring",
+  "version": "1.0.0",
+  "mcpServers": [
+    "mcp_config.json"
+  ]
+}

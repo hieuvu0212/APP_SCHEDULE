@@ -72,10 +72,25 @@ export function Field({
 
 // ─── Modal ─────────────────────────────────────────────────────────────────
 
+/** Những gì trình duyệt cho phép dừng tiêu điểm vào, theo thứ tự tài liệu */
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 /**
  * Modal tối giản: khóa cuộn nền, đóng bằng Escape, bấm ra ngoài thì đóng,
- * và ĐƯA TIÊU ĐIỂM VÀO TRONG khi mở — thiếu bước cuối là người dùng bàn phím
- * bị bỏ lại ở nền phía sau.
+ * đưa tiêu điểm vào trong khi mở, GIỮ tiêu điểm ở trong, và TRẢ nó về chỗ cũ
+ * khi đóng.
+ *
+ * Ba việc cuối là ba việc khác nhau, và thiếu bất kỳ việc nào cũng bỏ rơi
+ * người dùng bàn phím ở một chỗ khác nhau:
+ *
+ *  · Không đưa vào  → họ vẫn ở nền phía sau, gõ Tab vào một form bị che khuất.
+ *  · Không giữ lại  → Tab vài lần là ra khỏi hộp thoại và họ thao tác trên
+ *                     nền mà không thấy, trong khi `aria-modal` đã nói với
+ *                     trình đọc màn hình rằng phần đó không tồn tại.
+ *  · Không trả về   → đóng xong tiêu điểm rơi về <body>, và Tab tiếp theo bắt
+ *                     đầu lại từ đầu trang. Với người chỉ dùng bàn phím thì
+ *                     đó là mất chỗ hoàn toàn.
  */
 export function Modal({
   title,
@@ -90,19 +105,55 @@ export function Modal({
   footer?: ReactNode;
   wide?: boolean;
 }) {
+  const { t } = useTranslation();
   const panel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Nhớ nơi tiêu điểm đang đứng TRƯỚC khi cướp nó đi.
+    const opener = document.activeElement as HTMLElement | null;
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (e.key !== 'Tab' || !panel.current) return;
+
+      const items = [...panel.current.querySelectorAll<HTMLElement>(FOCUSABLE)];
+      if (items.length === 0) {
+        // Hộp thoại không có gì bấm được: giữ tiêu điểm ở chính khung.
+        e.preventDefault();
+        panel.current.focus();
+        return;
+      }
+
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+
+      // Cuộn vòng ở hai đầu. Tiêu điểm đang ở NGOÀI khung (vd người dùng vừa
+      // bấm chuột ra nền) cũng kéo về đầu danh sách.
+      if (e.shiftKey && (active === first || !panel.current.contains(active))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
+
     document.addEventListener('keydown', onKey);
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     panel.current?.focus();
+
     return () => {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = previousOverflow;
+      // `isConnected` vì nút mở có thể đã bị gỡ khỏi DOM trong lúc hộp thoại
+      // mở — gọi focus() trên node mồ côi thì tiêu điểm rơi về <body>, đúng
+      // cái ta đang tránh.
+      if (opener?.isConnected) opener.focus();
     };
   }, [onClose]);
 
@@ -129,9 +180,12 @@ export function Modal({
           <button
             type="button"
             onClick={onClose}
+            aria-label={t('common.close')}
             className="rounded-lg px-2 py-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
           >
-            ✕
+            {/* `aria-hidden` để trình đọc màn hình không đọc cả tên Unicode
+                của ký tự sau khi đã đọc nhãn "Đóng" — nghe thành hai lần. */}
+            <span aria-hidden="true">✕</span>
           </button>
         </header>
         {/* Trên điện thoại lấy nhiều chiều cao hơn: bàn phím ảo đã nuốt mất
@@ -196,5 +250,44 @@ export function ColorDot({ color, className = '' }: { color: string; className?:
       className={`inline-block size-2.5 shrink-0 rounded-full ${className}`}
       style={{ backgroundColor: color }}
     />
+  );
+}
+
+// ─── Công tắc bật/tắt ──────────────────────────────────────────────────────
+
+/**
+ * Ô đánh dấu kèm nhãn và câu giải thích.
+ *
+ * Ô nhập nằm TRONG thẻ `<label>` nên bấm vào chữ cũng bật/tắt được, và trình
+ * đọc màn hình đọc đúng nhãn mà không cần `htmlFor`. Đây là một trong ba lỗi
+ * lọt lưới mà bộ test component sinh ra để canh — xem EventDialog.test.tsx.
+ *
+ * `hint` là bắt buộc, không phải tùy chọn: mọi công tắc trong ứng dụng này
+ * đều đổi một hành vi mà tên gọi không nói hết được.
+ */
+export function Toggle({
+  checked,
+  onChange,
+  label,
+  hint,
+}: {
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  label: string;
+  hint: string;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3">
+      <input
+        type="checkbox"
+        className="mt-1"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span className="text-sm">
+        <span className="font-medium text-slate-800">{label}</span>
+        <span className="block text-xs leading-snug text-slate-500">{hint}</span>
+      </span>
+    </label>
   );
 }

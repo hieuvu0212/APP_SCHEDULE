@@ -15,7 +15,10 @@
     "settings": "Cài đặt",
     "today": "Hôm nay",
     "previous": "Lùi",
-    "next": "Tiến"
+    "next": "Tiến",
+    "account": "Tài khoản",
+    "label": "Màn hình",
+    "privacy": "Chính sách riêng tư"
   },
   "copyWeek": {
     "open": "Nhân bản tuần",
@@ -140,6 +143,9 @@
       "fixedLabel": "Tiền cả buổi",
       "fixedHint": "Số tiền này KHÔNG nhân với số giờ — dùng cho buổi trả trọn gói."
     }
+  },
+  "quickAdd": {
+    "placeholder": "Thêm nhanh — VD: Học Toán 18h-20h thứ 3"
   },
   "scope": {
     "legend": "Sửa cái gì?",
@@ -281,7 +287,8 @@
     "autoComplete": "Tự đánh dấu buổi đã qua là hoàn thành",
     "autoCompleteHint": "Buổi đã kết thúc trước thời điểm hiện tại được coi là đã đi làm, trừ khi bạn tự đặt trạng thái khác. Tắt đi thì phải đánh dấu tay từng buổi.",
     "showConflicts": "Cảnh báo trùng lịch",
-    "showConflictsHint": "Hiện dấu ⚠ trên buổi bị chồng giờ. Chỉ cảnh báo, không bao giờ chặn — đôi khi bạn cố ý xếp trùng."
+    "showConflictsHint": "Hiện dấu ⚠ trên buổi bị chồng giờ. Chỉ cảnh báo, không bao giờ chặn — đôi khi bạn cố ý xếp trùng.",
+    "cloudMoved": "Đồng bộ đám mây đã chuyển sang màn hình Tài khoản. Xem thêm:"
   },
   "dues": {
     "collected": "Đã thu",
@@ -320,7 +327,8 @@
     "clientsHint": "Học sinh, chỗ làm, môn học, đề tài — đếm theo tên đã gõ, nên viết khác nhau sẽ ra hai mục.",
     "today": "Hôm nay",
     "tomorrow": "Ngày mai",
-    "empty": "Không có lịch."
+    "empty": "Không có lịch.",
+    "emptyHint": "Dùng thanh tìm kiếm để thêm lịch nhanh."
   },
   "stats": {
     "incomeFilterNote": "Biểu đồ thu nhập chỉ theo bộ lọc DANH MỤC. Lọc theo đối tượng hay trạng thái không đổi được nó, vì công việc trả khoán tháng không tách được ra từng buổi.",
@@ -357,7 +365,9 @@
     "failed": "Không tạo được PDF: {{message}}",
     "fontMissing": "Thiếu file font trong public/fonts/. Xem hướng dẫn trong README.",
     "fontFormat": "File {{url}} không phải font hợp lệ — đọc được: {{found}}. Kiểm tra ba chỗ: file có nằm trong public/fonts/ không, có phải bản .ttf trong thư mục static không (đừng dùng bản variable hay file .zip), và kích thước có hợp lý không (~500 KB cho Noto Sans, ~10 MB cho Noto Sans SC).",
-    "cjkFontMissing": "Lịch tuần này có chữ Hán, kana, Hangul hoặc emoji, cần thêm font NotoSansSC-Regular.ttf trong public/fonts/ (xem README). Trong lúc chờ, dùng nút In rồi chọn “Lưu dưới dạng PDF” — trình duyệt dùng font hệ thống nên hiện đúng."
+    "cjkFontMissing": "Lịch tuần này có chữ Hán, kana, Hangul hoặc emoji, cần thêm font NotoSansSC-Regular.ttf trong public/fonts/ (xem README). Trong lúc chờ, dùng nút In rồi chọn “Lưu dưới dạng PDF” — trình duyệt dùng font hệ thống nên hiện đúng.",
+    "exportPng": "Xuất PNG",
+    "bandLabel": "Buổi"
   },
   "reminder": {
     "title": "Nhắc trước giờ",
@@ -393,7 +403,21 @@
     "tableSalaryRules": "Cấu hình lương",
     "tableAdjustments": "Điều chỉnh",
     "tableTemplates": "Mẫu",
-    "tablePayments": "Khoản thu"
+    "tablePayments": "Khoản thu",
+    "cloudSkipped": "Chưa đăng nhập nên chỉ xóa được ở máy này. Bản trên đám mây vẫn còn và sẽ quay về ở lần đồng bộ sau.",
+    "cloudFailed": "Không xóa được bản trên đám mây:"
+  },
+  "duplicates": {
+    "title": "Danh mục bị trùng",
+    "clientsTitle": "Đối tượng bị trùng",
+    "clientsWhy": "Cùng một đối tượng xuất hiện nhiều lần. Thường gặp ở tên không sinh được id tất định (ví dụ tên thuần chữ Hán), hoặc ở dữ liệu tạo ra trước khi Đối tượng thành thực thể riêng. Gộp lại để Thống kê và Thu tiền đếm đúng.",
+    "why": "Cùng một tên danh mục xuất hiện nhiều lần. Nguyên nhân thường gặp: mỗi trình duyệt hay mỗi lần xóa dữ liệu duyệt web lại tạo ra một bộ danh mục mẫu mới, rồi đồng bộ đẩy tất cả lên. Lỗi này đã được sửa ở phần tạo dữ liệu ban đầu — mục này để dọn những bản đã lỡ sinh ra.",
+    "notAlwaysWrong": "Trùng tên KHÔNG chắc là nhầm: hai chỗ làm cùng đặt tên \"Đi làm\" là hợp lệ, và gộp chúng lại sẽ ép hai cấu hình lương khác nhau về làm một. Xem số bản ghi sẽ chuyển trước khi bấm.",
+    "copies": "({{n}} bản)",
+    "willMove": "Gộp lại sẽ chuyển {{n}} bản ghi sang danh mục được giữ.",
+    "merge": "Gộp",
+    "merging": "Đang gộp…",
+    "merged": "Đã gộp \"{{name}}\", chuyển {{n}} bản ghi"
   },
   "backup": {
     "title": "Sao lưu và khôi phục",
@@ -415,6 +439,82 @@
     "errorMissingData": "File thiếu khối dữ liệu.",
     "errorNewerSchema": "File được tạo bởi một phiên bản mới hơn. Nhập vào sẽ làm mất những trường bản này chưa biết — cập nhật ứng dụng trước đã.",
     "errorTableNotArray": "Cấu trúc dữ liệu trong file bị hỏng."
+  },
+  "ics": {
+    "title": "Xuất sang ứng dụng lịch (.ics)",
+    "why": "Đưa lịch sang Google Calendar, Apple Calendar, Outlook hay ứng dụng lịch trên điện thoại. Lịch lặp giữ nguyên là một chuỗi sửa được, không bị tách thành từng buổi rời.",
+    "notBackup": "⚠️ Đây KHÔNG phải bản sao lưu. File .ics chỉ mang lịch — không có cấu hình lương, khoản thu hay danh mục, và nhập lại cũng không khôi phục được gì. Muốn có bản dự phòng đầy đủ thì dùng Xuất file sao lưu ở trên.",
+    "summary": "Sẽ xuất: {{rules}} lịch lặp, {{events}} sự kiện đơn, {{overrides}} buổi sửa riêng.",
+    "export": "Xuất file .ics",
+    "exporting": "Đang xuất…"
+  },
+  "cloud": {
+    "title": "Đồng bộ đám mây",
+    "hint": "Giữ lịch giống nhau trên nhiều thiết bị. Dữ liệu vẫn nằm trong trình duyệt này; đám mây chỉ là bản đối chiếu.",
+    "notConfigured": "Chưa cấu hình máy chủ đồng bộ nên mục này đang tắt. Dữ liệu của bạn vẫn an toàn trong trình duyệt và vẫn chuyển đi được bằng file sao lưu.",
+    "email": "Email",
+    "password": "Mật khẩu",
+    "login": "Đăng nhập",
+    "signup": "Đăng ký",
+    "signUpSent": "Đã gửi yêu cầu đăng ký. Kiểm tra hộp thư nếu máy chủ đòi xác nhận, rồi đăng nhập.",
+    "logout": "Đăng xuất",
+    "loggedInAs": "Đang đăng nhập:",
+    "syncNow": "Đồng bộ ngay",
+    "syncing": "Đang đồng bộ…",
+    "syncResult": "Xong — đẩy lên {{pushed}}, kéo về {{pulled}}.",
+    "tableFailed": "Bảng {{table}} lỗi:",
+    "error": {
+      "notConfigured": "Chưa cấu hình máy chủ đồng bộ.",
+      "notSignedIn": "Phiên đăng nhập đã hết hạn. Đăng nhập lại rồi thử lần nữa.",
+      "unknown": "Đồng bộ thất bại."
+    },
+    "autoSync": "Tự đồng bộ",
+    "autoSyncHint": "Đồng bộ khi mở ứng dụng, khi quay lại tab, và khi có mạng trở lại. KHÔNG chạy mỗi lần bạn sửa lịch — xem README để biết vì sao.",
+    "lastSync": "Đồng bộ lần cuối: {{when}}",
+    "neverSynced": "Chưa đồng bộ lần nào trên máy này."
+  },
+  "account": {
+    "hint": "Đăng nhập để giữ lịch giống nhau trên nhiều thiết bị. Không bắt buộc.",
+    "optionalTitle": "Không đăng nhập vẫn dùng được đầy đủ",
+    "optionalBody": "Mọi tính năng — lịch, bảng lương, thu tiền, thống kê, in ấn, sao lưu — đều chạy mà không cần tài khoản. Đăng nhập chỉ thêm đúng một việc: giữ dữ liệu giống nhau trên nhiều máy. Không đăng nhập thì dữ liệu nằm trọn trong trình duyệt này, và đó là một lựa chọn hoàn toàn hợp lệ."
+  },
+  "privacy": {
+    "title": "Chính sách riêng tư",
+    "lastUpdated": "Cập nhật lần cuối: {{date}}",
+    "back": "Quay lại Cài đặt",
+    "tagline": "Mặc định, không có dữ liệu nào rời khỏi trình duyệt này. Lịch, thu nhập và ghi chú của bạn nằm trong IndexedDB trên chính máy bạn. Đồng bộ đám mây là tùy chọn và mặc định tắt. Không quảng cáo, không công cụ theo dõi, không phân tích hành vi.",
+    "local": {
+      "title": "Dữ liệu nằm ở đâu",
+      "body": "Toàn bộ danh mục, lịch lặp, buổi, cấu hình lương và khoản thu được lưu trong IndexedDB của trình duyệt này. Chúng không được gửi đi đâu cả trừ khi bạn tự bật Đồng bộ đám mây. Xóa dữ liệu duyệt web hoặc gỡ ứng dụng là mất chúng vĩnh viễn — hãy dùng Cài đặt → Xuất file sao lưu."
+    },
+    "cloud": {
+      "title": "Nếu bạn bật Đồng bộ đám mây",
+      "body": "Đồng bộ dùng Supabase. Khi và chỉ khi bạn đăng nhập rồi bấm Đồng bộ, những thứ sau được gửi lên máy chủ:",
+      "i1": "Địa chỉ email của bạn, do Supabase Auth quản lý. Ứng dụng không bao giờ nhìn thấy hay lưu mật khẩu của bạn.",
+      "i2": "Tám bảng dữ liệu: danh mục, lịch lặp, ngoại lệ, sự kiện, cấu hình lương, điều chỉnh lương, mẫu điều chỉnh và khoản thu — gồm cả tiêu đề, ghi chú, địa điểm, tên đối tượng và số tiền.",
+      "i3": "Row Level Security tách dữ liệu theo từng tài khoản: người dùng này không đọc được hàng của người kia, kể cả khi biết chính xác id.",
+      "i4": "Anon key nhúng trong ứng dụng là công khai theo thiết kế — nó nằm trong mã JavaScript mà ai cũng tải được. Thứ bảo vệ dữ liệu là RLS, không phải sự bí mật của key đó."
+    },
+    "notCollected": {
+      "title": "Những gì KHÔNG được thu thập",
+      "body": "Ứng dụng không nạp một script bên thứ ba nào.",
+      "i1": "Không công cụ phân tích, không đếm lượt truy cập, không theo dõi hành vi.",
+      "i2": "Không cookie theo dõi. Bộ nhớ cục bộ chỉ dùng cho dữ liệu và phiên đăng nhập của chính bạn.",
+      "i3": "Không thu vị trí, danh bạ, lịch hệ thống hay bất kỳ quyền thiết bị nào — ngoài quyền hiện thông báo mà chính bạn cấp cho tính năng nhắc lịch.",
+      "i4": "Không quảng cáo. Không chia sẻ, không bán dữ liệu cho bất kỳ ai."
+    },
+    "retention": {
+      "title": "Bản ghi đã xóa còn lại bao lâu",
+      "body": "Mọi thao tác xóa trong ứng dụng là xóa mềm: bản ghi ở lại kèm dấu thời gian xóa, để nút Hoàn tác có đường quay về và để lệnh xóa lan được sang thiết bị khác. Mặc định chúng chỉ bị dọn hẳn sau 30 ngày; bạn có thể dọn sớm hơn ở Cài đặt → Thùng rác. Xóa vĩnh viễn sẽ xóa CẢ bản trên đám mây — nếu lúc đó bạn đang đăng nhập. Không đăng nhập thì chỉ xóa được ở máy này, và màn hình nói rõ điều đó thay vì để bạn tự phát hiện sau."
+    },
+    "deletion": {
+      "title": "Xóa dữ liệu của bạn",
+      "body": "Dữ liệu cục bộ: Cài đặt → Thùng rác → Xóa vĩnh viễn, hoặc xóa dữ liệu trang web trong trình duyệt. Dữ liệu đám mây: xóa tài khoản trong bảng điều khiển Supabase của dự án — khóa ngoại đặt ON DELETE CASCADE nên mọi hàng thuộc tài khoản đó bị xóa theo."
+    },
+    "operator": {
+      "title": "Ai vận hành máy chủ",
+      "body": "Đây là ứng dụng mã nguồn mở, mỗi người tự triển khai bản của mình. Người dựng dự án Supabase mà bạn đồng bộ tới có toàn quyền truy cập cơ sở dữ liệu đó, và Supabase là bên thứ ba lưu trữ nó. Nếu bạn tự triển khai thì người đó chính là bạn. Không bật đồng bộ thì không có bên thứ ba nào liên quan."
+    }
   },
   "occurrence": {
     "scheduled": "Đã lên lịch",
@@ -438,6 +538,11 @@
     "endDateRequired": "Chọn ngày kết thúc",
     "endDateAfterStart": "Ngày kết thúc không được trước ngày bắt đầu",
     "countPositive": "Số buổi phải lớn hơn 0"
+  },
+  "error": {
+    "viewCrashed": "Màn hình này không mở được.",
+    "retry": "Thử lại",
+    "reload": "Tải lại trang"
   },
   "toast": {
     "created": "Đã tạo “{{title}}”",

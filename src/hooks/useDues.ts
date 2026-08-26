@@ -55,6 +55,19 @@ export function useDues(month: string): DuesData | undefined {
       autoCompletePast: autoComplete,
     });
 
+    const { fetchClientNames } = await import('./useClientNames');
+    const clientMap = await fetchClientNames();
+    for (const occ of occurrences) {
+      if (occ.clientId) {
+        occ.clientName = clientMap.get(occ.clientId);
+      }
+    }
+    for (const p of payments) {
+      if (p.clientId) {
+        p.clientLabel = clientMap.get(p.clientId) || 'Unknown';
+      }
+    }
+
     const rows = computeDues({
       occurrences,
       payments,

@@ -21,6 +21,7 @@ export const BACKUP_FORMAT = 'personal-schedule-backup';
 /** Các bảng được sao lưu. Thêm bảng mới thì phải thêm vào đây. */
 export const BACKUP_TABLES = [
   'categories',
+  'clients',
   'rules',
   'exceptions',
   'events',
@@ -117,9 +118,32 @@ export function validateBackup(
 }
 
 /** Hình dạng tối thiểu để trộn được: có id và có dấu thời gian sửa đổi */
-interface Mergeable {
+export interface Mergeable {
   id: string;
   updatedAt?: string;
+}
+
+/**
+ * `a` có mới hơn `b` không — PHÉP SO SÁNH DUY NHẤT quyết định ai thắng.
+ *
+ * Tách thành hàm riêng vì có HAI nơi cần nó: trộn file sao lưu (mergeById ở
+ * dưới) và đồng bộ đám mây (core/sync.ts). Hai bản sao của cùng một quy tắc
+ * sẽ lệch nhau, và lệch ở đây nghĩa là cùng một cặp bản ghi cho ra kết quả
+ * khác nhau tùy người dùng bấm Nhập hay bấm Đồng bộ.
+ *
+ * ⚠️ SO CHUỖI, KHÔNG PHẢI Date.getTime().
+ *
+ * Chuỗi ISO 8601 UTC so theo thứ tự từ điển là đúng thứ tự thời gian, miễn là
+ * ĐỊNH DẠNG ĐỒNG NHẤT. Đó là lý do mọi cột thời gian trên Supabase khai là
+ * `text` chứ không phải `timestamptz`: `timestamptz` trả về "…+00:00" trong
+ * khi client ghi "….000Z", và ở thế hòa thì '+' (0x2B) < '.' (0x2E) khiến bản
+ * đến thắng bản đang có — ngược hẳn quy tắc dưới đây.
+ *
+ * Bản ghi thiếu `updatedAt` bị coi là cũ nhất: dữ liệu không có dấu thời gian
+ * thì không có cơ sở nào để thắng dữ liệu có.
+ */
+export function isNewer(a: string | undefined, b: string | undefined): boolean {
+  return (a ?? '') > (b ?? '');
 }
 
 export interface MergeReport<T> {
@@ -162,7 +186,7 @@ export function mergeById<T extends Mergeable>(
       continue;
     }
 
-    if ((row.updatedAt ?? '') > (current.updatedAt ?? '')) {
+    if (isNewer(row.updatedAt, current.updatedAt)) {
       byId.set(row.id, row);
       updated++;
     } else {

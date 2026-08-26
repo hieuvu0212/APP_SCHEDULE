@@ -1,0 +1,21 @@
+# Personal Schedule System
+#
+# Disallow, KHÔNG phải Allow — và đó là lựa chọn có chủ đích.
+#
+# Ứng dụng này là một cái vỏ rỗng: mọi nội dung thật (lịch, thu nhập, ghi chú)
+# nằm trong IndexedDB của từng trình duyệt và được vẽ ra bằng JavaScript sau
+# khi tải. Trình thu thập không nhìn thấy gì ngoài một khung HTML trống.
+#
+# Index một cái vỏ rỗng không mang lại lợi ích nào, và nó có hại thật: kết quả
+# tìm kiếm sẽ hiện một trang không có nội dung, đúng loại trang mà công cụ tìm
+# kiếm đánh giá là chất lượng thấp.
+#
+# Đây là CÔNG CỤ, không phải trang nội dung. Người dùng tới đây qua bookmark
+# hoặc biểu tượng ứng dụng đã cài, không qua tìm kiếm.
+#
+# ⚠️ robots.txt KHÔNG phải cơ chế bảo mật. Nó là yêu cầu lịch sự với trình thu
+# thập biết điều. Thứ giữ dữ liệu của bạn an toàn là việc dữ liệu không bao giờ
+# nằm trong HTML — xem mục Chính sách riêng tư trong ứng dụng.
+
+User-agent: *
+Disallow: /

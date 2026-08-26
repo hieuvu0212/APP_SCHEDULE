@@ -90,10 +90,10 @@ export function DashboardView({
 
 function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-      <p className="text-xs uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-0.5 text-2xl font-semibold tabular-nums text-slate-900">{value}</p>
-      {hint && <p className="mt-0.5 text-xs leading-snug text-slate-400">{hint}</p>}
+    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <p className="text-xs uppercase tracking-wide text-slate-500 font-semibold">{label}</p>
+      <p className="mt-1 text-3xl font-bold tracking-tight tabular-nums text-slate-900">{value}</p>
+      {hint && <p className="mt-1 text-xs leading-snug text-slate-400">{hint}</p>}
     </div>
   );
 }
@@ -118,26 +118,27 @@ function DayPanel({
 
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-      <header className="flex flex-wrap items-baseline gap-2 border-b border-slate-100 px-4 py-2.5">
-        <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      <header className="flex flex-wrap items-baseline gap-2 border-b border-slate-100 px-4 py-3">
+        <h3 className="text-base font-bold tracking-tight text-slate-900">{title}</h3>
         <button
           type="button"
           onClick={() => onOpenDate(date)}
-          className="text-xs text-slate-500 underline-offset-2 transition hover:text-slate-900 hover:underline"
+          className="text-xs font-medium text-slate-500 underline-offset-2 transition hover:text-slate-900 hover:underline"
         >
           {formatDate(date)}
         </button>
         {list.length > 0 && (
-          <span className="ml-auto text-xs tabular-nums text-slate-400">
+          <span className="ml-auto text-xs font-medium tabular-nums text-slate-500">
             {list.length} · {formatHours(totalHours)} {t('common.hours')}
           </span>
         )}
       </header>
 
       {list.length === 0 ? (
-        <p className="px-4 py-6 text-center text-sm text-slate-400">
-          {t('dashboard.empty')}
-        </p>
+        <div className="px-4 py-8 text-center">
+          <p className="text-sm font-medium text-slate-500">{t('dashboard.empty')}</p>
+          <p className="mt-1 text-xs text-slate-400">{t('dashboard.emptyHint')}</p>
+        </div>
       ) : (
         <ul className="divide-y divide-slate-50">
           {list.map((o) => {
@@ -180,9 +181,28 @@ function DayPanel({
                       {o.location && <span>· {o.location}</span>}
                     </span>
                   </span>
-                  {done && <span className="shrink-0 text-emerald-600">✓</span>}
+                  {/* `role="img"` + `aria-label`, không phải ký hiệu trần.
+                      Dấu tích chỉ truyền được thông tin qua MẮT — trình đọc
+                      màn hình đọc tên Unicode của ký tự hoặc bỏ qua hẳn, mà
+                      "đã hoàn thành" là thông tin thật chứ không phải trang
+                      trí. `title` trên <span> cũng không đủ: mức hỗ trợ không
+                      đồng nhất giữa các trình đọc. */}
+                  {done && (
+                    <span
+                      role="img"
+                      aria-label={t('occurrence.completed')}
+                      className="shrink-0 text-emerald-600"
+                    >
+                      ✓
+                    </span>
+                  )}
                   {o.hasConflict && !done && (
-                    <span className="shrink-0 text-red-500" title={t('occurrence.conflict')}>
+                    <span
+                      role="img"
+                      aria-label={t('occurrence.conflict')}
+                      title={t('occurrence.conflict')}
+                      className="shrink-0 text-red-500"
+                    >
                       ⚠
                     </span>
                   )}

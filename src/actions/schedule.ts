@@ -86,11 +86,26 @@ export async function applySubmit(
   payload: SubmitPayload,
   target: DialogTarget,
 ): Promise<Undoable> {
+  const { db, newId, nowISO } = await import('../db/schema');
+  let clientId: string | undefined;
+  if (payload.clientName) {
+    const name = payload.clientName.trim();
+    const existing = (await db.clients.toArray()).find(c => c.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      clientId = existing.id;
+    } else {
+      clientId = newId();
+      const t = nowISO();
+      await db.clients.add({ id: clientId, name, createdAt: t, updatedAt: t });
+    }
+  }
+
   const common = {
     title: payload.title,
     categoryId: payload.categoryId,
     location: payload.location,
     clientName: payload.clientName,
+    clientId: clientId,
     notes: payload.notes,
     ratePerHour: payload.ratePerHour,
     fixedAmount: payload.fixedAmount,
@@ -170,17 +185,20 @@ export async function applySubmit(
   // Buổi loại ADD không thuộc rule nào — sửa thẳng chính exception đó.
   if (occurrence.exceptionId) {
     const exceptionId = occurrence.exceptionId;
-    // Buổi ADD được định nghĩa TRỌN VẸN bởi chính exception của nó, nên trạng
-    // thái đang hiển thị chính là trạng thái cần khôi phục — không phải đọc DB.
+    const { db } = await import('../db/schema');
+    const exc = await db.exceptions.get(exceptionId);
+    if (!exc) throw new Error('Exception not found');
+
     const before = {
-      newDate: occurrence.date,
-      newStartTime: occurrence.startTime,
-      newDurationMinutes: occurrence.durationMinutes,
-      newTitle: occurrence.title,
-      newCategoryId: occurrence.categoryId,
-      newRatePerHour: occurrence.ratePerHour,
-      newFixedAmount: occurrence.fixedAmount,
-      status: occurrence.status,
+      newDate: exc.newDate,
+      newStartTime: exc.newStartTime,
+      newDurationMinutes: exc.newDurationMinutes,
+      newTitle: exc.newTitle,
+      newCategoryId: exc.newCategoryId,
+      newClientId: exc.newClientId,
+      newRatePerHour: exc.newRatePerHour,
+      newFixedAmount: exc.newFixedAmount,
+      status: exc.status,
     };
     await updateException(exceptionId, {
       newDate: payload.date,
@@ -188,6 +206,7 @@ export async function applySubmit(
       newDurationMinutes: payload.durationMinutes,
       newTitle: payload.title,
       newCategoryId: payload.categoryId,
+      newClientId: clientId,
       newRatePerHour: payload.ratePerHour,
       newFixedAmount: payload.fixedAmount,
       status: payload.status,
@@ -213,6 +232,7 @@ export async function applySubmit(
       newDurationMinutes: payload.durationMinutes,
       newTitle: payload.title,
       newCategoryId: payload.categoryId,
+      newClientId: clientId,
       newRatePerHour: payload.ratePerHour,
       newFixedAmount: payload.fixedAmount,
       status: payload.status,

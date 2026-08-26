@@ -462,22 +462,22 @@ function OccurrenceBlock({
         left,
         width,
         backgroundColor: cancelled ? '#f8fafc' : tint(color),
-        borderLeftColor: color,
+        borderColor: cancelled ? undefined : color,
         opacity: movedAway ? 0.25 : undefined,
       }}
-      className={`absolute z-10 cursor-grab touch-none overflow-hidden rounded-md border border-slate-200/70 border-l-[3px] px-1.5 py-1 text-left text-[11px] leading-tight transition-shadow hover:z-30 hover:shadow-md ${
-        cancelled ? 'opacity-50' : ''
+      className={`absolute z-10 cursor-grab touch-none overflow-hidden rounded-md border-2 px-1.5 py-1 text-left text-[11px] leading-tight transition-shadow hover:z-30 hover:shadow-md ${
+        cancelled ? 'opacity-50 border-slate-200' : ''
       } ${done ? 'opacity-80' : ''} ${dragging ? 'z-40 shadow-lg' : ''}`}
     >
       <div className="flex items-start gap-1">
         {o.hasConflict && showConflicts && !cancelled && (
-          <span className="shrink-0 text-red-500" title={t('occurrence.conflict')}>
+          <span className="shrink-0 text-red-600 font-bold" title={t('occurrence.conflict')}>
             ⚠
           </span>
         )}
         <span
-          className={`min-w-0 flex-1 truncate font-semibold text-slate-800 ${
-            cancelled || noShow ? 'line-through' : ''
+          className={`min-w-0 flex-1 truncate font-bold text-slate-900 ${
+            cancelled || noShow ? 'line-through opacity-70' : ''
           }`}
         >
           {o.title}

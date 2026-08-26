@@ -153,6 +153,7 @@ function makeOccurrence(args: {
   ratePerHour?: number;
   fixedAmount?: number;
   location?: string;
+  clientId?: string;
   clientName?: string;
   notes?: string;
 }): Occurrence {
@@ -230,7 +231,8 @@ export function expandSchedule(input: ExpandInput): Occurrence[] {
       ratePerHour: ev.ratePerHour,
       fixedAmount: ev.fixedAmount,
       location: ev.location,
-      clientName: ev.clientName,
+      clientId: ev.clientId,
+      
       notes: ev.notes,
     });
     o.status = resolveStatus(
@@ -265,7 +267,8 @@ export function expandSchedule(input: ExpandInput): Occurrence[] {
       ratePerHour: exc?.newRatePerHour ?? rule.ratePerHour,
       fixedAmount: exc?.newFixedAmount ?? rule.fixedAmount,
       location: rule.location,
-      clientName: rule.clientName,
+      clientId: exc?.newClientId ?? rule.clientId,
+      
       notes: rule.notes,
     });
     o.status = resolveStatus(exc?.status, o.endAbs, now, autoCompletePast);
@@ -324,7 +327,8 @@ export function expandSchedule(input: ExpandInput): Occurrence[] {
       ratePerHour: e.newRatePerHour ?? base?.ratePerHour,
       fixedAmount: e.newFixedAmount ?? base?.fixedAmount,
       location: base?.location,
-      clientName: base?.clientName,
+      clientId: e.newClientId ?? base?.clientId,
+      
       notes: e.reason ?? base?.notes,
     });
     o.status = resolveStatus(e.status, o.endAbs, now, autoCompletePast);

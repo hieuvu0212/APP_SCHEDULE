@@ -2,6 +2,7 @@ import Dexie, { type Table } from 'dexie';
 import type {
   AdjustmentTemplate,
   Category,
+  Client,
   Payment,
   PayrollAdjustment,
   RecurringRule,
@@ -9,12 +10,14 @@ import type {
   ScheduleException,
   SingleEvent,
 } from '../types';
+import { clientIdFromName } from '../core/clientId';
 
 /** Tăng số này mỗi lần schema đổi, và ghi kèm vào file backup JSON */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export class ScheduleDB extends Dexie {
   categories!: Table<Category, string>;
+  clients!: Table<Client, string>;
   rules!: Table<RecurringRule, string>;
   exceptions!: Table<ScheduleException, string>;
   events!: Table<SingleEvent, string>;
@@ -70,6 +73,74 @@ export class ScheduleDB extends Dexie {
     // ─────────────────────────────────────────────────────────────────────
     this.version(2).stores({
       payments: 'id, [clientKey+month], clientKey, month, categoryId, deletedAt',
+    });
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  version(3) — Đưa Client thành thực thể độc lập
+    // ─────────────────────────────────────────────────────────────────────
+    this.version(3).stores({
+      clients: 'id, name, deletedAt',
+      payments: 'id, [clientId+month], clientId, month, categoryId, deletedAt',
+    }).upgrade(async (tx) => {
+      // 1. Quét toàn bộ rules và events để tìm các clientName độc nhất
+      const rules = await tx.table('rules').toArray();
+      const events = await tx.table('events').toArray();
+      const payments = await tx.table('payments').toArray();
+
+      const uniqueNames = new Set<string>();
+      rules.forEach(r => { if (r.clientName) uniqueNames.add(r.clientName); });
+      events.forEach(e => { if (e.clientName) uniqueNames.add(e.clientName); });
+      payments.forEach(p => { if (p.clientLabel) uniqueNames.add(p.clientLabel); });
+      
+      const t = new Date().toISOString();
+      const nameToId = new Map<string, string>();
+      const createdIds = new Set<string>();
+      
+      const newClients: any[] = [];
+
+      uniqueNames.forEach(name => {
+        let id = clientIdFromName(name);
+        if (!id) id = newId();
+        
+        nameToId.set(name, id);
+        if (!createdIds.has(id)) {
+          createdIds.add(id);
+          newClients.push({ id, name, createdAt: t, updatedAt: t });
+        }
+      });
+
+      // Tạo bảng clients
+      await tx.table('clients').bulkAdd(newClients);
+
+      // Cập nhật rules
+      for (const r of rules) {
+        if (r.clientName) {
+          r.clientId = nameToId.get(r.clientName);
+          delete r.clientName;
+          r.updatedAt = t;
+          await tx.table('rules').put(r);
+        }
+      }
+
+      // Cập nhật events
+      for (const e of events) {
+        if (e.clientName) {
+          e.clientId = nameToId.get(e.clientName);
+          delete e.clientName;
+          e.updatedAt = t;
+          await tx.table('events').put(e);
+        }
+      }
+
+      // Cập nhật payments (giữ clientLabel, bỏ clientKey)
+      for (const p of payments) {
+        if (p.clientLabel) {
+          p.clientId = nameToId.get(p.clientLabel);
+          delete p.clientKey;
+          p.updatedAt = t;
+          await tx.table('payments').put(p);
+        }
+      }
     });
   }
 }

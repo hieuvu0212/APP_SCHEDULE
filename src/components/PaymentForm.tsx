@@ -50,8 +50,7 @@ export function PaymentForm({
     setSaving(true);
     try {
       await createPayment({
-        clientKey: row.clientKey,
-        clientLabel: row.clientLabel,
+        clientId: row.clientId,
         categoryId: row.categoryId,
         month,
         amount: value,
