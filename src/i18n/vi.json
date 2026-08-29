@@ -371,7 +371,7 @@
   },
   "reminder": {
     "title": "Nhắc trước giờ",
-    "limitation": "Ứng dụng này không có máy chủ, nên chỉ nhắc được KHI NÓ ĐANG MỞ — trên một tab trình duyệt hoặc trong app đã cài. Đóng hẳn thì không có gì đánh thức nó dậy. Đừng dùng thay cho báo thức của điện thoại.",
+    "limitation": "Ứng dụng tự động nạp lịch nhắc 7 ngày tới lên đám mây mỗi khi mở app. Nếu không mở app quá 7 ngày, thông báo sẽ tạm dừng cho tới lần mở tiếp theo. Đừng dùng thay cho báo thức của điện thoại.",
     "unsupported": "Trình duyệt này không hỗ trợ thông báo.",
     "denied": "Bạn đã chặn thông báo cho trang này. Muốn bật lại thì mở phần cài đặt quyền của trình duyệt (biểu tượng ổ khóa cạnh thanh địa chỉ).",
     "allow": "Cho phép thông báo",

@@ -58,6 +58,8 @@
 -- Phần dưới dùng CREATE TABLE IF NOT EXISTS, nên chạy lại bao nhiêu lần cũng
 -- an toàn. Chỉ mở khối này khi bạn THẬT SỰ muốn dựng lại từ đầu.
 --
+DROP TABLE IF EXISTS public.reminder_queue      CASCADE;
+DROP TABLE IF EXISTS public.push_subscriptions CASCADE;
 DROP TABLE IF EXISTS public.payments            CASCADE;
 DROP TABLE IF EXISTS public.adjustment_templates CASCADE;
 DROP TABLE IF EXISTS public.adjustments         CASCADE;
@@ -396,6 +398,54 @@ CREATE TABLE IF NOT EXISTS public.payments (
 );
 
 
+-- ─── push_subscriptions — đăng ký Web Push ────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+  user_id     uuid NOT NULL REFERENCES auth.users ON DELETE CASCADE,
+  id          text NOT NULL,
+
+  endpoint    text NOT NULL,
+  p256dh      text NOT NULL,
+  auth        text NOT NULL,
+  user_agent  text,
+
+  created_at  text NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+  updated_at  text NOT NULL,
+  deleted_at  text,
+
+  PRIMARY KEY (user_id, id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS push_subscriptions_endpoint_uniq
+  ON public.push_subscriptions (user_id, endpoint);
+
+
+-- ─── reminder_queue — hàng đợi Web Push ───────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.reminder_queue (
+  user_id     uuid NOT NULL REFERENCES auth.users ON DELETE CASCADE,
+  id          text NOT NULL,
+
+  fire_at     text NOT NULL,
+  title       text NOT NULL,
+  body        text NOT NULL,
+  url         text,
+
+  sent_at     text,
+
+  created_at  text NOT NULL,
+  updated_at  text NOT NULL,
+  deleted_at  text,
+
+  PRIMARY KEY (user_id, id)
+);
+
+-- Cron quét XUYÊN user, nên index KHÔNG mở đầu bằng user_id như các bảng khác.
+CREATE INDEX IF NOT EXISTS reminder_queue_due_idx
+  ON public.reminder_queue (fire_at)
+  WHERE sent_at IS NULL AND deleted_at IS NULL;
+
+
 -- ─── Chỉ mục cho đồng bộ ───────────────────────────────────────────────────
 --
 -- Đồng bộ gia tăng sẽ hỏi "có gì đổi sau mốc X?" trên từng bảng. Không có
@@ -410,6 +460,7 @@ CREATE INDEX IF NOT EXISTS salary_rules_sync_idx         ON public.salary_rules 
 CREATE INDEX IF NOT EXISTS adjustments_sync_idx          ON public.adjustments          (user_id, updated_at);
 CREATE INDEX IF NOT EXISTS adjustment_templates_sync_idx ON public.adjustment_templates (user_id, updated_at);
 CREATE INDEX IF NOT EXISTS payments_sync_idx             ON public.payments             (user_id, updated_at);
+CREATE INDEX IF NOT EXISTS push_subscriptions_sync_idx   ON public.push_subscriptions   (user_id, updated_at);
 
 
 -- ─── Row Level Security ────────────────────────────────────────────────────
@@ -428,6 +479,8 @@ ALTER TABLE public.salary_rules         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.adjustments          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.adjustment_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.push_subscriptions   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reminder_queue       ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS own_clients              ON public.clients;
 DROP POLICY IF EXISTS own_categories           ON public.categories;
@@ -438,6 +491,8 @@ DROP POLICY IF EXISTS own_salary_rules         ON public.salary_rules;
 DROP POLICY IF EXISTS own_adjustments          ON public.adjustments;
 DROP POLICY IF EXISTS own_adjustment_templates ON public.adjustment_templates;
 DROP POLICY IF EXISTS own_payments             ON public.payments;
+DROP POLICY IF EXISTS own_push_subscriptions   ON public.push_subscriptions;
+DROP POLICY IF EXISTS own_reminder_queue       ON public.reminder_queue;
 
 CREATE POLICY own_clients ON public.clients
   FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
@@ -456,4 +511,8 @@ CREATE POLICY own_adjustments ON public.adjustments
 CREATE POLICY own_adjustment_templates ON public.adjustment_templates
   FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 CREATE POLICY own_payments ON public.payments
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY own_push_subscriptions ON public.push_subscriptions
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY own_reminder_queue ON public.reminder_queue
   FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);

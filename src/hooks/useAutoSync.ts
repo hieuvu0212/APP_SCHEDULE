@@ -7,6 +7,7 @@ import {
 } from '../core/autoSync';
 import type { SyncReport } from '../core/sync';
 import { syncWithCloud } from '../db/sync';
+import { syncReminderQueue } from '../db/pushQueue';
 
 /**
  * Mốc đồng bộ gần nhất — lưu ở localStorage, KHÔNG ở bảng settings.
@@ -92,6 +93,11 @@ export function useAutoSync(enabled: boolean, signedIn: boolean): UseAutoSync {
       const report = await syncWithCloud();
       const at = Date.now();
       localStorage.setItem(LAST_SYNC_KEY, String(at));
+
+      // Nạp hàng đợi nhắc lịch Web Push sau khi dữ liệu đồng bộ thành công
+      await syncReminderQueue().catch((err) => {
+        console.error('Failed to sync reminder queue:', err);
+      });
 
       // Một bảng lỗi KHÔNG tính là cả lượt hỏng: bảy bảng kia đã đồng bộ
       // xong, và giãn khoảng chờ vì một lược đồ lệch sẽ làm chậm cả phần

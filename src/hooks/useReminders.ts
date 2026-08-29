@@ -21,9 +21,11 @@
 import { useEffect, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useTranslation } from 'react-i18next';
+import { fnv1a32 } from '../core/clientId';
 import { expandSchedule } from '../core/expand';
 import { pendingReminders } from '../core/reminder';
 import { addDays, toDateKey } from '../core/time';
+import { getSupabase } from '../db/cloud';
 import { getExceptionsInWindow } from '../db/repo/exceptions';
 import { listEventsInWindow } from '../db/repo/events';
 import { listRules } from '../db/repo/rules';
@@ -42,32 +44,74 @@ export function notificationState(): NotificationState {
   return Notification.permission as NotificationState;
 }
 
+/** Lưu Web Push subscription lên Supabase cho user hiện tại */
+export async function savePushSubscription(sub: PushSubscription): Promise<boolean> {
+  try {
+    const supabase = await getSupabase();
+    if (!supabase) return false;
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const subJson = sub.toJSON();
+    if (!subJson.endpoint || !subJson.keys?.p256dh || !subJson.keys?.auth) {
+      return false;
+    }
+
+    const now = new Date().toISOString();
+    const id = `sub-${fnv1a32(subJson.endpoint)}`;
+
+    const { error } = await supabase.from('push_subscriptions').upsert(
+      {
+        user_id: user.id,
+        id,
+        endpoint: subJson.endpoint,
+        p256dh: subJson.keys.p256dh,
+        auth: subJson.keys.auth,
+        user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+        updated_at: now,
+        deleted_at: null,
+      },
+      { onConflict: 'user_id,id' },
+    );
+
+    if (error) {
+      console.error('Failed to save push subscription to Supabase:', error);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('Failed to save push subscription:', e);
+    return false;
+  }
+}
+
 export async function requestNotificationPermission(): Promise<NotificationState> {
   if (typeof Notification === 'undefined') return 'unsupported';
   const permission = await Notification.requestPermission();
-  
+
   if (permission === 'granted' && 'serviceWorker' in navigator) {
     try {
       const reg = await navigator.serviceWorker.ready;
       let sub = await reg.pushManager.getSubscription();
-      if (!sub) {
-        // VAPID public key from Supabase (demo)
+      if (!sub && isPushConfigured()) {
         const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
         const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
         sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: convertedVapidKey,
         });
-        
-        // Gửi sub này lên DB, demo code:
-        console.log('Push subscription ready:', JSON.stringify(sub));
-        // await fetch('/api/subscribe', { method: 'POST', body: JSON.stringify(sub) });
+      }
+      if (sub) {
+        await savePushSubscription(sub);
       }
     } catch (e) {
       console.error('Failed to subscribe for push notifications:', e);
     }
   }
-  
+
   return permission as NotificationState;
 }
 
@@ -140,4 +184,37 @@ export function useReminders(): void {
 
     return () => timers.forEach(clearTimeout);
   }, [enabled, lead, occurrences, t]);
+
+  // Đồng bộ subscription lên mây nếu có sẵn và đã đăng nhập
+  useEffect(() => {
+    if (
+      !enabled ||
+      notificationState() !== 'granted' ||
+      typeof navigator === 'undefined' ||
+      !('serviceWorker' in navigator)
+    ) {
+      return;
+    }
+    const syncSub = () => {
+      navigator.serviceWorker.ready
+        .then((reg) => reg.pushManager.getSubscription())
+        .then((sub) => {
+          if (sub) void savePushSubscription(sub);
+        })
+        .catch((e) => console.error('Failed to sync push subscription:', e));
+    };
+
+    syncSub();
+
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'PUSH_SUBSCRIPTION_CHANGE') {
+        syncSub();
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', onMessage);
+    };
+  }, [enabled]);
 }

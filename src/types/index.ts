@@ -38,6 +38,21 @@ export interface Client extends BaseEntity {
   note?: string;
 }
 
+export interface PushSubscriptionRecord extends BaseEntity {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  userAgent?: string;
+}
+
+export interface ReminderQueueRecord extends BaseEntity {
+  fireAt: string;
+  title: string;
+  body: string;
+  url?: string;
+  sentAt?: string;
+}
+
 // ─── Category ──────────────────────────────────────────────────────────────
 
 export interface Category extends BaseEntity {

@@ -37,6 +37,8 @@ const TABLE_TO_INTERFACE = {
   adjustments: 'PayrollAdjustment',
   adjustment_templates: 'AdjustmentTemplate',
   payments: 'Payment',
+  push_subscriptions: 'PushSubscriptionRecord',
+  reminder_queue: 'ReminderQueueRecord',
 };
 
 /**

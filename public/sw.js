@@ -92,25 +92,50 @@ self.addEventListener('push', (event) => {
   const data = event.data.json();
   const options = {
     body: data.body,
-    icon: '/icons/icon-192x192.png',
-    badge: '/icons/icon-192x192.png',
-    data: { url: data.url || '/' },
+    icon: './icon-192.png',
+    badge: './icon-192.png',
+    data: { url: data.url || './' },
   };
 
   event.waitUntil(self.registration.showNotification(data.title, options));
 });
 
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        const options = event.oldSubscription
+          ? event.oldSubscription.options
+          : { userVisibleOnly: true };
+        const newSub =
+          event.newSubscription || (await self.registration.pushManager.subscribe(options));
+        const windowClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const client of windowClients) {
+          client.postMessage({
+            type: 'PUSH_SUBSCRIPTION_CHANGE',
+            newSubscription: newSub ? newSub.toJSON() : null,
+          });
+        }
+      } catch (err) {
+        console.error('Error handling pushsubscriptionchange:', err);
+      }
+    })()
+  );
+});
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const targetUrl = new URL(event.notification.data?.url || './', self.registration.scope).href;
+
   event.waitUntil(
-    clients.matchAll({ type: 'window' }).then((windowClients) => {
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
       for (const client of windowClients) {
-        if (client.url === event.notification.data.url && 'focus' in client) {
+        if (client.url === targetUrl && 'focus' in client) {
           return client.focus();
         }
       }
       if (clients.openWindow) {
-        return clients.openWindow(event.notification.data.url);
+        return clients.openWindow(targetUrl);
       }
     })
   );
