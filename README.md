@@ -14,7 +14,7 @@ Trên giao diện nó hiển thị là **"Đối tượng"** ở cả ba ngôn n
 
 Từ `db.version(3)` nó **không còn là chuỗi gõ tay**. `clientIdFromName()` sinh id tất định từ tên đã bỏ dấu — `Minh` → `client-minh` — nên gõ lại cùng một tên sẽ trỏ về đúng đối tượng cũ thay vì đẻ thêm một bản ghi nữa. Đổi tên một đối tượng giờ không làm mồ côi khoản thu nào, vì `Payment` neo vào `clientId` chứ không phải vào tên.
 
-⚠️ Cái giá của "tất định là bỏ dấu": **"Minh" và "Mình" gộp làm một.** Đó là chủ ý — trước kia chúng là hai đối tượng rời và đó mới là thứ không ai muốn — nhưng nếu bạn thật sự có hai người khác nhau đúng ở mỗi cái dấu, phải phân biệt bằng tên đầy đủ. `ensureClient()` chỉ tách ra id ngẫu nhiên khi id trùng mà tên chuẩn hóa **khác** nhau (`Minh!` so với `Minh`).
+⚠️ Cái giá của "tất định là bỏ dấu": **"Minh" và "Mình" gộp làm một.** Đó là chủ ý — trước kia chúng là hai đối tượng rời và đó mới là thứ không ai muốn — nhưng nếu bạn thật sự có hai người khác nhau đúng ở mỗi cái dấu, phải phân biệt bằng tên đầy đủ. Khi id trùng mà tên chuẩn hóa **khác** nhau (`Minh!` so với `Minh`, `小明 minh` so với `大明 minh`), `ensureClient()` cho người tới sau một id dự phòng **cũng tất định**: `collisionClientId()` băm toàn bộ tên ra `client-c_…`. Trước đây nhánh đó dùng `newId()` ngẫu nhiên, nên gõ lại tên người thứ hai là đẻ thêm một đối tượng mỗi lần, và hai máy gõ cùng tên thì có hai id khác nhau.
 
 Tên **không viết được bằng `[a-z0-9]`** — `小明`, `한지민`, `Минск` — đi nhánh thứ hai: băm FNV-1a của tên đã chuẩn hóa, ra `client-h_1b5a3bd0`. Nhánh này trước đây trả `null` và `ensureClient()` rơi về `newId()`, nên **gõ lại đúng cái tên đó là đẻ thêm một đối tượng nữa**, mỗi lần một cái. Dấu `_` không phải để cho đẹp: nhánh Latin lọc bỏ mọi ký tự ngoài `[a-z0-9-]` nên nó không bao giờ sinh nổi một id có `_`, và nhờ vậy một nhãn như `H12345678` — mã phòng, mã học phần, đều hợp lệ ở trường này — không thể mang trùng hình dạng của một id băm. Tên chỉ toàn dấu câu (`???`, `😀`) thì vẫn `null`: nhánh băm chỉ dành cho tên có **chữ**, ở bất kỳ hệ chữ viết nào.
 
@@ -39,7 +39,7 @@ Tiêu đề và ghi chú là **dữ liệu người dùng**, không đi qua i18n
 - *(Theo quyết định của người dùng)*
 
 ### Known Issues
-- **Tên TRỘN Hán–Latin có thể trùng id.** `小明 minh` và `大明 minh` đều cho ra `client--minh`: phần chữ Hán bị lọc bỏ, phần Latin còn lại đủ để làm id nên nhánh băm không được gọi tới. Người thứ hai vì thế rơi về `newId()` và lặp lại đúng lỗi "gõ lại là đẻ thêm một đối tượng". Không sửa được bằng cách đổi hàm sinh id: những id đó đã nằm trong DB của người dùng từ `db.version(3)`, đổi là làm mồ côi dữ liệu thật để chữa một trường hợp hiếm. Cách xử: đặt tên phân biệt được ở phần Latin, hoặc bỏ hẳn phần Latin đi. Dọn bản đã trùng bằng **Gộp đối tượng trùng** ở Cài đặt.
+- *(Không có)*. Lỗi "tên TRỘN Hán–Latin trùng id" (`小明 minh` / `大明 minh` cùng ra `client--minh`, người thứ hai nhận `newId()` ngẫu nhiên mỗi lần gõ) đã sửa **mà không đổi hàm sinh id chính**: nhánh trùng giờ dùng `collisionClientId()` tất định, và tìm theo tên trước để vẫn trỏ về bản ghi cũ từng mang id ngẫu nhiên. Những bản đã lỡ nhân đôi từ trước vẫn dọn bằng **Gộp đối tượng trùng** ở Cài đặt.
 
 ### Security Status
 - Tích hợp RLS (nếu cấu hình Supabase).
@@ -269,6 +269,7 @@ Ba cổng mới thêm ở Phase 2 đều đã qua bước này:
 | `check:cloud` | Đổi `effective_from` thành `effective_month` | ❌ báo đúng cột thiếu |
 | `check:cloud` — lệnh hủy diệt | Bỏ chú thích một dòng `DROP TABLE` trong `supabase_schema.sql` | ❌ báo đúng số dòng |
 | `pushQueue.test.ts` — `minutesBeforeStart` | Đếm từ `nowMs` thay vì `fireMs` | ❌ bài "nạp trước ba ngày" đỏ |
+| `db/__tests__/clients.test.ts` | Nhánh trùng của `ensureClient()` quay về `newId()`, bỏ bước tìm theo tên | ❌ 3/4 bài đỏ |
 | `db/__tests__/sync.test.ts` | Cho `toCloud` chỉ gửi trường có giá trị | ❌ 2 bài đỏ, đúng bài tombstone |
 | `CloudSyncSection.test.tsx` | — | Đã bắt được lỗi thật ngay khi viết: bản đầu đo `.env` của máy chứ không đo mã nguồn |
 
@@ -531,6 +532,7 @@ Kéo–thả trên lưới tuần luôn dùng phạm vi **chỉ buổi này** �
 | Không kẹp `net` về 0 khi âm | Kẹp lại → che mất lỗi nhập liệu |
 | ID của danh mục seed là HẰNG SỐ (`SEEDED_CATEGORY_IDS`) | Đổi về `newId()` → mỗi máy sinh một bộ danh tính mới, đồng bộ nhân bản im lặng, "Gia sư" thành ba |
 | Nhánh Latin của `clientIdFromName()` đã ĐÓNG BĂNG | Đổi cách sinh id cho tên Latin → `rules`/`events`/`payments` trên máy đã qua v3 trỏ vào đối tượng không còn ai tạo lại, và `version(4)` KHÔNG vá được |
+| Nhánh trùng của `ensureClient()` dùng `collisionClientId()`, KHÔNG `newId()` | Đổi về `newId()` → gõ lại `大明 minh` (trùng id chính với `小明 minh`) đẻ thêm một đối tượng mỗi lần, hai máy sinh hai id. `db/__tests__/clients.test.ts` đỏ ba bài |
 | `Math.imul` trong `fnv1a32`, và dấu `_` của `client-h_…` | Đổi `Math.imul` về `*` → mất bit thấp, băm đụng độ sớm mà vẫn ra chuỗi hex trông hợp lệ. Bỏ `_` → nhãn `H12345678` mang đúng hình dạng id băm và cướp bản ghi của người khác |
 | `minutesBeforeStart` đếm từ `fireAt`, KHÔNG từ lúc nạp hàng đợi | Đổi về `nowMs` → hàng đợi nạp trước ba ngày làm thông báo nói "còn 4800 phút nữa" vào đúng lúc chỉ còn nửa tiếng. Bản đầu mắc đúng lỗi này |
 | `inferCategory()` trả `null` khi hòa | Bốc đại bản đầu tiên → kết quả phụ thuộc thứ tự bản ghi trong IndexedDB, hai máy cùng dữ liệu đoán khác nhau |

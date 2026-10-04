@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { clientIdFromName } from '../clientId';
+import { clientIdFromName, collisionClientId } from '../clientId';
 
 describe('clientIdFromName', () => {
   it('generates the same id for the same name', () => {
@@ -137,5 +137,28 @@ describe('clientIdFromName — tên không viết được bằng [a-z0-9]', () 
 
     expect(machineA).toEqual(machineB);
     expect(machineA.every((id) => id !== null)).toBe(true);
+  });
+});
+
+describe('collisionClientId — id dự phòng khi id chính đã có chủ', () => {
+  it('phân biệt được hai tên trộn Hán–Latin mà nhánh Latin gộp làm một', () => {
+    expect(clientIdFromName('小明 minh')).toBe(clientIdFromName('大明 minh'));
+    expect(collisionClientId('小明 minh')).not.toBe(collisionClientId('大明 minh'));
+  });
+
+  it('tất định và gộp khoảng trắng như nhánh chính', () => {
+    expect(collisionClientId('大明 minh')).toBe(collisionClientId('  大明   minh '));
+  });
+
+  it('không thể đụng vào không gian id của nhánh Latin hay nhánh `h_`', () => {
+    const id = collisionClientId('小明') as string;
+    expect(id.startsWith('client-c_')).toBe(true);
+    expect(id).not.toBe(clientIdFromName('小明'));
+    expect(clientIdFromName('C12345678')).not.toContain('_');
+  });
+
+  it('tên không có chữ vẫn trả null', () => {
+    expect(collisionClientId('???')).toBeNull();
+    expect(collisionClientId('')).toBeNull();
   });
 });
