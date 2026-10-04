@@ -1,14 +1,20 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { todayKey } from '../core/calendar';
+import { inferCategory } from '../core/inferCategory';
 import { parseQuickAdd, type QuickAddResult } from '../core/quickAdd';
+import { useCategoryHistory } from '../hooks/useCategoryHistory';
 import { useKnownClients } from '../hooks/useKnownClients';
 import { Button } from './ui';
-import { } from './styles';
 
 interface QuickAddProps {
-  /** Nhận kết quả đã bóc tách. Trường nào không tìm thấy là `null`. */
-  onAdd: (parsed: QuickAddResult) => void;
+  /**
+   * Nhận kết quả đã bóc tách. Trường nào không tìm thấy là `null`.
+   *
+   * `categoryId` là danh mục đoán được từ lịch sử — `null` khi không đủ căn
+   * cứ, và khi đó tầng gọi giữ nguyên mặc định cũ. Xem `core/inferCategory.ts`.
+   */
+  onAdd: (parsed: QuickAddResult, categoryId: string | null) => void;
 }
 
 /**
@@ -22,6 +28,7 @@ interface QuickAddProps {
 export function QuickAdd({ onAdd }: QuickAddProps) {
   const { t } = useTranslation();
   const knownClients = useKnownClients();
+  const { usage, resolveClientId } = useCategoryHistory();
   const [text, setText] = useState('');
 
   const handleSubmit = (e: FormEvent) => {
@@ -29,7 +36,17 @@ export function QuickAdd({ onAdd }: QuickAddProps) {
     if (!text.trim()) return;
     // `todayKey()` đọc đồng hồ và `knownClients` đọc DB — cả hai đều là thứ
     // core/quickAdd.ts không được phép chạm tới, nên chúng được truyền vào.
-    onAdd(parseQuickAdd(text, todayKey(), knownClients));
+    const parsed = parseQuickAdd(text, todayKey(), knownClients);
+
+    // Đoán danh mục từ lịch sử, KHÔNG từ hình dạng con chữ: "Minh" là Gia sư
+    // vì những buổi trước của Minh là Gia sư, không phải vì nó trông giống
+    // tên người. Xem đầu core/inferCategory.ts.
+    const guess = inferCategory(
+      { clientId: resolveClientId(parsed.clientName), title: parsed.title },
+      usage,
+    );
+
+    onAdd(parsed, guess?.categoryId ?? null);
     setText('');
   };
 

@@ -46,7 +46,25 @@ describe('planReminderQueue', () => {
     const queue = planReminderQueue([occ], 30, now);
     expect(queue).toHaveLength(1);
     expect(queue[0].fireAt).toBe(now.toISOString());
-    expect(queue[0].minutesUntilStart).toBe(5);
+    // Bắn ngay, nên câu thông báo phải nói 5 phút chứ không phải 30.
+    expect(queue[0].minutesBeforeStart).toBe(5);
+  });
+
+  // Test 2b: câu thông báo đếm từ LÚC BẮN, không phải lúc nạp hàng đợi
+  it('buổi nạp trước ba ngày vẫn nói "còn 30 phút" khi bắn', () => {
+    // Đây là lỗi mà bản đầu mắc phải: `minutes` lấy khoảng cách từ lúc NẠP
+    // hàng đợi tới giờ vào buổi. Nạp hôm thứ Hai cho buổi thứ Năm thì thông
+    // báo bắn lúc 17:30 thứ Năm lại nói "còn 4800 phút nữa" — đúng vào lúc
+    // người dùng cần con số đó chính xác nhất.
+    const now = new Date(2026, 7, 30, 10, 0);
+    const occ = makeOccurrence({
+      startAbs: new Date(2026, 8, 2, 18, 0).getTime(),
+      startTime: '18:00',
+    });
+
+    const [r] = planReminderQueue([occ], 30, now);
+    expect(r.minutesBeforeStart).toBe(30);
+    expect(r.fireAt).toBe(new Date(2026, 8, 2, 17, 30).toISOString());
   });
 
   // Test 3: Buổi đã qua / ngoài horizon không vào hàng đợi

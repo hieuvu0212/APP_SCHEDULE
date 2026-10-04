@@ -3,6 +3,12 @@ import { clientIdFromName } from '../../core/clientId';
 import { normalizeText } from '../../core/filter';
 import type { Client } from '../../types';
 
+/** Mọi đối tượng chưa xóa. Nơi DUY NHẤT đọc `db.clients` cho tầng giao diện. */
+export async function listClients(): Promise<Client[]> {
+  const rows = await db.clients.toArray();
+  return rows.filter((c) => !c.deletedAt);
+}
+
 export async function ensureClient(name: string): Promise<Client> {
   const deterministicId = clientIdFromName(name);
   const id = deterministicId || newId();

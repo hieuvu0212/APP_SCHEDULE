@@ -84,11 +84,13 @@ export async function syncReminderQueue(): Promise<void> {
         fire_at: r.fireAt,
         title: r.title,
         body: i18n.t('reminder.body', {
-          minutes: r.minutesUntilStart,
+          // Đếm từ lúc BẮN, không phải lúc nạp — xem `minutesBeforeStart`.
+          minutes: r.minutesBeforeStart,
           time: r.startTime,
         }),
         url: './#/week',
-        created_at: now,
+        // KHÔNG gửi `created_at`: hàng đợi nạp lại sau mỗi lần đồng bộ, gửi
+        // thì mỗi lần nạp đè mất mốc tạo gốc. Cột có DEFAULT cho lần INSERT.
         updated_at: now,
         deleted_at: null,
       }));

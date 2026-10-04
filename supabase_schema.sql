@@ -58,17 +58,17 @@
 -- Phần dưới dùng CREATE TABLE IF NOT EXISTS, nên chạy lại bao nhiêu lần cũng
 -- an toàn. Chỉ mở khối này khi bạn THẬT SỰ muốn dựng lại từ đầu.
 --
-DROP TABLE IF EXISTS public.reminder_queue      CASCADE;
-DROP TABLE IF EXISTS public.push_subscriptions CASCADE;
-DROP TABLE IF EXISTS public.payments            CASCADE;
-DROP TABLE IF EXISTS public.adjustment_templates CASCADE;
-DROP TABLE IF EXISTS public.adjustments         CASCADE;
-DROP TABLE IF EXISTS public.salary_rules        CASCADE;
-DROP TABLE IF EXISTS public.events              CASCADE;
-DROP TABLE IF EXISTS public.exceptions          CASCADE;
-DROP TABLE IF EXISTS public.rules               CASCADE;
-DROP TABLE IF EXISTS public.categories          CASCADE;
-DROP TABLE IF EXISTS public.clients             CASCADE;
+-- DROP TABLE IF EXISTS public.reminder_queue      CASCADE;
+-- DROP TABLE IF EXISTS public.push_subscriptions CASCADE;
+-- DROP TABLE IF EXISTS public.payments            CASCADE;
+-- DROP TABLE IF EXISTS public.adjustment_templates CASCADE;
+-- DROP TABLE IF EXISTS public.adjustments         CASCADE;
+-- DROP TABLE IF EXISTS public.salary_rules        CASCADE;
+-- DROP TABLE IF EXISTS public.events              CASCADE;
+-- DROP TABLE IF EXISTS public.exceptions          CASCADE;
+-- DROP TABLE IF EXISTS public.rules               CASCADE;
+-- DROP TABLE IF EXISTS public.categories          CASCADE;
+-- DROP TABLE IF EXISTS public.clients             CASCADE;
 
 
 
@@ -433,12 +433,21 @@ CREATE TABLE IF NOT EXISTS public.reminder_queue (
 
   sent_at     text,
 
-  created_at  text NOT NULL,
+  created_at  text NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
   updated_at  text NOT NULL,
   deleted_at  text,
 
   PRIMARY KEY (user_id, id)
 );
+
+-- Upsert của client KHÔNG gửi `created_at` (gửi thì mỗi lần nạp lại đè mất
+-- mốc tạo gốc), nên cột phải tự có giá trị khi INSERT. `CREATE TABLE IF NOT
+-- EXISTS` không đụng vào bảng đã dựng trước khi DEFAULT được thêm — hai câu
+-- ALTER dưới đây vá những bảng đó, và chạy lại bao nhiêu lần cũng an toàn.
+ALTER TABLE public.push_subscriptions
+  ALTER COLUMN created_at SET DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'));
+ALTER TABLE public.reminder_queue
+  ALTER COLUMN created_at SET DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'));
 
 -- Cron quét XUYÊN user, nên index KHÔNG mở đầu bằng user_id như các bảng khác.
 CREATE INDEX IF NOT EXISTS reminder_queue_due_idx

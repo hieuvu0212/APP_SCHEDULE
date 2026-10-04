@@ -30,10 +30,10 @@ Tiêu đề và ghi chú là **dữ liệu người dùng**, không đi qua i18n
 - Tính năng thu tiền (DuesView), xuất PDF, ICS.
 - Thực thể `Client` độc lập với id tất định, thay cho chuỗi gõ tay (`db.version(3)`) — tất định cho **mọi hệ chữ viết**, không riêng chữ Latin.
 - Bọc ứng dụng qua nền tảng Capacitor (Native Android/iOS).
-- **Web Push với reminder_queue**: bảng `push_subscriptions` và `reminder_queue` kèm RLS, `savePushSubscription()`, `syncReminderQueue()`, Edge Function quét gửi theo cron 5 phút, và `check:cloud` canh 11/11 bảng.
+- **Thêm nhanh tự chọn danh mục** từ lịch sử phân loại, không dùng bảng từ khóa — xem "Danh mục cũng tự chọn".
 
 ### In Progress
-- *(Theo kế hoạch tiếp theo)*
+- **Web Push — mã đã xong, CHƯA nghiệm thu.** Bảng `push_subscriptions` và `reminder_queue` kèm RLS, `savePushSubscription()`, `syncReminderQueue()`, Edge Function quét gửi, `config.toml` + `CRON_SECRET`, `check:cloud` canh 11/11 bảng. Còn thiếu đúng bốn bước ở ["Định nghĩa xong cho tính năng này"](#định-nghĩa-xong-cho-tính-năng-này) — và bước đầu tiên là bước duy nhất chứng minh được điều gì: **đóng hẳn trình duyệt và nhận về một thông báo đúng giờ.** Phase 2 đi qua toàn bộ cổng chặn với 284 test xanh trong khi tính năng chưa từng chạy; dòng này ở lại In Progress cho tới khi có người thấy thông báo hiện lên thật.
 
 ### Next Tasks
 - *(Theo quyết định của người dùng)*
@@ -267,6 +267,8 @@ Ba cổng mới thêm ở Phase 2 đều đã qua bước này:
 | Cổng / test | Lỗi tái tạo để kiểm tra | Kết quả |
 |---|---|---|
 | `check:cloud` | Đổi `effective_from` thành `effective_month` | ❌ báo đúng cột thiếu |
+| `check:cloud` — lệnh hủy diệt | Bỏ chú thích một dòng `DROP TABLE` trong `supabase_schema.sql` | ❌ báo đúng số dòng |
+| `pushQueue.test.ts` — `minutesBeforeStart` | Đếm từ `nowMs` thay vì `fireMs` | ❌ bài "nạp trước ba ngày" đỏ |
 | `db/__tests__/sync.test.ts` | Cho `toCloud` chỉ gửi trường có giá trị | ❌ 2 bài đỏ, đúng bài tombstone |
 | `CloudSyncSection.test.tsx` | — | Đã bắt được lỗi thật ngay khi viết: bản đầu đo `.env` của máy chứ không đo mã nguồn |
 
@@ -291,7 +293,7 @@ Cổng chặn chỉ hữu ích khi bạn biết nó **không** nhìn thấy gì.
 | Cổng | Thấy được | **Không** thấy được |
 |---|---|---|
 | `check:core` | Import React/Dexie trong `core/` | Mọi thứ khác |
-| `check:cloud` | Lệch cột giữa SQL và TypeScript | Lệch **kiểu** cột, ràng buộc, RLS |
+| `check:cloud` | Lệch cột giữa SQL và TypeScript; `DROP TABLE`/`TRUNCATE` không nằm trong chú thích | Lệch **kiểu** cột, ràng buộc, RLS |
 | `check:i18n` | Khóa thiếu, chuỗi dự phòng inline | Khóa dựng động — nhưng xem ghi chú dưới bảng |
 | `lint` | Mã chết, biến thừa, vi phạm Fast Refresh | Tính đúng đắn |
 | `test` | Hành vi có bài test | Hành vi **không** có bài test |
@@ -362,6 +364,8 @@ src/
 │   ├── autoSync.ts      CÓ nên đồng bộ lúc này không — chống chạy chồng
 │   ├── dedupe.ts        Tìm danh mục trùng + chọn bản giữ lại
 │   ├── quickAdd.ts      Bóc ngày/giờ/tiêu đề từ một câu tiếng Việt
+│   ├── inferCategory.ts Danh mục nào — ĐẾM lịch sử, không có bảng từ khóa
+│   ├── pushQueue.ts     Buổi nào cần đẩy và bắn lúc nào — quy đổi ra UTC
 │   ├── ics.ts           Dựng file iCalendar — giờ trôi nổi, RRULE, EXDATE
 │   └── __tests__/
 │
@@ -371,6 +375,7 @@ src/
 │   ├── backup.ts        Xuất/nhập toàn bộ DB
 │   ├── cloud.ts         Client Supabase — khởi tạo LƯỜI, thiếu env không sập
 │   ├── sync.ts          Bản kê → nội dung, + bốn phép biến đổi hình dạng
+│   ├── pushQueue.ts     Nạp reminder_queue lên mây + RÚT LẠI hàng đã hủy
 │   ├── purge.ts         Xóa vĩnh viễn ở CẢ HAI phía — chống bản ghi sống lại
 │   ├── exportIcs.ts     Đọc DB → core/ics.ts → tải file .ics
 │   ├── dedupe.ts        Gộp danh mục — trỏ lại BẢY nơi tham chiếu, có hoàn tác
@@ -527,8 +532,11 @@ Kéo–thả trên lưới tuần luôn dùng phạm vi **chỉ buổi này** �
 | ID của danh mục seed là HẰNG SỐ (`SEEDED_CATEGORY_IDS`) | Đổi về `newId()` → mỗi máy sinh một bộ danh tính mới, đồng bộ nhân bản im lặng, "Gia sư" thành ba |
 | Nhánh Latin của `clientIdFromName()` đã ĐÓNG BĂNG | Đổi cách sinh id cho tên Latin → `rules`/`events`/`payments` trên máy đã qua v3 trỏ vào đối tượng không còn ai tạo lại, và `version(4)` KHÔNG vá được |
 | `Math.imul` trong `fnv1a32`, và dấu `_` của `client-h_…` | Đổi `Math.imul` về `*` → mất bit thấp, băm đụng độ sớm mà vẫn ra chuỗi hex trông hợp lệ. Bỏ `_` → nhãn `H12345678` mang đúng hình dạng id băm và cướp bản ghi của người khác |
+| `minutesBeforeStart` đếm từ `fireAt`, KHÔNG từ lúc nạp hàng đợi | Đổi về `nowMs` → hàng đợi nạp trước ba ngày làm thông báo nói "còn 4800 phút nữa" vào đúng lúc chỉ còn nửa tiếng. Bản đầu mắc đúng lỗi này |
+| `inferCategory()` trả `null` khi hòa | Bốc đại bản đầu tiên → kết quả phụ thuộc thứ tự bản ghi trong IndexedDB, hai máy cùng dữ liệu đoán khác nhau |
 | `db/dedupe.ts` khai BẢY nơi tham chiếu thành dữ liệu | Bỏ sót `exceptions.newCategoryId` → buổi đã đổi danh mục riêng trỏ vào danh mục đã xóa và biến mất khỏi mọi bộ lọc |
 | `toCloud` điền `null` cho MỌI cột thiếu | Chỉ gửi trường có giá trị → khôi phục từ Thùng rác không lan lên đám mây, bản ghi "sống ở máy này chết trên mây" |
+| Khối `DROP TABLE … CASCADE` đầu `supabase_schema.sql` nằm trong CHÚ THÍCH | Bỏ chú thích → mỗi lần dán lại file để "cập nhật schema" là xóa sạch dữ liệu đám mây của mọi người dùng. Commit `9221d9a` đã lỡ làm đúng việc này; `check:cloud` giờ chặn nó |
 | Khóa chính đám mây là `(user_id, id)` | Đổi về `id` → người dùng thứ hai vỡ ngay ở bảng đầu tiên vì `sys-uncategorized` trùng khóa |
 | Cột thời gian trên Supabase là `text` | Đổi sang `timestamptz` → `…+00:00` vs `….000Z`, phép so chuỗi sai ở thế hòa |
 | `syncTable` bắt lỗi theo TỪNG bảng | `throw` ra ngoài → một bảng hỏng làm các bảng đứng sau nó không bao giờ được đồng bộ |
@@ -774,7 +782,30 @@ So khớp bỏ dấu và không phân biệt hoa thường, nhưng trả về **
 
 `cho X` / `với X` là đường tắt cho chính lần đầu đó — bắt buộc viết hoa, vì không có ràng buộc ấy thì "làm cho xong" cho ra một đối tượng tên "xong".
 
-Danh sách đọc từ `rules` và `events` qua `useKnownClients()`, **không** từ `occurrences` đang hiển thị: Occurrence chỉ tồn tại cho cửa sổ đang xem, nên dùng nó thì một học sinh dạy từ ba tháng trước sẽ không được nhận ra — và được hay không tùy vào việc người dùng đang mở tuần nào.
+### Danh mục cũng tự chọn — và bằng đúng cơ chế đó
+
+Gõ `Dạy Minh mai 18h` thì hộp thoại mở ra với danh mục **Gia sư** đã chọn sẵn. Gõ `ROSSI 7h` thì ra **Đi làm**. Gõ `Giải tích 2 thứ 4` thì ra **Đại học**.
+
+Nhìn qua tưởng là ba luật riêng — tên người thì gia sư, tên chỗ làm thì đi làm, tên môn thì đại học. **Không phải.** Cả ba là một luật, và lý do nằm ở chỗ `Client` [không phải "học sinh"](#client-không-phải-học-sinh): nó trả lời câu *"buổi này dành cho ai / ở đâu"*, nên "Minh", "ROSSI" và "Giải tích" đều là Đối tượng. Cái phân biệt chúng không phải hình dạng con chữ, mà là **danh mục mà chính bạn đã xếp chúng vào những lần trước**.
+
+Nên `core/inferCategory.ts` không chứa một từ khóa nào. Nó đếm: đối tượng này đã xuất hiện ở danh mục nào nhiều nhất thì chọn cái đó. Một bảng từ khóa sẽ vỡ ở cái tên thứ nhất nằm ngoài bảng, vỡ với người dùng có cách tổ chức khác, và vỡ ngay lập tức ở bộ ngôn ngữ thứ hai.
+
+Hai tầng, thử theo thứ tự:
+
+| Tầng | Khi nào | Ví dụ |
+|---|---|---|
+| **Theo Đối tượng** | Câu nhận ra được một Đối tượng đã có | `ROSSI` đã có bốn buổi Đi làm → buổi thứ năm cũng vậy |
+| **Theo tiêu đề trùng khít** | Câu không nhắc Đối tượng nào | Gõ lại `Họp giao ban` → lấy danh mục của những lần trước |
+
+⚠️ **Hòa thì KHÔNG đoán.** Một đối tượng có đúng một buổi Gia sư và một buổi Đại học thì câu trả lời trung thực là "không biết", và hàm trả `null` để form giữ nguyên mặc định cũ. Bốc đại một trong hai cho ra đúng 50% số lần, và 50% còn lại người dùng phải *nhận ra* rằng nó sai rồi mới sửa — tệ hơn hẳn việc không đoán. Cùng quy ước "vì sao không đoán bừa" đã áp cho ngày giờ.
+
+Bốc đại còn hỏng theo một kiểu khó thấy hơn: kết quả sẽ phụ thuộc vào **thứ tự bản ghi trong IndexedDB**, nên hai máy cùng dữ liệu có thể đoán khác nhau và không ai giải thích nổi vì sao. `inferCategory.test.ts` có một bài đảo ngược mảng đầu vào để canh đúng chuyện đó.
+
+⚠️ **Tầng tiêu đề chỉ nhận trùng KHÍT cả chuỗi, không trùng một từ.** Trùng một từ nghĩa là `Dạy Toán` và `Dạy Lý` chung một rổ chỉ vì cùng chữ "Dạy" — mà "dạy", "học", "họp" là đúng những từ có mặt ở gần hết mọi tiêu đề. Bộ đoán sẽ tự tin lên trông thấy và sai nhiều hơn hẳn.
+
+Một lịch lặp đếm **một lần**, không phải 52. Nó là một quyết định phân loại của bạn, không phải 52 quyết định — đếm theo số buổi đã mở rộng thì mọi lịch lặp áp đảo hoàn toàn các buổi lẻ.
+
+Danh sách đọc từ bảng `clients` (qua `listClients()` ở `db/repo/`) trong `useKnownClients()`, **không** từ `occurrences` đang hiển thị: Occurrence chỉ tồn tại cho cửa sổ đang xem, nên dùng nó thì một học sinh dạy từ ba tháng trước sẽ không được nhận ra — và được hay không tùy vào việc người dùng đang mở tuần nào.
 
 ### Bốn quy tắc còn lại
 
@@ -874,13 +905,13 @@ Khôi phục một `RecurringRule` kéo theo cả exception bị dọn **cùng l
 
 ## Nhắc lịch và Web Push
 
-Hai tầng, và **hiện tại chỉ tầng một chạy**.
+Hai tầng. Tầng một chạy; tầng hai **mã đã xong nhưng chưa nghiệm thu** — chưa ai thấy một thông báo bắn ra với app đã đóng.
 
 **Tầng 1 — hẹn giờ trong trang.** `useReminders` nạp hôm nay và ngày mai, `core/reminder.ts` chọn buổi và tính khoảng chờ, `setTimeout` bắn `Notification`. Chỉ chạy khi tab hoặc app đang mở; đóng hẳn thì không có gì đánh thức nó dậy. Màn hình Cài đặt nói thẳng điều đó ngay dưới tiêu đề (`reminder.limitation`), và **câu đó vẫn đang đúng** — đừng sửa nó trước khi tầng 2 thật sự bắn được.
 
-**Tầng 2 — Web Push.** Đã có: bảng `push_subscriptions` kèm RLS, `savePushSubscription()` đẩy subscription của trình duyệt lên đó, `VITE_VAPID_PUBLIC_KEY`, và một Edge Function. Chưa có: **một thông báo nào thật sự được gửi.**
+**Tầng 2 — Web Push.** Đã có theo đặc tả bên dưới: `reminder_queue`, `core/pushQueue.ts`, `db/pushQueue.ts`, Edge Function viết lại, `config.toml` + `CRON_SECRET`, và các chỗ sửa kèm ở mục 7. Chưa có: **một thông báo nào được chứng kiến là đã tới nơi.** Cách dựng để thử nằm ở ["Triển khai để nghiệm thu"](#triển-khai-để-nghiệm-thu).
 
-### Vì sao tầng 2 chưa chạy — ba lỗi độc lập
+### Ba lỗi độc lập của bản đầu — đã sửa bằng đặc tả dưới đây
 
 | Lỗi | Ở đâu | Hệ quả |
 |---|---|---|
@@ -1078,18 +1109,42 @@ Rồi kiểm `x-cron-secret` đối chiếu `Deno.env.get('CRON_SECRET')` ngay d
 |---|---|
 | `public/sw.js` | Thêm `pushsubscriptionchange` — trình duyệt xoay endpoint thì hàng trong `push_subscriptions` thành rác, và nó chỉ được dọn khi có một lần gửi thất bại 410 |
 | `public/sw.js` — `notificationclick` | `client.url === event.notification.data.url` so URL tuyệt đối với `'./#/week'`, **không bao giờ khớp**, nên luôn mở cửa sổ mới thay vì chuyển sang tab đang mở. So bằng `new URL(data.url, self.registration.scope).href` |
-| `savePushSubscription()` | `created_at: now` ghi đè mốc tạo gốc ở mỗi lần upsert. Cho cột một `DEFAULT` rồi bỏ trường đó khỏi payload |
+| `savePushSubscription()` và `syncReminderQueue()` | `created_at: now` ghi đè mốc tạo gốc ở mỗi lần upsert. Cho cột một `DEFAULT` rồi bỏ trường đó khỏi payload. ⚠️ Bảng đã dựng **trước** khi có `DEFAULT` không được `CREATE TABLE IF NOT EXISTS` vá — upsert bỏ `created_at` sẽ vỡ `NOT NULL` ngay lần INSERT đầu. Hai câu `ALTER … SET DEFAULT` trong `supabase_schema.sql` lo việc đó, nên **phải dán lại file schema** |
 | `src/core/__tests__/push.test.ts` | Bài test hiện tại kiểm `fnv1a32` tất định — thứ `clientId.test.ts` đã phủ kỹ hơn. Không lỗi push nào làm nó đỏ được (vi phạm điều 3 và 4). Thay bằng `pushQueue.test.ts` ở mục 2 |
-| `reminder.limitation` ở `vi`/`en`/`zh` | Chỉ sửa **sau khi** một thông báo thật sự bắn được với app đã đóng. Câu mới phải nói cả giới hạn horizon |
+| `reminder.limitation` ở `vi`/`en`/`zh` | Chỉ sửa **sau khi** một thông báo thật sự bắn được với app đã đóng. Câu mới phải nói cả giới hạn horizon, **và phải đúng cả với người không cấu hình Supabase hay chưa đăng nhập** — với họ tầng 2 không tồn tại. Commit `63eaf1d` đã lỡ sửa câu này trước khi nghiệm thu, hứa "nạp lên đám mây" với cả người chạy offline; đã trả về câu cũ |
+
+### Triển khai để nghiệm thu
+
+Bốn bước dưới đây cần tài khoản Supabase của bạn và một trình duyệt thật, nên không cổng chặn nào làm thay được.
+
+1. **Dán lại `supabase_schema.sql`** vào SQL Editor. Chạy lại an toàn (`IF NOT EXISTS`, khối `DROP` nằm trong chú thích) và nó mang hai câu `ALTER … SET DEFAULT` mà bảng cũ cần.
+2. **Sinh khóa VAPID** một lần: `npx web-push generate-vapid-keys`. Khóa công khai vào biến `VITE_VAPID_PUBLIC_KEY` (`.env` và GitHub Variables — xem "Biến môi trường cho bản deploy"), rồi build lại.
+3. **Đặt secret cho Edge Function và deploy** (Supabase CLI, đã `supabase link`):
+
+   ```bash
+   supabase secrets set VAPID_PUBLIC_KEY=<công khai> VAPID_PRIVATE_KEY=<riêng tư> CRON_SECRET=<chuỗi ngẫu nhiên dài> VAPID_SUBJECT=mailto:<email của bạn>
+   supabase functions deploy push-reminder
+   ```
+
+   `VAPID_SUBJECT` không bắt buộc, nhưng dịch vụ push của Apple từ chối subject không liên lạc được — để mặc định `mailto:admin@example.com` thì Safari/iOS có thể im lặng.
+4. **Dán câu `cron.schedule` ở mục 5** vào SQL Editor, thay `<PROJECT_REF>` và `<CRON_SECRET>`. Không commit chuỗi đó.
+
+Thử nhanh trước khi chờ cron: gọi tay hàm với đúng header và xem JSON trả về có `"sent": 1` không. `401` là sai secret; `500` với `VAPID keys not configured` là bước 3 chưa xong.
+
+```bash
+curl -X POST https://<PROJECT_REF>.supabase.co/functions/v1/push-reminder -H "x-cron-secret: <CRON_SECRET>"
+```
+
+Rồi mới tới bốn điều kiện dưới — điều 1 là điều duy nhất chứng minh được gì.
 
 ### Định nghĩa xong cho tính năng này
 
 Ngoài mười một điều chung, tính năng này chỉ được đánh dấu xong khi:
 
 1. Đóng hẳn trình duyệt, để máy yên, và **nhận được một thông báo đúng giờ**. Không có bước này thì mọi thứ ở trên chỉ là mã trông hợp lý — đúng như Phase 2 với 284 test xanh và Đồng bộ Cloud chưa từng chạy.
-2. Thử với máy đặt múi giờ **không phải UTC**. Đây là lỗi mà bản hiện tại mắc phải, và nó không lộ ra ở bất kỳ máy nào chạy UTC.
+2. Thử với máy đặt múi giờ **không phải UTC**. Đây là lỗi mà bản đầu mắc phải, và nó không lộ ra ở bất kỳ máy nào chạy UTC. Phần thuần đã qua: `pushQueue`/`expand`/`reminder` xanh dưới `TZ=UTC`, `Asia/Ho_Chi_Minh`, `America/New_York`, `Pacific/Kiritimati` (UTC+14). Phần còn lại là thấy thông báo tới đúng giờ địa phương trên máy thật.
 3. Hủy một buổi đã nằm trong hàng đợi rồi xác nhận thông báo **không** bắn.
-4. `npm run verify` xanh với `check:cloud` báo 11 bảng.
+4. `npm run verify` xanh với `check:cloud` báo 11 bảng. ✅ Đạt.
 
 ## Trợ năng
 

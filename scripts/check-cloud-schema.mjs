@@ -106,6 +106,22 @@ if (!base) {
 const errors = [];
 const warnings = [];
 
+// ─── Lệnh hủy diệt chạy thẳng ───────────────────────────────────────────────
+//
+// File này là thứ người ta dán lại vào SQL Editor mỗi lần "cập nhật schema".
+// Khối DROP ... CASCADE ở đầu file PHẢI nằm trong chú thích: commit 9221d9a
+// đã lỡ bỏ chú thích cả khối, và từ đó mỗi lần dán lại là một lần xóa sạch
+// dữ liệu đám mây của MỌI người dùng — không cột nào lệch, nên phần so khớp
+// bên dưới không thấy gì. Bỏ chú thích `--` rồi mới tìm, để dòng đã tắt không
+// bị tính.
+const DESTRUCTIVE = /^\s*(DROP\s+TABLE|DROP\s+SCHEMA|TRUNCATE)\b/i;
+sql.split('\n').forEach((line, i) => {
+  const code = line.replace(/--.*$/, '');
+  if (DESTRUCTIVE.test(code)) {
+    errors.push(`${SQL_FILE}:${i + 1}: lệnh hủy diệt chạy thẳng — phải nằm trong chú thích: ${line.trim()}`);
+  }
+});
+
 for (const [table, iface] of Object.entries(TABLE_TO_INTERFACE)) {
   const own = fieldsOf(types, iface);
   if (!own) {
