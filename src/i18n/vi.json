@@ -462,6 +462,7 @@
     "syncNow": "Đồng bộ ngay",
     "syncing": "Đang đồng bộ…",
     "syncResult": "Xong — đẩy lên {{pushed}}, kéo về {{pulled}}.",
+    "syncMerged": "Gộp {{count}} bản ghi được sửa ở cả hai phía — giữ thay đổi của cả hai.",
     "tableFailed": "Bảng {{table}} lỗi:",
     "error": {
       "notConfigured": "Chưa cấu hình máy chủ đồng bộ.",

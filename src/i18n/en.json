@@ -462,6 +462,7 @@
     "syncNow": "Sync now",
     "syncing": "Syncing…",
     "syncResult": "Done — {{pushed}} pushed, {{pulled}} pulled.",
+    "syncMerged": "Merged {{count}} records edited on both sides — both sets of changes kept.",
     "tableFailed": "Table {{table}} failed:",
     "error": {
       "notConfigured": "No sync server is configured.",

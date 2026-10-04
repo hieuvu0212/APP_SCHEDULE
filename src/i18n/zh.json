@@ -462,6 +462,7 @@
     "syncNow": "立即同步",
     "syncing": "同步中…",
     "syncResult": "完成 — 上传 {{pushed}} 条，下载 {{pulled}} 条。",
+    "syncMerged": "合并了 {{count}} 条两端都修改过的记录 — 两边的修改都已保留。",
     "tableFailed": "{{table}} 表出错：",
     "error": {
       "notConfigured": "尚未配置同步服务器。",

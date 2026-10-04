@@ -12,8 +12,30 @@ import type {
 } from '../types';
 import { clientIdFromName } from '../core/clientId';
 
-/** Tăng số này mỗi lần schema đổi, và ghi kèm vào file backup JSON */
+/**
+ * Phiên bản HÌNH DẠNG DỮ LIỆU SAO LƯU — ghi kèm vào file backup JSON.
+ *
+ * Tăng số này khi dữ liệu nằm trong file sao lưu đổi hình dạng. Nó KHÔNG phải
+ * số `version(n)` của Dexie: `version(4)` chỉ thêm `syncBase`, một bảng dẫn
+ * xuất không nằm trong sao lưu, nên số này đứng yên ở 3. Tăng nó lên chỉ để
+ * khớp Dexie thì bản ứng dụng cũ sẽ từ chối (`newerSchema`) một file sao lưu
+ * mà nó đọc được hoàn toàn bình thường.
+ */
 export const SCHEMA_VERSION = 3;
+
+/**
+ * Bản gốc của một dòng cho phép gộp ba bên khi đồng bộ — xem db/syncBase.ts.
+ *
+ * `userId` nằm trong dòng vì bản gốc là "điều máy này và TÀI KHOẢN NÀY đã
+ * thống nhất". Đăng xuất rồi đăng nhập tài khoản khác thì bản gốc cũ không còn
+ * nghĩa gì, và dùng nó sẽ so dữ liệu của người này với lịch sử của người kia.
+ */
+export interface SyncBaseRow {
+  table: string;
+  id: string;
+  userId: string;
+  row: Record<string, unknown> & { id: string; updatedAt?: string };
+}
 
 export class ScheduleDB extends Dexie {
   categories!: Table<Category, string>;
@@ -26,6 +48,7 @@ export class ScheduleDB extends Dexie {
   adjustmentTemplates!: Table<AdjustmentTemplate, string>;
   payments!: Table<Payment, string>;
   settings!: Table<{ key: string; value: unknown }, string>;
+  syncBase!: Table<SyncBaseRow, [string, string]>;
 
   constructor() {
     super('PersonalScheduleDB');
@@ -141,6 +164,26 @@ export class ScheduleDB extends Dexie {
           await tx.table('payments').put(p);
         }
       }
+    });
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  version(4) — bản gốc cho gộp xung đột theo từng trường
+    //
+    //  CHỈ THÊM MỘT BẢNG RỖNG, KHÔNG CÓ upgrade() — cùng mức rủi ro gần bằng
+    //  không như version(2). Bảng tự đầy dần: lần đồng bộ đầu tiên sau khi
+    //  nâng cấp ghi bản gốc cho mọi dòng đang khớp với đám mây (`toRebase`).
+    //
+    //  Khóa chính GHÉP `[table+id]`: id chỉ duy nhất TRONG một bảng, và
+    //  `sys-uncategorized` hay id tất định của đối tượng có thể trùng chuỗi
+    //  với id ở bảng khác. Index `table` để đọc bản gốc của một bảng một lượt.
+    //
+    //  ⚠️ KHÔNG nằm trong BACKUP_TABLES, KHÔNG nằm trong supabase_schema.sql.
+    //  Nó là trạng thái của MỘT máy với đám mây, dẫn xuất được — mất nó thì
+    //  chỉ lùi về luật "bên mới hơn thắng" cho tới lần đồng bộ kế tiếp. README
+    //  mục "Gộp xung đột theo từng trường" giải thích vì sao.
+    // ─────────────────────────────────────────────────────────────────────
+    this.version(4).stores({
+      syncBase: '[table+id], table',
     });
   }
 }
