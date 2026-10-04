@@ -16,9 +16,13 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { db } from '../schema';
+import type { Category } from '../../types';
+import { db, type SyncBaseRow } from '../schema';
 import { ALL_TABLES } from '../tables';
 import { columnsFor, fromCloud, syncWithCloud, toCloud, type CloudRow, type CloudTransport } from '../sync';
+import { exportBackup, importBackup } from '../backup';
+import { purgeOne } from '../purge';
+import { loadBases, saveBases } from '../syncBase';
 
 const USER = 'user-1';
 
@@ -140,7 +144,7 @@ const cloudCategory = (over: Record<string, unknown> = {}): CloudRow => ({
 
 beforeEach(async () => {
   if (!db.isOpen()) await db.open();
-  await Promise.all(ALL_TABLES.map((t) => t.clear()));
+  await Promise.all([...ALL_TABLES, db.syncBase].map((t) => t.clear()));
 });
 
 // ─── Biến đổi hình dạng ────────────────────────────────────────────────────
@@ -459,5 +463,136 @@ describe('syncWithCloud — chỉ tải nội dung của dòng THẬT SỰ đổ
     await syncWithCloud(cloud.transport);
 
     expect(cloud.get('categories', 'cat-a')?.deleted_at).toBe('2026-03-01T00:00:00.000Z');
+  });
+});
+
+// ─── Gộp theo từng trường ──────────────────────────────────────────────────
+
+/**
+ * Trạng thái của MỘT máy: dữ liệu và bản gốc đồng bộ của nó.
+ *
+ * Chỉ có một IndexedDB trong bộ test, nên "hai máy" là chụp lại trạng thái
+ * của máy này rồi nạp lại trạng thái của máy kia. Cả hai đều chạy đúng
+ * `syncWithCloud` thật trên đúng một đám mây giả — không giả lập kết quả.
+ */
+interface Device {
+  categories: Category[];
+  syncBase: SyncBaseRow[];
+}
+
+const NEW_DEVICE: Device = { categories: [], syncBase: [] };
+
+async function snapshot(): Promise<Device> {
+  return { categories: await db.categories.toArray(), syncBase: await db.syncBase.toArray() };
+}
+
+async function become(device: Device) {
+  await Promise.all([...ALL_TABLES, db.syncBase].map((t) => t.clear()));
+  await db.categories.bulkPut(device.categories);
+  await db.syncBase.bulkPut(device.syncBase);
+}
+
+describe('syncWithCloud — hai máy sửa CÙNG một bản ghi', () => {
+  const T1 = '2026-02-01T00:00:00.000Z';
+  const T2 = '2026-03-01T00:00:00.000Z';
+
+  /** A tạo và đẩy lên; B kéo về, đổi TÊN lúc T2 và đẩy lên. Trả về máy B. */
+  async function bothEdited(cloud: ReturnType<typeof fakeCloud>) {
+    await db.categories.add(category());
+    await syncWithCloud(cloud.transport);
+    const deviceA = await snapshot();
+
+    await become(NEW_DEVICE);
+    await syncWithCloud(cloud.transport);
+    await db.categories.update('cat-a', { name: 'Gia sư (B)', updatedAt: T2 });
+    await syncWithCloud(cloud.transport);
+    const deviceB = await snapshot();
+
+    // A chưa biết gì, đổi MÀU lúc T1 — SỚM hơn B — rồi mới đồng bộ.
+    await become(deviceA);
+    await db.categories.update('cat-a', { color: '#000000', updatedAt: T1 });
+    return deviceB;
+  }
+
+  it('hai trường khác nhau → CẢ HAI thay đổi sống sót, ở cả hai máy', async () => {
+    // ⚠️ LỖI GỐC: luật "cả bản ghi nào mới hơn thì thắng" thấy bản của B
+    // (T2) mới hơn bản của A (T1), kéo đè nguyên khối, và màu mà A vừa chọn
+    // biến mất — báo cáo vẫn xanh, không có gì để thấy.
+    const cloud = fakeCloud();
+    const deviceB = await bothEdited(cloud);
+
+    const report = await syncWithCloud(cloud.transport);
+
+    expect(report.merged).toBe(1);
+    const a = await db.categories.get('cat-a');
+    expect(a?.name).toBe('Gia sư (B)');
+    expect(a?.color).toBe('#000000');
+    expect(cloud.get('categories', 'cat-a')?.name).toBe('Gia sư (B)');
+    expect(cloud.get('categories', 'cat-a')?.color).toBe('#000000');
+    // Muộn hơn HẲN bản của B, nếu không thì B không bao giờ kéo bản gộp về.
+    expect(String(cloud.get('categories', 'cat-a')?.updated_at) > T2).toBe(true);
+
+    // B đồng bộ lại và nhận bản gộp.
+    await become(deviceB);
+    await syncWithCloud(cloud.transport);
+    const b = await db.categories.get('cat-a');
+    expect(b?.name).toBe('Gia sư (B)');
+    expect(b?.color).toBe('#000000');
+  });
+
+  it('đồng bộ lần nữa sau khi gộp thì không tải một dòng đầy đủ nào', async () => {
+    // Bản gộp phải được ghi xuống CẢ máy này, không chỉ đẩy lên. Quên bước đó
+    // thì bản gốc (= bản gộp) khớp đám mây mà local vẫn là bản trước khi gộp:
+    // lần sau `planSync` thấy "chỉ local sửa" và ĐẨY bản chưa gộp đè lên —
+    // thay đổi của máy kia mất ở lượt thứ hai thay vì lượt đầu.
+    const cloud = fakeCloud();
+    await bothEdited(cloud);
+    await syncWithCloud(cloud.transport);
+    cloud.resetCounters();
+
+    const again = await syncWithCloud(cloud.transport);
+
+    expect(again.pushed + again.pulled + again.merged).toBe(0);
+    expect(cloud.fullRowsFetched()).toBe(0);
+  });
+
+  it('xóa vĩnh viễn thì bỏ luôn bản gốc của dòng đó', async () => {
+    await db.categories.add(category({ deletedAt: T1, updatedAt: T1 }));
+    const cloud = fakeCloud();
+    await syncWithCloud(cloud.transport);
+    expect(await db.syncBase.count()).toBe(1);
+
+    await purgeOne('categories', 'cat-a', cloud.transport);
+
+    expect(await db.syncBase.count()).toBe(0);
+  });
+
+  it('khôi phục sao lưu kiểu GHI ĐÈ không đẩy bản cũ đè lên mọi máy khác', async () => {
+    // Giữ bản gốc qua lần ghi đè thì đám mây trùng bản gốc, local thì khác:
+    // `planSync` kết luận "chỉ máy này sửa" và đẩy bản CŨ trong file lên —
+    // một lần khôi phục ở một máy âm thầm quay ngược dữ liệu của mọi máy.
+    // Bỏ bản gốc thì dòng đó lùi về luật cũ: bên mới hơn thắng.
+    await db.categories.add(category());
+    const cloud = fakeCloud();
+    await syncWithCloud(cloud.transport);
+    const backup = await exportBackup();
+
+    await db.categories.update('cat-a', { name: 'Tên mới', updatedAt: T2 });
+    await syncWithCloud(cloud.transport);
+
+    await importBackup(backup, 'replace');
+    await syncWithCloud(cloud.transport);
+
+    expect(cloud.get('categories', 'cat-a')?.name).toBe('Tên mới');
+    expect((await db.categories.get('cat-a'))?.name).toBe('Tên mới');
+  });
+
+  it('bản gốc của tài khoản khác không được dùng', async () => {
+    // Đăng nhập tài khoản khác trên cùng máy: bản gốc cũ mô tả điều mà máy
+    // này và NGƯỜI KHÁC đã thống nhất. Dùng nó là so nhầm lịch sử.
+    await saveBases('categories', 'user-1', [category()]);
+
+    expect((await loadBases('categories', 'user-1')).size).toBe(1);
+    expect((await loadBases('categories', 'user-2')).size).toBe(0);
   });
 });

@@ -4,7 +4,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY') || '';
 const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY') || '';
-const VAPID_SUBJECT = 'mailto:admin@example.com';
+// Dịch vụ push của Apple từ chối subject không liên lạc được, nên giá trị mặc
+// định chỉ là chỗ giữ chỗ — đặt `VAPID_SUBJECT` thật bằng `supabase secrets set`.
+const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') || 'mailto:admin@example.com';
 
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
@@ -30,6 +32,19 @@ serve(async (req) => {
     return new Response('Unauthorized', { status: 401 });
   }
 
+  // ⚠️ DỪNG SỚM KHI THIẾU KHÓA VAPID — ĐỪNG ĐỂ CHẠY TIẾP.
+  //
+  // Thiếu khóa thì `setVapidDetails` ở trên không chạy, mọi lần gửi đều ném
+  // lỗi, nhưng bước 5 vẫn đánh `sent_at` cho từng hàng. Hàng đợi rút cạn mà
+  // không một thông báo nào tới nơi, và cron nhận về HTTP 200 — hỏng hoàn
+  // toàn im lặng, đúng loại lỗi tệ nhất. Cấu hình sai phải kêu lên.
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'VAPID keys not configured' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -44,6 +59,10 @@ serve(async (req) => {
       .lte('fire_at', nowIso)
       .is('sent_at', null)
       .is('deleted_at', null)
+      // `limit` mà không `order` thì Postgres được phép trả về BẤT KỲ 500 hàng
+      // nào. Quá 500 hàng tới hạn cùng lúc, những hàng bị bỏ lại có thể là
+      // những hàng bị bỏ lại mãi mãi. Cũ trước là thứ tự duy nhất đúng ở đây.
+      .order('fire_at', { ascending: true })
       .limit(500);
 
     if (queueError) {

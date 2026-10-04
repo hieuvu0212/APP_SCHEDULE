@@ -56,8 +56,18 @@ export async function importBackup(
 
   await db.transaction(
     'rw',
-    ALL_TABLES,
+    [...ALL_TABLES, db.syncBase],
     async () => {
+      // ⚠️ GHI ĐÈ THÌ BỎ BẢN GỐC ĐỒNG BỘ.
+      //
+      // Bản gốc nói "máy này và đám mây đã thống nhất nội dung X". Ghi đè từ
+      // file làm câu đó sai cho mọi dòng. Giữ lại thì `planSync` thấy đám mây
+      // trùng bản gốc, local thì khác, và kết luận "chỉ máy này sửa" — rồi ĐẨY
+      // bản cũ trong file đè lên mọi thay đổi mới hơn của mọi máy khác. Bỏ đi
+      // thì từng dòng lùi về luật "bên mới hơn thắng", đúng như trước khi có
+      // gộp theo trường. Xem db/syncBase.ts.
+      if (mode === 'replace') await db.syncBase.clear();
+
       for (const name of BACKUP_TABLES) {
         const table = tableOf(name);
         const incoming = (backup.data[name] ?? []) as SoftDeletableRow[];

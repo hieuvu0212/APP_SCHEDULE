@@ -33,6 +33,7 @@ import type { BackupTable } from '../core/backup';
 import { purgeOlderThan as purgeOlderThanLocal, purgeOne as purgeOneLocal } from './repo/trash';
 import type { PurgedRef } from './repo/trash';
 import { CloudError, syncTransport, type CloudTransport } from './sync';
+import { dropBases } from './syncBase';
 
 /** Phần đám mây đã làm được gì */
 export type CloudPurgeState =
@@ -91,6 +92,9 @@ export async function purgeOne(
   transport?: CloudTransport,
 ): Promise<PurgeResult> {
   await purgeOneLocal(table, id);
+  // Bản gốc của một dòng không còn tồn tại là rác thuần túy — và nó nằm trong
+  // bảng không có Thùng rác nào dọn hộ. Xem db/syncBase.ts.
+  await dropBases([{ table, id }]);
   return { removed: 1, cloud: await purgeCloud([{ table, id }], transport) };
 }
 
@@ -100,5 +104,6 @@ export async function purgeOlderThan(
   transport?: CloudTransport,
 ): Promise<PurgeResult> {
   const refs = await purgeOlderThanLocal(cutoff);
+  await dropBases(refs);
   return { removed: refs.length, cloud: await purgeCloud(refs, transport) };
 }

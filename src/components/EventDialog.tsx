@@ -43,6 +43,13 @@ export type DialogTarget =
       endTime?: string;
       /** Đối tượng mà Thêm nhanh nhận ra được — xem core/quickAdd.ts */
       clientName?: string;
+      /**
+       * Danh mục Thêm nhanh đoán được từ lịch sử — xem core/inferCategory.ts.
+       *
+       * Thiếu thì rơi về danh mục đầu danh sách như trước. KHÔNG có nghĩa là
+       * "không có danh mục": form luôn phải chọn sẵn một cái gì đó.
+       */
+      categoryId?: string;
       /** Các thứ trong tuần Thêm nhanh bóc được. Rỗng/thiếu = chỉ ngày `date`. */
       daysOfWeek?: number[];
       /** Bật sẵn chế độ lặp hàng tuần trong form */
@@ -161,6 +168,12 @@ function initialState(
     return {
       ...base,
       title: target.title ?? '',
+      // Danh mục đoán được phải TỒN TẠI trong danh sách hiện tại. Đoán ra một
+      // danh mục vừa bị xóa thì <select> không có option nào khớp và ô hiện
+      // trống — người dùng bấm Lưu và nhận về một buổi không danh mục.
+      categoryId: categories.some((c) => c.id === target.categoryId)
+        ? (target.categoryId as string)
+        : fallbackCategory,
       date: target.date,
       startTime: target.startTime,
       endTime: target.endTime ?? endTimeOf(target.startTime, 60),

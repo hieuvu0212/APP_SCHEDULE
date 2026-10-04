@@ -96,3 +96,27 @@ export function clientIdFromName(name: string): string | null {
 
   return `client-h_${fnv1a32(collapsed)}`;
 }
+
+/**
+ * Id DỰ PHÒNG tất định, cho khi id chính đã thuộc về một người KHÁC tên.
+ *
+ * `小明 minh` và `大明 minh` cùng ra `client--minh` (phần chữ Hán bị nhánh
+ * Latin lọc bỏ); `Minh!` và `Minh` cùng ra `client-minh`. Người tới sau trước
+ * đây rơi về `newId()` — ngẫu nhiên — nên mỗi lần gõ lại tên đó là một đối
+ * tượng mới, và hai máy gõ cùng tên thì sinh hai id khác nhau.
+ *
+ * Hàm này KHÔNG sửa `clientIdFromName()`: id chính của người tới trước đã nằm
+ * trong DB từ `db.version(3)`, đổi là làm mồ côi dữ liệu thật. Nó chỉ thay
+ * cái `newId()` ở nhánh trùng bằng một id băm trên TOÀN BỘ tên đã chuẩn hóa —
+ * chính phần chữ Hán mà nhánh Latin vứt đi là thứ phân biệt hai người.
+ *
+ * ⚠️ TIỀN TỐ `c_` KHÁC `h_` LÀ CÓ CHỦ ĐÍCH. Cùng một chuỗi có thể được băm ở
+ * cả hai nhánh (tên thuần Hán mà id `h_` của nó lại đụng độ), và hai tiền tố
+ * giữ cho hai không gian id rời nhau. Dấu `_` giữ chúng rời khỏi nhánh Latin,
+ * cùng lý lẽ đã viết ở `clientIdFromName()`.
+ */
+export function collisionClientId(name: string): string | null {
+  const normalized = normalizeText(name);
+  if (!normalized || !HAS_LETTER_OR_DIGIT.test(normalized)) return null;
+  return `client-c_${fnv1a32(normalized.replace(/\s+/g, '-'))}`;
+}

@@ -27,6 +27,17 @@ export async function listEventsInWindow(
   return rows.filter((e) => !e.deletedAt);
 }
 
+/**
+ * Mọi sự kiện chưa xóa, không giới hạn cửa sổ thời gian.
+ *
+ * Dùng cho việc đoán danh mục ở Thêm nhanh: câu hỏi "đối tượng này trước giờ
+ * nằm ở danh mục nào" phải nhìn cả quá khứ, chứ không phải tuần đang xem.
+ */
+export async function listAllEvents(): Promise<SingleEvent[]> {
+  const rows = await db.events.toArray();
+  return rows.filter((e) => !e.deletedAt);
+}
+
 export async function createEvent(input: NewSingleEvent): Promise<string> {
   const t = nowISO();
   const id = newId();

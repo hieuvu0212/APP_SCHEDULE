@@ -23,7 +23,17 @@ export interface QueuedReminder {
   fireAt: string;
   startTime: string;
   title: string;
-  minutesUntilStart: number;
+  /**
+   * Còn bao nhiêu phút nữa tới giờ vào buổi, TÍNH TỪ `fireAt` — không phải từ
+   * lúc nạp hàng đợi.
+   *
+   * ⚠️ Đây là con số đi vào câu thông báo, và hai mốc đó khác nhau rất xa.
+   * Hàng đợi nạp trước bảy ngày, còn thông báo bắn trước 30 phút; đếm từ lúc
+   * nạp thì người dùng nhận được "còn 4800 phút nữa" vào đúng lúc chỉ còn nửa
+   * tiếng. Bình thường nó bằng `leadMinutes`, và nhỏ hơn khi buổi gần tới mức
+   * `fireAt` bị kẹp về `now`.
+   */
+  minutesBeforeStart: number;
 }
 
 /**
@@ -50,12 +60,16 @@ export function planReminderQueue(
   return occurrences
     .filter((o) => o.status === 'SCHEDULED')
     .filter((o) => o.startAbs > nowMs && o.startAbs <= horizonMs)
-    .map((o) => ({
-      id: o.key,
-      fireAt: new Date(Math.max(nowMs, o.startAbs - leadMs)).toISOString(),
-      startTime: o.startTime,
-      title: o.title,
-      minutesUntilStart: Math.round((o.startAbs - nowMs) / 60_000),
-    }))
+    .map((o) => {
+      const fireMs = Math.max(nowMs, o.startAbs - leadMs);
+      return {
+        id: o.key,
+        fireAt: new Date(fireMs).toISOString(),
+        startTime: o.startTime,
+        title: o.title,
+        // Đếm từ `fireMs`, KHÔNG từ `nowMs`. Xem chú thích của trường này.
+        minutesBeforeStart: Math.round((o.startAbs - fireMs) / 60_000),
+      };
+    })
     .sort((a, b) => a.fireAt.localeCompare(b.fireAt) || a.startTime.localeCompare(b.startTime) || a.id.localeCompare(b.id));
 }

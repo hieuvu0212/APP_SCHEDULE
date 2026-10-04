@@ -551,7 +551,7 @@ export default function App() {
         {QUICK_ADD_VIEWS.includes(view) && (
           <div className="mb-4 flex justify-end print:hidden">
             <QuickAdd
-              onAdd={(parsed) => {
+              onAdd={(parsed, categoryId) => {
                 // Parser trả `null` cho phần nó không tìm thấy, KHÔNG đoán bừa.
                 // Giá trị mặc định được chọn ở đây, nơi biết "bây giờ" là lúc
                 // nào — core/quickAdd.ts là hàm thuần và không được đọc đồng hồ.
@@ -562,6 +562,8 @@ export default function App() {
                   startTime: parsed.startTime ?? nextHalfHour(),
                   endTime: parsed.endTime ?? undefined,
                   clientName: parsed.clientName ?? undefined,
+                  // `null` = không đủ căn cứ để đoán → giữ nguyên mặc định cũ.
+                  categoryId: categoryId ?? undefined,
                   daysOfWeek: parsed.daysOfWeek,
                   repeats: parsed.repeats,
                 });

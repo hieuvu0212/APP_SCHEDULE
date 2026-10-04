@@ -1,9 +1,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 //  db/sync.ts — đồng bộ hai chiều IndexedDB ↔ Supabase
 //
-//  Phép so sánh "ai thắng" nằm ở core/sync.ts và có test. File này chỉ lo việc
-//  nói chuyện với mạng và với Dexie, cộng bốn phép biến đổi hình dạng dữ liệu
-//  mà chỗ nào cũng dễ làm sai.
+//  Phép so sánh "ai thắng" nằm ở core/sync.ts, phép gộp theo từng trường ở
+//  core/fieldMerge.ts, và cả hai có test. File này chỉ lo việc nói chuyện với
+//  mạng và với Dexie, cộng bốn phép biến đổi hình dạng dữ liệu mà chỗ nào cũng
+//  dễ làm sai, và ghi BẢN GỐC (db/syncBase.ts) sau mỗi lần hai bên khớp nhau.
 //
 //  ⚠️ ĐÂY LÀ ĐOẠN MÃ NGUY HIỂM NHẤT TRONG DỰ ÁN.
 //  Mọi thứ khác cùng lắm làm hỏng dữ liệu trên MỘT máy, và đã có sao lưu để
@@ -53,8 +54,11 @@
 import type { BackupTable } from '../core/backup';
 import { BACKUP_TABLES } from '../core/backup';
 import { planSync, summarize, type SyncReport, type TableSyncResult } from '../core/sync';
+import { mergeRecords } from '../core/fieldMerge';
 import { getSupabase } from './cloud';
+import { nowISO } from './schema';
 import { dropUnusedSeedDuplicates } from './dedupe';
+import { loadBases, saveBases } from './syncBase';
 import { tableOf, type SoftDeletableRow } from './tables';
 
 export type CloudRow = Record<string, unknown>;
@@ -81,8 +85,9 @@ export interface CloudTransport {
    *
    * ⚠️ ĐÂY LÀ THỨ KHIẾN ĐỒNG BỘ TRỞ THÀNH GIA TĂNG.
    *
-   * `planSync()` chỉ cần đúng hai trường đó để quyết định ai thắng — nội dung
-   * bản ghi không tham gia vào phép so nào cả. Nên không có lý do gì tải cả
+   * `planSync()` chỉ cần đúng hai trường đó (cộng bản gốc lưu ở máy) để quyết
+   * định ai thắng — nội dung bản ghi chỉ cần cho dòng phải kéo về, và cho
+   * số rất ít dòng hai máy cùng sửa phải gộp. Nên không có lý do gì tải cả
    * nghìn dòng đầy đủ về rồi vứt đi 99% trong số chúng.
    *
    * Một dòng kê nặng khoảng 60 byte; một buổi học đầy đủ (tiêu đề, ghi chú,
@@ -218,46 +223,73 @@ async function syncTable(
   try {
     const table = tableOf(name);
     const local = await table.toArray();
+    const bases = await loadBases(name, transport.userId);
 
     // BƯỚC 1 — bản kê. Chỉ id + updatedAt, đủ để `planSync` quyết định.
     const manifest = await transport.fetchManifest(remote);
-    const plan = planSync<{ id: string; updatedAt?: string }>(local, manifest);
+    const plan = planSync<{ id: string; updatedAt?: string }>(local, manifest, [...bases.values()]);
 
-    // BƯỚC 2 — chỉ tải nội dung của những dòng THẬT SỰ cần kéo về.
-    const pulledRaw =
-      plan.toPull.length > 0
-        ? await transport.fetchByIds(remote, plan.toPull.map((r) => r.id))
-        : [];
+    // Dòng đang khớp mà thiếu bản gốc: ghi bản gốc từ bản local, không tải gì.
+    // Đây là đường để dữ liệu đồng bộ từ trước khi có tính năng này cũng được
+    // gộp theo trường ngay từ lần sửa đầu tiên sau đó.
+    const localById = new Map(local.map((row) => [row.id, row]));
+    const fullLocal = (refs: { id: string }[]) =>
+      refs.map((r) => localById.get(r.id)).filter((r): r is SoftDeletableRow => r !== undefined);
+    await saveBases(name, transport.userId, fullLocal(plan.toRebase));
+
+    // BƯỚC 2 — chỉ tải nội dung của những dòng THẬT SỰ cần: kéo về, và gộp.
+    // Gộp cần nội dung đám mây; gom chung một lượt `fetchByIds` với dòng kéo.
+    const mergeIds = new Set(plan.toMerge.map((r) => r.id));
+    const wanted = [...plan.toPull, ...plan.toMerge].map((r) => r.id);
+    const fetched = wanted.length > 0 ? await transport.fetchByIds(remote, wanted) : [];
+    const pulledRaw = fetched.filter((r) => !mergeIds.has(String(r.id)));
 
     // Kéo TRƯỚC, đẩy SAU. Cả hai tính từ cùng một ảnh chụp nên thứ tự không
     // đổi kết quả, nhưng kéo trước nghĩa là nếu đứt mạng giữa chừng thì máy
     // này đã nhận được thứ nó chưa có — hướng mất mát ít đau hơn.
-    if (pulledRaw.length > 0) await table.bulkPut(pulledRaw.map(fromCloud));
+    if (pulledRaw.length > 0) {
+      const pulled = pulledRaw.map(fromCloud);
+      await table.bulkPut(pulled);
+      await saveBases(name, transport.userId, pulled);
+    }
 
-    if (plan.toPush.length > 0) {
-      // Danh sách cột suy từ dòng vừa kéo về. Không kéo dòng nào thì hỏi máy
+    // BƯỚC 3 — gộp theo từng trường những dòng hai máy cùng sửa.
+    //
+    // Bản gộp ghi xuống máy NGAY, trước khi đẩy. Đẩy hỏng thì lần sau gộp lại
+    // (bản gốc chưa đổi, local giờ là bản gộp) và ra đúng kết quả cũ — các
+    // trường đám mây đã sửa nay "đổi ở cả hai phía thành cùng một giá trị".
+    const now = nowISO();
+    const merged: SoftDeletableRow[] = [];
+    for (const raw of fetched) {
+      if (!mergeIds.has(String(raw.id))) continue;
+      const theirs = fromCloud(raw);
+      const mine = localById.get(theirs.id);
+      const was = bases.get(theirs.id);
+      if (!mine || !was) continue;
+      merged.push(mergeRecords(was, mine, theirs, now).merged);
+    }
+    if (merged.length > 0) await table.bulkPut(merged);
+
+    const rows = [...fullLocal(plan.toPush), ...merged];
+    if (rows.length > 0) {
+      // Danh sách cột suy từ dòng vừa tải về. Không tải dòng nào thì hỏi máy
       // chủ một dòng mẫu — nhưng CHỈ khi thật sự cần, và chỉ một dòng.
-      const sample =
-        pulledRaw.length > 0 ? pulledRaw : await sampleOf(transport, remote);
-
-      // `plan.toPush` mang kiểu bản kê nên phải lấy lại bản ghi local đầy đủ:
-      // bản kê không có nội dung để mà đẩy lên.
-      const byId = new Map(local.map((row) => [row.id, row]));
-      const rows = plan.toPush
-        .map((r) => byId.get(r.id))
-        .filter((r): r is SoftDeletableRow => r !== undefined);
+      const sample = fetched.length > 0 ? fetched : await sampleOf(transport, remote);
 
       const columns = columnsFor(sample, rows);
       await transport.upsert(
         remote,
         rows.map((row) => toCloud(row, columns, transport.userId)),
       );
+      // SAU `upsert`, không trước — xem chú thích của `saveBases`.
+      await saveBases(name, transport.userId, rows);
     }
 
     return {
       table: name,
-      pushed: plan.toPush.length,
+      pushed: rows.length,
       pulled: plan.toPull.length,
+      merged: merged.length,
       inSync: plan.inSync,
     };
   } catch (error) {
@@ -271,6 +303,7 @@ async function syncTable(
       table: name,
       pushed: 0,
       pulled: 0,
+      merged: 0,
       inSync: 0,
       error: error instanceof Error ? error.message : String(error),
     };

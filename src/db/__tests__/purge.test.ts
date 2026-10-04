@@ -96,7 +96,7 @@ const cloudRow = (id: string): CloudRow => ({
 
 beforeEach(async () => {
   if (!db.isOpen()) await db.open();
-  await Promise.all(ALL_TABLES.map((t) => t.clear()));
+  await Promise.all([...ALL_TABLES, db.syncBase].map((t) => t.clear()));
 });
 
 describe('purgeOne', () => {

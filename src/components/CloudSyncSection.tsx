@@ -198,6 +198,9 @@ function SyncSummary({ report }: { report: SyncReport }) {
       <p className={failed.length > 0 ? 'text-amber-700' : 'text-green-700'}>
         {t('cloud.syncResult', { pushed: report.pushed, pulled: report.pulled })}
       </p>
+      {report.merged > 0 && (
+        <p className="text-slate-600">{t('cloud.syncMerged', { count: report.merged })}</p>
+      )}
       {failed.map((r) => (
         <p key={r.table} className="text-red-600">
           {t('cloud.tableFailed', { table: r.table })} {r.error}

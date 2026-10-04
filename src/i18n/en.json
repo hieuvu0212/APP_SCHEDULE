@@ -371,7 +371,7 @@
   },
   "reminder": {
     "title": "Reminders",
-    "limitation": "The app automatically queues reminders for the next 7 days to the cloud whenever opened. If not opened for over 7 days, notifications pause until the next visit. Do not use as a replacement for phone alarms.",
+    "limitation": "This app has no server, so it can only remind you WHILE IT IS OPEN — in a browser tab or the installed app. Close it completely and nothing can wake it. Do not use this instead of your phone's alarm.",
     "unsupported": "This browser does not support notifications.",
     "denied": "You have blocked notifications for this site. To re-enable, open the browser's permission settings (the lock icon next to the address bar).",
     "allow": "Allow notifications",
@@ -462,6 +462,7 @@
     "syncNow": "Sync now",
     "syncing": "Syncing…",
     "syncResult": "Done — {{pushed}} pushed, {{pulled}} pulled.",
+    "syncMerged": "Merged {{count}} records edited on both sides — both sets of changes kept.",
     "tableFailed": "Table {{table}} failed:",
     "error": {
       "notConfigured": "No sync server is configured.",

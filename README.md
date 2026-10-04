@@ -14,7 +14,7 @@ Trên giao diện nó hiển thị là **"Đối tượng"** ở cả ba ngôn n
 
 Từ `db.version(3)` nó **không còn là chuỗi gõ tay**. `clientIdFromName()` sinh id tất định từ tên đã bỏ dấu — `Minh` → `client-minh` — nên gõ lại cùng một tên sẽ trỏ về đúng đối tượng cũ thay vì đẻ thêm một bản ghi nữa. Đổi tên một đối tượng giờ không làm mồ côi khoản thu nào, vì `Payment` neo vào `clientId` chứ không phải vào tên.
 
-⚠️ Cái giá của "tất định là bỏ dấu": **"Minh" và "Mình" gộp làm một.** Đó là chủ ý — trước kia chúng là hai đối tượng rời và đó mới là thứ không ai muốn — nhưng nếu bạn thật sự có hai người khác nhau đúng ở mỗi cái dấu, phải phân biệt bằng tên đầy đủ. `ensureClient()` chỉ tách ra id ngẫu nhiên khi id trùng mà tên chuẩn hóa **khác** nhau (`Minh!` so với `Minh`).
+⚠️ Cái giá của "tất định là bỏ dấu": **"Minh" và "Mình" gộp làm một.** Đó là chủ ý — trước kia chúng là hai đối tượng rời và đó mới là thứ không ai muốn — nhưng nếu bạn thật sự có hai người khác nhau đúng ở mỗi cái dấu, phải phân biệt bằng tên đầy đủ. Khi id trùng mà tên chuẩn hóa **khác** nhau (`Minh!` so với `Minh`, `小明 minh` so với `大明 minh`), `ensureClient()` cho người tới sau một id dự phòng **cũng tất định**: `collisionClientId()` băm toàn bộ tên ra `client-c_…`. Trước đây nhánh đó dùng `newId()` ngẫu nhiên, nên gõ lại tên người thứ hai là đẻ thêm một đối tượng mỗi lần, và hai máy gõ cùng tên thì có hai id khác nhau.
 
 Tên **không viết được bằng `[a-z0-9]`** — `小明`, `한지민`, `Минск` — đi nhánh thứ hai: băm FNV-1a của tên đã chuẩn hóa, ra `client-h_1b5a3bd0`. Nhánh này trước đây trả `null` và `ensureClient()` rơi về `newId()`, nên **gõ lại đúng cái tên đó là đẻ thêm một đối tượng nữa**, mỗi lần một cái. Dấu `_` không phải để cho đẹp: nhánh Latin lọc bỏ mọi ký tự ngoài `[a-z0-9-]` nên nó không bao giờ sinh nổi một id có `_`, và nhờ vậy một nhãn như `H12345678` — mã phòng, mã học phần, đều hợp lệ ở trường này — không thể mang trùng hình dạng của một id băm. Tên chỉ toàn dấu câu (`???`, `😀`) thì vẫn `null`: nhánh băm chỉ dành cho tên có **chữ**, ở bất kỳ hệ chữ viết nào.
 
@@ -30,16 +30,17 @@ Tiêu đề và ghi chú là **dữ liệu người dùng**, không đi qua i18n
 - Tính năng thu tiền (DuesView), xuất PDF, ICS.
 - Thực thể `Client` độc lập với id tất định, thay cho chuỗi gõ tay (`db.version(3)`) — tất định cho **mọi hệ chữ viết**, không riêng chữ Latin.
 - Bọc ứng dụng qua nền tảng Capacitor (Native Android/iOS).
-- **Web Push với reminder_queue**: bảng `push_subscriptions` và `reminder_queue` kèm RLS, `savePushSubscription()`, `syncReminderQueue()`, Edge Function quét gửi theo cron 5 phút, và `check:cloud` canh 11/11 bảng.
+- **Thêm nhanh tự chọn danh mục** từ lịch sử phân loại, không dùng bảng từ khóa — xem "Danh mục cũng tự chọn".
+- **Đồng bộ gộp xung đột theo TỪNG TRƯỜNG** (`db.version(4)`, bảng `syncBase` chỉ ở máy) — hai máy sửa hai trường khác nhau của cùng một bản ghi thì cả hai thay đổi sống sót. Xem "Gộp xung đột theo từng trường".
 
 ### In Progress
-- *(Theo kế hoạch tiếp theo)*
+- **Web Push — mã đã xong, CHƯA nghiệm thu.** Bảng `push_subscriptions` và `reminder_queue` kèm RLS, `savePushSubscription()`, `syncReminderQueue()`, Edge Function quét gửi, `config.toml` + `CRON_SECRET`, `check:cloud` canh 11/11 bảng. Còn thiếu đúng bốn bước ở ["Định nghĩa xong cho tính năng này"](#định-nghĩa-xong-cho-tính-năng-này) — và bước đầu tiên là bước duy nhất chứng minh được điều gì: **đóng hẳn trình duyệt và nhận về một thông báo đúng giờ.** Phase 2 đi qua toàn bộ cổng chặn với 284 test xanh trong khi tính năng chưa từng chạy; dòng này ở lại In Progress cho tới khi có người thấy thông báo hiện lên thật.
 
 ### Next Tasks
 - *(Theo quyết định của người dùng)*
 
 ### Known Issues
-- **Tên TRỘN Hán–Latin có thể trùng id.** `小明 minh` và `大明 minh` đều cho ra `client--minh`: phần chữ Hán bị lọc bỏ, phần Latin còn lại đủ để làm id nên nhánh băm không được gọi tới. Người thứ hai vì thế rơi về `newId()` và lặp lại đúng lỗi "gõ lại là đẻ thêm một đối tượng". Không sửa được bằng cách đổi hàm sinh id: những id đó đã nằm trong DB của người dùng từ `db.version(3)`, đổi là làm mồ côi dữ liệu thật để chữa một trường hợp hiếm. Cách xử: đặt tên phân biệt được ở phần Latin, hoặc bỏ hẳn phần Latin đi. Dọn bản đã trùng bằng **Gộp đối tượng trùng** ở Cài đặt.
+- *(Không có)*. Lỗi "tên TRỘN Hán–Latin trùng id" (`小明 minh` / `大明 minh` cùng ra `client--minh`, người thứ hai nhận `newId()` ngẫu nhiên mỗi lần gõ) đã sửa **mà không đổi hàm sinh id chính**: nhánh trùng giờ dùng `collisionClientId()` tất định, và tìm theo tên trước để vẫn trỏ về bản ghi cũ từng mang id ngẫu nhiên. Những bản đã lỡ nhân đôi từ trước vẫn dọn bằng **Gộp đối tượng trùng** ở Cài đặt.
 
 ### Security Status
 - Tích hợp RLS (nếu cấu hình Supabase).
@@ -252,7 +253,7 @@ Một tính năng chỉ được coi là xong khi **cả mười một dòng** d
 | 6 | Không dò lỗi bằng nội dung chuỗi | `status.includes('Lỗi')` hỏng ngay khi đổi ngôn ngữ |
 | 7 | Thiếu cấu hình là **trạng thái**, không phải ngoại lệ | Ném ở cấp module làm trắng cả màn hình |
 | 8 | Thao tác ghi có đường **hoàn tác**, hoặc hộp thoại nói rõ là không có | Quy ước có từ Phase 0 |
-| 9 | Bảng mới thì thêm vào `BACKUP_TABLES` **và** `supabase_schema.sql` | Thiếu chỗ nào thì dữ liệu bốc hơi ở chỗ đó. Ngoại lệ duy nhất: bảng **chỉ sống trên mây và dẫn xuất được** từ dữ liệu đã có — `push_subscriptions`, `reminder_queue` — chỉ vào SQL. Sao lưu chúng là sao lưu một cái bóng |
+| 9 | Bảng mới thì thêm vào `BACKUP_TABLES` **và** `supabase_schema.sql` | Thiếu chỗ nào thì dữ liệu bốc hơi ở chỗ đó. Hai ngoại lệ, cùng một lý do — **dẫn xuất được** từ dữ liệu đã có nên sao lưu chúng là sao lưu một cái bóng: bảng **chỉ sống trên mây** (`push_subscriptions`, `reminder_queue`) chỉ vào SQL; bảng **chỉ sống ở máy** mô tả quan hệ của máy đó với đám mây (`syncBase`) không vào chỗ nào — xem "Gộp xung đột theo từng trường" |
 | 10 | Chú thích giải thích **vì sao**, không phải **cái gì** | Mã đã nói cái gì rồi |
 | 11 | README cập nhật **trong cùng lần thay đổi** | Xem bên dưới |
 
@@ -267,8 +268,16 @@ Ba cổng mới thêm ở Phase 2 đều đã qua bước này:
 | Cổng / test | Lỗi tái tạo để kiểm tra | Kết quả |
 |---|---|---|
 | `check:cloud` | Đổi `effective_from` thành `effective_month` | ❌ báo đúng cột thiếu |
+| `check:cloud` — lệnh hủy diệt | Bỏ chú thích một dòng `DROP TABLE` trong `supabase_schema.sql` | ❌ báo đúng số dòng |
+| `pushQueue.test.ts` — `minutesBeforeStart` | Đếm từ `nowMs` thay vì `fireMs` | ❌ bài "nạp trước ba ngày" đỏ |
+| `db/__tests__/clients.test.ts` | Nhánh trùng của `ensureClient()` quay về `newId()`, bỏ bước tìm theo tên | ❌ 3/4 bài đỏ |
 | `db/__tests__/sync.test.ts` | Cho `toCloud` chỉ gửi trường có giá trị | ❌ 2 bài đỏ, đúng bài tombstone |
 | `CloudSyncSection.test.tsx` | — | Đã bắt được lỗi thật ngay khi viết: bản đầu đo `.env` của máy chứ không đo mã nguồn |
+| `fieldMerge.test.ts` + `db/…/sync.test.ts` — gộp theo trường | Cho `mergeRecords` lấy nguyên khối bản local | ❌ 7 bài core đỏ (đúng bài "CẢ HAI thay đổi đều sống sót") + bài hai máy ở tầng `db/` |
+| `db/…/sync.test.ts` — ghi đè sao lưu | Bỏ dòng `syncBase.clear()` trong `importBackup` | ❌ bài "không đẩy bản cũ đè lên mọi máy khác" đỏ |
+| `db/…/sync.test.ts` — ghi bản gộp xuống máy | Bỏ `bulkPut(merged)`, chỉ đẩy lên | ❌ bài hai máy và bài "đồng bộ lần nữa không tải dòng nào" đỏ |
+| `db/…/sync.test.ts` — bản gốc sau khi đẩy | Bỏ `saveBases` sau `upsert` | ❌ bài hai máy và bài "xóa vĩnh viễn bỏ bản gốc" đỏ |
+| `planSync` — thứ tự nhánh | Xét "mây = bản gốc" TRƯỚC "hai `updatedAt` bằng nhau" | ❌ 3 bài "lần hai không ghi / không tải gì" đỏ |
 
 #### README cập nhật cùng lần thay đổi, không để sau
 
@@ -291,7 +300,7 @@ Cổng chặn chỉ hữu ích khi bạn biết nó **không** nhìn thấy gì.
 | Cổng | Thấy được | **Không** thấy được |
 |---|---|---|
 | `check:core` | Import React/Dexie trong `core/` | Mọi thứ khác |
-| `check:cloud` | Lệch cột giữa SQL và TypeScript | Lệch **kiểu** cột, ràng buộc, RLS |
+| `check:cloud` | Lệch cột giữa SQL và TypeScript; `DROP TABLE`/`TRUNCATE` không nằm trong chú thích | Lệch **kiểu** cột, ràng buộc, RLS |
 | `check:i18n` | Khóa thiếu, chuỗi dự phòng inline | Khóa dựng động — nhưng xem ghi chú dưới bảng |
 | `lint` | Mã chết, biến thừa, vi phạm Fast Refresh | Tính đúng đắn |
 | `test` | Hành vi có bài test | Hành vi **không** có bài test |
@@ -333,7 +342,9 @@ Component gọi thẳng Dexie thì không còn chỗ nào để đặt logic xó
 Canh bằng `npm run check:cloud`. Thêm trường vào một interface thì thêm cột vào SQL trong cùng lần thay đổi.
 
 **4. Chỉ được THÊM `version(n)` vào Dexie, không bao giờ sửa version cũ.**
-Nâng cấp schema không hoàn tác được. Hiện tại đang ở `version(3)`, và máy đã lên v3 không quay về v2. Kèm theo đó: **thêm `version(4)` không vá được máy đã chạy qua v3** — sai sót của một migration đã chạy phải sửa bằng công cụ chạy trên dữ liệu đang có (xem "Gộp đối tượng trùng"), không phải bằng một version mới.
+Nâng cấp schema không hoàn tác được. Hiện tại đang ở `version(4)` (chỉ thêm bảng `syncBase`, không có `upgrade()`), và máy đã lên v4 không quay về v3. Kèm theo đó: **một version mới không vá được máy đã chạy qua version cũ** — sai sót của một migration đã chạy phải sửa bằng công cụ chạy trên dữ liệu đang có (xem "Gộp đối tượng trùng"), không phải bằng một version mới. `version(4)` không vá gì của v3; nó chỉ thêm một bảng rỗng.
+
+`SCHEMA_VERSION` (số ghi vào file sao lưu) **vẫn là 3** và đó là cố ý: nó đo hình dạng dữ liệu *trong file sao lưu*, mà `syncBase` không nằm trong đó. Tăng nó lên chỉ để khớp Dexie thì bản ứng dụng cũ từ chối (`newerSchema`) một file mà nó đọc được hoàn toàn bình thường.
 
 ## Cấu trúc
 
@@ -359,9 +370,12 @@ src/
 │   ├── income.ts        TẦNG 1 — tiền của một buổi
 │   ├── payroll.ts       TẦNG 2 — tiền của một tháng (con số chính thức)
 │   ├── sync.ts          Ai thắng khi đồng bộ — dùng chung isNewer() với backup
+│   ├── fieldMerge.ts    Gộp ba bên (gốc/local/mây) theo TỪNG TRƯỜNG
 │   ├── autoSync.ts      CÓ nên đồng bộ lúc này không — chống chạy chồng
 │   ├── dedupe.ts        Tìm danh mục trùng + chọn bản giữ lại
 │   ├── quickAdd.ts      Bóc ngày/giờ/tiêu đề từ một câu tiếng Việt
+│   ├── inferCategory.ts Danh mục nào — ĐẾM lịch sử, không có bảng từ khóa
+│   ├── pushQueue.ts     Buổi nào cần đẩy và bắn lúc nào — quy đổi ra UTC
 │   ├── ics.ts           Dựng file iCalendar — giờ trôi nổi, RRULE, EXDATE
 │   └── __tests__/
 │
@@ -371,6 +385,8 @@ src/
 │   ├── backup.ts        Xuất/nhập toàn bộ DB
 │   ├── cloud.ts         Client Supabase — khởi tạo LƯỜI, thiếu env không sập
 │   ├── sync.ts          Bản kê → nội dung, + bốn phép biến đổi hình dạng
+│   ├── syncBase.ts      Bản gốc cho gộp ba bên — CHỈ ở máy, theo tài khoản
+│   ├── pushQueue.ts     Nạp reminder_queue lên mây + RÚT LẠI hàng đã hủy
 │   ├── purge.ts         Xóa vĩnh viễn ở CẢ HAI phía — chống bản ghi sống lại
 │   ├── exportIcs.ts     Đọc DB → core/ics.ts → tải file .ics
 │   ├── dedupe.ts        Gộp danh mục — trỏ lại BẢY nơi tham chiếu, có hoàn tác
@@ -478,7 +494,7 @@ Ba thứ giữ cho nó an toàn:
 - **`updatedAt = t` trên mọi bản ghi bị sửa.** Thiếu dòng này thì bản ghi vừa migrate vẫn mang dấu thời gian cũ, lần đồng bộ kế tiếp thấy bản trên mây "mới hơn" và **ghi đè ngược lại `clientName` vừa bỏ đi**. Migration đúng nhưng bị đồng bộ nuốt mất là lỗi khó thấy nhất trong nhóm này.
 - **`clientLabel` giữ lại trên `payments`** (nullable). Nó là bản sao đọc được của tên tại thời điểm thu tiền — xóa một đối tượng thì khoản thu cũ vẫn còn chữ để hiển thị, thay vì một id trần.
 
-⚠️ **Không tạo `version(4)` để vá kết quả của `version(3)`.** Máy đã chạy qua v3 sẽ không chạy lại upgrade đó lần nữa, nên v4 chỉ vá được máy cài mới — đúng những máy không cần vá. Sai sót do trùng id phải xử bằng **Gộp đối tượng trùng** ở Cài đặt: nó chạy trên dữ liệu đang có, ở mọi máy, bao nhiêu lần cũng được.
+⚠️ **Không dùng một version mới để vá kết quả của `version(3)`.** (`version(4)` đã có, nhưng nó chỉ thêm bảng `syncBase` cho đồng bộ, không đụng dữ liệu v3.) Máy đã chạy qua v3 sẽ không chạy lại upgrade đó lần nữa, nên một upgrade vá ở version sau chỉ đúng với giả định "dữ liệu còn nguyên như v3 để lại" — giả định mà vài tuần dùng app đã phá. Sai sót do trùng id phải xử bằng **Gộp đối tượng trùng** ở Cài đặt: nó chạy trên dữ liệu đang có, ở mọi máy, bao nhiêu lần cũng được.
 
 Bản vá cho tên chữ Hán đi đúng theo lối đó, và đáng đọc như một ví dụ mẫu: nó **chỉ sửa `clientIdFromName()`** để hàm cho ra id đúng từ lần gọi *sau*, không viết lại một bản ghi nào. Máy cũ vẫn giữ những id ngẫu nhiên mà v3 đã lỡ sinh ra; lần tới người dùng gõ lại cái tên đó, `ensureClient()` tạo ra bản có id tất định, rồi **Gộp đối tượng trùng** dồn bản cũ vào bản mới — `findDuplicateClients()` xếp bản khớp `clientIdFromName(name)` lên đầu nên nó chọn đúng bản đáng giữ mà không cần ai chỉ. Sửa hàm, để dữ liệu tự hội tụ.
 
@@ -525,15 +541,25 @@ Kéo–thả trên lưới tuần luôn dùng phạm vi **chỉ buổi này** �
 | Chặn `standardMonthlyHours > 0` | Bỏ đi → chia cho 0 → `Infinity` → `NaN` lan ra toàn bộ báo cáo |
 | Không kẹp `net` về 0 khi âm | Kẹp lại → che mất lỗi nhập liệu |
 | ID của danh mục seed là HẰNG SỐ (`SEEDED_CATEGORY_IDS`) | Đổi về `newId()` → mỗi máy sinh một bộ danh tính mới, đồng bộ nhân bản im lặng, "Gia sư" thành ba |
-| Nhánh Latin của `clientIdFromName()` đã ĐÓNG BĂNG | Đổi cách sinh id cho tên Latin → `rules`/`events`/`payments` trên máy đã qua v3 trỏ vào đối tượng không còn ai tạo lại, và `version(4)` KHÔNG vá được |
+| Nhánh Latin của `clientIdFromName()` đã ĐÓNG BĂNG | Đổi cách sinh id cho tên Latin → `rules`/`events`/`payments` trên máy đã qua v3 trỏ vào đối tượng không còn ai tạo lại, và một `version()` mới KHÔNG vá được |
+| Nhánh trùng của `ensureClient()` dùng `collisionClientId()`, KHÔNG `newId()` | Đổi về `newId()` → gõ lại `大明 minh` (trùng id chính với `小明 minh`) đẻ thêm một đối tượng mỗi lần, hai máy sinh hai id. `db/__tests__/clients.test.ts` đỏ ba bài |
 | `Math.imul` trong `fnv1a32`, và dấu `_` của `client-h_…` | Đổi `Math.imul` về `*` → mất bit thấp, băm đụng độ sớm mà vẫn ra chuỗi hex trông hợp lệ. Bỏ `_` → nhãn `H12345678` mang đúng hình dạng id băm và cướp bản ghi của người khác |
+| `minutesBeforeStart` đếm từ `fireAt`, KHÔNG từ lúc nạp hàng đợi | Đổi về `nowMs` → hàng đợi nạp trước ba ngày làm thông báo nói "còn 4800 phút nữa" vào đúng lúc chỉ còn nửa tiếng. Bản đầu mắc đúng lỗi này |
+| `inferCategory()` trả `null` khi hòa | Bốc đại bản đầu tiên → kết quả phụ thuộc thứ tự bản ghi trong IndexedDB, hai máy cùng dữ liệu đoán khác nhau |
 | `db/dedupe.ts` khai BẢY nơi tham chiếu thành dữ liệu | Bỏ sót `exceptions.newCategoryId` → buổi đã đổi danh mục riêng trỏ vào danh mục đã xóa và biến mất khỏi mọi bộ lọc |
 | `toCloud` điền `null` cho MỌI cột thiếu | Chỉ gửi trường có giá trị → khôi phục từ Thùng rác không lan lên đám mây, bản ghi "sống ở máy này chết trên mây" |
+| Khối `DROP TABLE … CASCADE` đầu `supabase_schema.sql` nằm trong CHÚ THÍCH | Bỏ chú thích → mỗi lần dán lại file để "cập nhật schema" là xóa sạch dữ liệu đám mây của mọi người dùng. Commit `9221d9a` đã lỡ làm đúng việc này; `check:cloud` giờ chặn nó |
 | Khóa chính đám mây là `(user_id, id)` | Đổi về `id` → người dùng thứ hai vỡ ngay ở bảng đầu tiên vì `sys-uncategorized` trùng khóa |
 | Cột thời gian trên Supabase là `text` | Đổi sang `timestamptz` → `…+00:00` vs `….000Z`, phép so chuỗi sai ở thế hòa |
 | `syncTable` bắt lỗi theo TỪNG bảng | `throw` ra ngoài → một bảng hỏng làm các bảng đứng sau nó không bao giờ được đồng bộ |
 | `fetchAll` phân trang bằng `.range()` | Bỏ đi → PostgREST cắt im lặng ở 1000 dòng, máy mới kéo về thiếu dữ liệu mà không báo |
 | `db/cloud.ts` khởi tạo client LƯỜI | Gọi `createClient` ở cấp module → thiếu env là trắng cả màn hình, không riêng mục Cloud |
+| `planSync` xét "`updatedAt` hai bên bằng nhau" TRƯỚC mọi nhánh bản gốc | Đặt sau → dòng đã khớp mà bản gốc trùng mây rơi vào nhánh "chỉ local sửa": MỌI dòng bị đẩy lại ở MỌI lần đồng bộ. Đã thử: ba bài "lần hai không ghi gì / không tải dòng đầy đủ nào" đỏ |
+| `saveBases` chạy SAU `upsert`/`bulkPut`, không trước | Ghi trước mà lệnh mạng hỏng → bản gốc khai đám mây đang giữ thứ nó chưa nhận, lần sau `planSync` kết luận "chỉ mây sửa" và KÉO BẢN CŨ đè lên thay đổi chưa kịp đẩy |
+| Bản gộp ghi xuống MÁY NÀY trước khi đẩy | Chỉ đẩy lên → bản gốc (= bản gộp) khớp mây mà local vẫn là bản chưa gộp; lượt sau đẩy bản chưa gộp đè lên, thay đổi của máy kia mất ở lượt thứ hai |
+| `importBackup(…, 'replace')` xóa sạch `syncBase` | Giữ lại → khôi phục một file cũ ở một máy âm thầm ĐẨY bản cũ đè lên dữ liệu mới hơn của mọi máy khác |
+| `sameValue` coi vắng mặt / `undefined` / `null` là MỘT | So bằng `===` → khôi phục từ Thùng rác trông như "đổi ở cả hai phía", và bên `updatedAt` muộn hơn có thể XÓA LẠI bản ghi vừa khôi phục |
+| `stampAfter` kiểm lại bằng `isNewer`, có bước nhảy 1 giây | Tin phép cộng 1 ms → dấu `'…:00Z'` thành `'…:00.001Z'`, NHỎ hơn khi so chuỗi; bản gộp mang dấu cũ hơn và máy kia không kéo về |
 | QuickAdd phân tích ngày TRƯỚC giờ | Đảo lại → `"25/8"` thành giờ `25:00`, nhánh ngày `d/m` thành code chết |
 | QuickAdd đòi dấu hiệu giờ (`h`, `:`, "lúc", buổi) | Bỏ đi → mọi số trong tiêu đề bị nuốt làm giờ |
 
@@ -548,11 +574,11 @@ Mỗi mục đều có test tương ứng trong `src/core/__tests__/` hoặc `sr
 | Ngày sở hữu sự kiện | Sự kiện LUÔN thuộc về ngày của `startTime`, kể cả khi kết thúc sang hôm sau. |
 | `originalDate` neo vào đâu | LUÔN trỏ tới ngày occurrence gốc do rule sinh ra. KHÔNG BAO GIỜ trỏ tới ngày đã dời tới. |
 | `amount` của adjustment | LUÔN là số dương. Dấu cộng/trừ do `kind` quyết định. |
-| Dexie `version()` | Chỉ được THÊM `version(2)`, `version(3)`… KHÔNG BAO GIỜ sửa `version(1)`. |
+| Dexie `version()` | Chỉ được THÊM `version(n+1)`, đang ở `version(4)`. KHÔNG BAO GIỜ sửa một version đã phát hành. |
 | i18n | Viết `t('...')` **trần**, không có chuỗi dự phòng, và điền khóa vào cả ba bộ `vi`/`en`/`zh`. Không hard-code chuỗi tiếng Việt vào component. |
 | Không dò lỗi bằng nội dung chuỗi | `status.includes('Lỗi')` hỏng ngay khi đổi ngôn ngữ. Dùng kiểu có cấu trúc hoặc mã lỗi. |
 | Thiếu cấu hình là TRẠNG THÁI | Không ném ở cấp module. Trả `null` và để nơi gọi xử lý — kiểu trả về buộc người viết nghĩ tới trường hợp đó. |
-| Bảng mới | Phải thêm vào `BACKUP_TABLES` **và** `supabase_schema.sql` trong cùng lần thay đổi. |
+| Bảng mới | Phải thêm vào `BACKUP_TABLES` **và** `supabase_schema.sql` trong cùng lần thay đổi. Ngoại lệ cho bảng dẫn xuất: xem dòng 9 của "Định nghĩa xong". |
 | Bản ghi hệ thống tự tạo | ID phải TẤT ĐỊNH, không bao giờ `newId()`. Nhiều máy cùng tạo ra nó thì chúng phải là MỘT bản ghi. |
 
 ## Sao lưu
@@ -570,6 +596,8 @@ Quy tắc trộn **dùng chung với Đồng bộ Cloud**: cả hai gọi `isNew
 
 Sao lưu giữ nguyên cả bản ghi đã xóa mềm. Bỏ tombstone đi thì khôi phục xong, mọi thứ người dùng đã cố ý dọn đi sẽ hiện về.
 
+Nhập kiểu **ghi đè** xóa luôn bản gốc đồng bộ (`syncBase`) trong cùng giao dịch, nên lần đồng bộ sau xử những dòng đó bằng luật "bên mới hơn thắng" như trước khi có gộp theo trường — khôi phục một file cũ không biến thành lệnh quay ngược dữ liệu của mọi máy. Xem "Gộp xung đột theo từng trường".
+
 ## Đồng bộ Cloud
 
 **Tùy chọn.** Không cấu hình thì ứng dụng chạy y hệt như trước, chỉ mất mục này trong Cài đặt. Dữ liệu vẫn nằm trong IndexedDB; đám mây là bản đối chiếu, không phải nguồn sự thật.
@@ -578,11 +606,44 @@ Dựng máy chủ: tạo dự án Supabase → dán `supabase_schema.sql` vào S
 
 ### Ai thắng — và vì sao phép so là so CHUỖI
 
-`planSync()` trong `core/sync.ts` xét bốn trường hợp: chỉ có ở local thì đẩy lên, chỉ có trên mây thì kéo về, có ở cả hai thì bên `updatedAt` muộn hơn thắng, bằng nhau thì không làm gì.
+`planSync()` trong `core/sync.ts` xét: chỉ có ở local thì đẩy lên, chỉ có trên mây thì kéo về, `updatedAt` bằng nhau thì không làm gì. Có ở cả hai mà khác nhau thì **hỏi bản gốc** (xem "Gộp xung đột theo từng trường" ngay dưới): chỉ một phía đã sửa kể từ lần đồng bộ trước thì phía đó đi sang phía kia; **cả hai** cùng sửa thì gộp theo từng trường, và chỉ trường bị sửa ở cả hai phía thành hai giá trị khác nhau mới phân xử bằng "`updatedAt` muộn hơn thắng". Dòng **chưa có bản gốc** thì giữ nguyên luật cũ: cả bản ghi nào có `updatedAt` muộn hơn thì thắng.
 
 Phép so là `(a ?? '') > (b ?? '')` — **so chuỗi, không phải `Date.getTime()`**. Chuỗi ISO 8601 UTC so theo thứ tự từ điển là đúng thứ tự thời gian, *miễn là định dạng đồng nhất*. Đó chính là lý do mọi cột thời gian trong `supabase_schema.sql` khai là `text` chứ không phải `timestamptz`: `timestamptz` trả về `…+00:00` trong khi client ghi `….000Z`, và ở thế hòa thì `'+'` (0x2B) nhỏ hơn `'.'` (0x2E) — bản đến sẽ thắng bản đang có, ngược hẳn quy tắc.
 
 Cùng lý do đó, `date`, `startTime`, `month` cũng là `text`: chúng là **giờ treo tường**, chuỗi mờ đục, không phải thời điểm. Để Postgres hiểu chúng là mời một tầng ép kiểu vào giữa.
+
+### Gộp xung đột theo từng trường — bản gốc chỉ nằm ở máy
+
+**Lỗi đã sửa.** Luật cũ là "cả bản ghi nào mới hơn thì thắng". Máy A dời giờ một buổi, máy B sửa ghi chú của chính buổi đó, rồi cả hai đồng bộ: bên có `updatedAt` muộn hơn đè nguyên khối lên bên kia, và một thay đổi **biến mất** — HTTP 200, báo cáo xanh, không ai biết.
+
+**Gộp ba bên.** Hai bản ghi không đủ để biết ai đã sửa trường nào: thấy `title` khác nhau không nói được là A đổi hay B đổi. Cần bản thứ ba — **bản gốc**, tức nội dung mà hai bên cùng giữ ngay sau lần đồng bộ thành công gần nhất của dòng đó. `mergeRecords()` trong `core/fieldMerge.ts` so từng trường với bản gốc:
+
+| Trường đổi ở | Lấy |
+|---|---|
+| chỉ local | local |
+| chỉ đám mây | đám mây |
+| cả hai, cùng giá trị | giá trị đó |
+| cả hai, khác giá trị | bên `updatedAt` muộn hơn — đúng `isNewer()`, so chuỗi |
+
+Bản gộp ghi xuống máy, đẩy lên mây, và thành bản gốc mới. `updatedAt` của nó **muộn hơn hẳn** cả hai đầu vào (`stampAfter`): bằng một bên thì máy đang giữ bên đó thấy "bằng nhau" và không bao giờ kéo bản gộp về. Đồng hồ máy này chậm hơn máy kia thì không tin `now` mà cộng vào dấu lớn nhất — và kiểm lại bằng `isNewer`, vì `'…:00Z'` cộng 1 ms thành `'…:00.001Z'`, **nhỏ hơn** khi so chuỗi.
+
+Vắng mặt, `undefined` và `null` là **một** giá trị với phép gộp. Khôi phục từ Thùng rác xóa hẳn `deletedAt` (phép biến đổi thứ tư ở trên), mây trả `null`, bản ghi cũ có thể mang `undefined` — so bằng `===` thì "khôi phục" trông như sửa ở cả hai phía và bên muộn hơn có thể xóa lại bản ghi vừa khôi phục. Mảng (`tags`, `daysOfWeek`) so sâu, vì IndexedDB trả về mảng mới mỗi lần đọc.
+
+**Vì sao bản gốc, không phải dấu thời gian theo từng trường.** Cách "chuẩn sách" là đóng dấu cho từng trường trên mọi bản ghi. Nó đòi đổi lược đồ đám mây, đổi **mọi** đường ghi trong `db/repo/`, và đường ghi nào quên đóng dấu sẽ âm thầm thua mọi xung đột — đúng loại quy ước sẽ bị quên ở chỗ gọi thứ ba thêm vào sáu tháng sau (cùng lý do `db/purge.ts` tồn tại). Bản gốc chỉ được ghi ở **đúng một chỗ**: vòng đồng bộ. Không một repo nào phải biết nó tồn tại, và không cột nào trên Supabase phải đổi.
+
+**Vì sao bản gốc chỉ ở máy** (`db.version(4)`, bảng `syncBase`, khóa `[table+id]`):
+
+- Nó là trạng thái của **cặp (máy này, tài khoản này)** với đám mây. Lên mây thì máy khác ghi đè được nó — mà toàn bộ giá trị của nó là không ai khác chạm vào được.
+- **Không vào `BACKUP_TABLES`.** Khôi phục bản gốc của máy khác sang máy này là nói dối về chuyện hai bên đã thống nhất điều gì. Đây là ngoại lệ thứ hai của dòng 9 trong "Định nghĩa xong".
+- Mỗi dòng mang `userId`; `loadBases` chỉ đọc bản gốc của tài khoản đang đăng nhập. Không xóa lúc đăng xuất, vì phiên hết hạn rồi đăng nhập tài khoản khác không đi qua nút Đăng xuất nào.
+
+**Cái giá.** Mỗi bản ghi đã đồng bộ có thêm một bản sao trong IndexedDB — dung lượng cục bộ xấp xỉ gấp đôi. Không thêm byte nào qua mạng: lần đồng bộ không đổi gì vẫn tải về **không một dòng đầy đủ nào**; chỉ dòng hai máy cùng sửa mới cần tải nội dung đám mây, và nó đi chung lượt `fetchByIds` với dòng kéo về.
+
+**Không có bản gốc thì lùi về luật cũ, nguyên vẹn.** Xảy ra với dòng đồng bộ từ trước khi có tính năng, máy vừa xóa dữ liệu duyệt web, hoặc vừa khôi phục sao lưu kiểu **ghi đè** — `importBackup` xóa sạch `syncBase`, vì giữ lại thì đám mây trùng bản gốc, local khác, và `planSync` kết luận "chỉ máy này sửa" rồi **đẩy bản cũ trong file đè lên mọi máy khác**. Dòng nào đang khớp mà thiếu bản gốc thì được ghi bản gốc ngay trong lần đồng bộ kế tiếp từ bản local (`toRebase`), không tải gì — nên dữ liệu cũ có bản gốc sau đúng một lần đồng bộ.
+
+Có bản gốc thì **chiều đi do "ai đã sửa" quyết định, không phải "ai mới hơn"**. Hai câu đó trùng nhau khi đồng hồ hai máy khớp. Máy chạy chậm mười phút sửa một buổi thì luật cũ thấy bản trên mây "mới hơn" và kéo đè lên thay đổi vừa làm; so với bản gốc thì không.
+
+**Giới hạn đã biết.** Gộp theo trường có thể sinh ra một tổ hợp mà **không máy nào** tạo ra: A đổi `type` của một ngoại lệ, B đổi `newDate` của nó. Từng trường đều đúng, cặp trường thì có thể không. Chấp nhận được vì hai máy cùng sửa *cùng một* bản ghi giữa hai lần đồng bộ đã hiếm, và cùng sửa hai trường *ràng buộc nhau* còn hiếm hơn; nếu thành vấn đề thật thì cách chữa là khai báo nhóm trường gộp nguyên khối trong `core/fieldMerge.ts`, không phải quay về luật cả bản ghi.
 
 ### Bốn phép biến đổi hình dạng, và cái thứ tư là cái khó
 
@@ -661,7 +722,7 @@ Màn hình Cài đặt hiện số liệu theo từng bảng chứ không phải
 1. `fetchManifest()` lấy **chỉ `id` và `updated_at`** của mọi dòng.
 2. `planSync()` chạy trên bản kê đó, rồi `fetchByIds()` tải nội dung đầy đủ của đúng những dòng cần kéo về.
 
-Điều làm cách này khả thi: `planSync()` vốn chỉ cần hai trường đó — nội dung bản ghi không tham gia vào phép so nào cả. Một dòng kê nặng khoảng 60 byte, một buổi học đầy đủ dễ vượt 300. Với hai năm lịch thì đó là khác biệt giữa vài chục KB và vài MB **mỗi lần bấm Đồng bộ**. Không đổi gì thì lần đồng bộ thứ hai tải về **không một dòng đầy đủ nào** — có test đo đúng con số đó.
+Điều làm cách này khả thi: `planSync()` chỉ cần hai trường đó (cộng bản gốc, vốn nằm sẵn ở máy) — nội dung bản ghi chỉ cần cho dòng phải kéo về, và cho số rất ít dòng hai máy cùng sửa phải gộp. Một dòng kê nặng khoảng 60 byte, một buổi học đầy đủ dễ vượt 300. Với hai năm lịch thì đó là khác biệt giữa vài chục KB và vài MB **mỗi lần bấm Đồng bộ**. Không đổi gì thì lần đồng bộ thứ hai tải về **không một dòng đầy đủ nào** — có test đo đúng con số đó.
 
 ⚠️ **Cố ý KHÔNG dùng mốc thời gian (watermark).** Cách "chỉ lấy dòng đổi sau mốc X" nghe gọn hơn nhưng đòi hai đồng hồ phải khớp nhau. Máy có đồng hồ chạy chậm sẽ sinh `updatedAt` nhỏ hơn mốc và bản ghi của nó **không bao giờ được đẩy lên** — mất dữ liệu âm thầm, không lỗi, không cách nào phát hiện. Bản kê so trực tiếp hai bên nên lệch đồng hồ không tạo ra được trạng thái đó.
 
@@ -701,7 +762,7 @@ Thùng rác → Xóa vĩnh viễn xóa cứng ở máy. Nếu chỉ làm đúng 
 
 `db/purge.ts` đóng vòng đó bằng cách gộp hai việc vào **một** hàm. Cách chữa hiển nhiên hơn — "nhớ gọi thêm hàm xóa trên mây sau khi xóa ở máy" — chính là loại quy ước sẽ bị quên: nó đúng ở chỗ gọi hôm nay và sai ở chỗ gọi thứ ba được thêm vào sáu tháng nữa.
 
-Tầng cũng có chủ đích: `db/repo/` là CRUD thuần trên Dexie và không được biết gì về mạng, nên `db/purge.ts` nằm cùng tầng với `db/backup.ts`.
+Tầng cũng có chủ đích: `db/repo/` là CRUD thuần trên Dexie và không được biết gì về mạng, nên `db/purge.ts` nằm cùng tầng với `db/backup.ts`. Nó cũng bỏ bản gốc đồng bộ của dòng vừa xóa — `syncBase` không có Thùng rác nào dọn hộ.
 
 **Chưa đăng nhập thì xóa ở máy vẫn chạy**, phần đám mây bỏ qua và màn hình nói rõ rằng bản ghi sẽ quay về. Chặn người dùng dọn thùng rác chỉ vì họ chưa đăng nhập là lấy một tính năng cục bộ đem đi cầm cho một tính năng tùy chọn. Mạng lỗi cũng vậy: bản ghi ở máy đã mất vĩnh viễn rồi, ném lỗi ra ngoài lúc đó chỉ khiến giao diện trông như cả thao tác đã thất bại.
 
@@ -774,7 +835,30 @@ So khớp bỏ dấu và không phân biệt hoa thường, nhưng trả về **
 
 `cho X` / `với X` là đường tắt cho chính lần đầu đó — bắt buộc viết hoa, vì không có ràng buộc ấy thì "làm cho xong" cho ra một đối tượng tên "xong".
 
-Danh sách đọc từ `rules` và `events` qua `useKnownClients()`, **không** từ `occurrences` đang hiển thị: Occurrence chỉ tồn tại cho cửa sổ đang xem, nên dùng nó thì một học sinh dạy từ ba tháng trước sẽ không được nhận ra — và được hay không tùy vào việc người dùng đang mở tuần nào.
+### Danh mục cũng tự chọn — và bằng đúng cơ chế đó
+
+Gõ `Dạy Minh mai 18h` thì hộp thoại mở ra với danh mục **Gia sư** đã chọn sẵn. Gõ `ROSSI 7h` thì ra **Đi làm**. Gõ `Giải tích 2 thứ 4` thì ra **Đại học**.
+
+Nhìn qua tưởng là ba luật riêng — tên người thì gia sư, tên chỗ làm thì đi làm, tên môn thì đại học. **Không phải.** Cả ba là một luật, và lý do nằm ở chỗ `Client` [không phải "học sinh"](#client-không-phải-học-sinh): nó trả lời câu *"buổi này dành cho ai / ở đâu"*, nên "Minh", "ROSSI" và "Giải tích" đều là Đối tượng. Cái phân biệt chúng không phải hình dạng con chữ, mà là **danh mục mà chính bạn đã xếp chúng vào những lần trước**.
+
+Nên `core/inferCategory.ts` không chứa một từ khóa nào. Nó đếm: đối tượng này đã xuất hiện ở danh mục nào nhiều nhất thì chọn cái đó. Một bảng từ khóa sẽ vỡ ở cái tên thứ nhất nằm ngoài bảng, vỡ với người dùng có cách tổ chức khác, và vỡ ngay lập tức ở bộ ngôn ngữ thứ hai.
+
+Hai tầng, thử theo thứ tự:
+
+| Tầng | Khi nào | Ví dụ |
+|---|---|---|
+| **Theo Đối tượng** | Câu nhận ra được một Đối tượng đã có | `ROSSI` đã có bốn buổi Đi làm → buổi thứ năm cũng vậy |
+| **Theo tiêu đề trùng khít** | Câu không nhắc Đối tượng nào | Gõ lại `Họp giao ban` → lấy danh mục của những lần trước |
+
+⚠️ **Hòa thì KHÔNG đoán.** Một đối tượng có đúng một buổi Gia sư và một buổi Đại học thì câu trả lời trung thực là "không biết", và hàm trả `null` để form giữ nguyên mặc định cũ. Bốc đại một trong hai cho ra đúng 50% số lần, và 50% còn lại người dùng phải *nhận ra* rằng nó sai rồi mới sửa — tệ hơn hẳn việc không đoán. Cùng quy ước "vì sao không đoán bừa" đã áp cho ngày giờ.
+
+Bốc đại còn hỏng theo một kiểu khó thấy hơn: kết quả sẽ phụ thuộc vào **thứ tự bản ghi trong IndexedDB**, nên hai máy cùng dữ liệu có thể đoán khác nhau và không ai giải thích nổi vì sao. `inferCategory.test.ts` có một bài đảo ngược mảng đầu vào để canh đúng chuyện đó.
+
+⚠️ **Tầng tiêu đề chỉ nhận trùng KHÍT cả chuỗi, không trùng một từ.** Trùng một từ nghĩa là `Dạy Toán` và `Dạy Lý` chung một rổ chỉ vì cùng chữ "Dạy" — mà "dạy", "học", "họp" là đúng những từ có mặt ở gần hết mọi tiêu đề. Bộ đoán sẽ tự tin lên trông thấy và sai nhiều hơn hẳn.
+
+Một lịch lặp đếm **một lần**, không phải 52. Nó là một quyết định phân loại của bạn, không phải 52 quyết định — đếm theo số buổi đã mở rộng thì mọi lịch lặp áp đảo hoàn toàn các buổi lẻ.
+
+Danh sách đọc từ bảng `clients` (qua `listClients()` ở `db/repo/`) trong `useKnownClients()`, **không** từ `occurrences` đang hiển thị: Occurrence chỉ tồn tại cho cửa sổ đang xem, nên dùng nó thì một học sinh dạy từ ba tháng trước sẽ không được nhận ra — và được hay không tùy vào việc người dùng đang mở tuần nào.
 
 ### Bốn quy tắc còn lại
 
@@ -874,13 +958,13 @@ Khôi phục một `RecurringRule` kéo theo cả exception bị dọn **cùng l
 
 ## Nhắc lịch và Web Push
 
-Hai tầng, và **hiện tại chỉ tầng một chạy**.
+Hai tầng. Tầng một chạy; tầng hai **mã đã xong nhưng chưa nghiệm thu** — chưa ai thấy một thông báo bắn ra với app đã đóng.
 
 **Tầng 1 — hẹn giờ trong trang.** `useReminders` nạp hôm nay và ngày mai, `core/reminder.ts` chọn buổi và tính khoảng chờ, `setTimeout` bắn `Notification`. Chỉ chạy khi tab hoặc app đang mở; đóng hẳn thì không có gì đánh thức nó dậy. Màn hình Cài đặt nói thẳng điều đó ngay dưới tiêu đề (`reminder.limitation`), và **câu đó vẫn đang đúng** — đừng sửa nó trước khi tầng 2 thật sự bắn được.
 
-**Tầng 2 — Web Push.** Đã có: bảng `push_subscriptions` kèm RLS, `savePushSubscription()` đẩy subscription của trình duyệt lên đó, `VITE_VAPID_PUBLIC_KEY`, và một Edge Function. Chưa có: **một thông báo nào thật sự được gửi.**
+**Tầng 2 — Web Push.** Đã có theo đặc tả bên dưới: `reminder_queue`, `core/pushQueue.ts`, `db/pushQueue.ts`, Edge Function viết lại, `config.toml` + `CRON_SECRET`, và các chỗ sửa kèm ở mục 7. Chưa có: **một thông báo nào được chứng kiến là đã tới nơi.** Cách dựng để thử nằm ở ["Triển khai để nghiệm thu"](#triển-khai-để-nghiệm-thu).
 
-### Vì sao tầng 2 chưa chạy — ba lỗi độc lập
+### Ba lỗi độc lập của bản đầu — đã sửa bằng đặc tả dưới đây
 
 | Lỗi | Ở đâu | Hệ quả |
 |---|---|---|
@@ -1078,18 +1162,42 @@ Rồi kiểm `x-cron-secret` đối chiếu `Deno.env.get('CRON_SECRET')` ngay d
 |---|---|
 | `public/sw.js` | Thêm `pushsubscriptionchange` — trình duyệt xoay endpoint thì hàng trong `push_subscriptions` thành rác, và nó chỉ được dọn khi có một lần gửi thất bại 410 |
 | `public/sw.js` — `notificationclick` | `client.url === event.notification.data.url` so URL tuyệt đối với `'./#/week'`, **không bao giờ khớp**, nên luôn mở cửa sổ mới thay vì chuyển sang tab đang mở. So bằng `new URL(data.url, self.registration.scope).href` |
-| `savePushSubscription()` | `created_at: now` ghi đè mốc tạo gốc ở mỗi lần upsert. Cho cột một `DEFAULT` rồi bỏ trường đó khỏi payload |
+| `savePushSubscription()` và `syncReminderQueue()` | `created_at: now` ghi đè mốc tạo gốc ở mỗi lần upsert. Cho cột một `DEFAULT` rồi bỏ trường đó khỏi payload. ⚠️ Bảng đã dựng **trước** khi có `DEFAULT` không được `CREATE TABLE IF NOT EXISTS` vá — upsert bỏ `created_at` sẽ vỡ `NOT NULL` ngay lần INSERT đầu. Hai câu `ALTER … SET DEFAULT` trong `supabase_schema.sql` lo việc đó, nên **phải dán lại file schema** |
 | `src/core/__tests__/push.test.ts` | Bài test hiện tại kiểm `fnv1a32` tất định — thứ `clientId.test.ts` đã phủ kỹ hơn. Không lỗi push nào làm nó đỏ được (vi phạm điều 3 và 4). Thay bằng `pushQueue.test.ts` ở mục 2 |
-| `reminder.limitation` ở `vi`/`en`/`zh` | Chỉ sửa **sau khi** một thông báo thật sự bắn được với app đã đóng. Câu mới phải nói cả giới hạn horizon |
+| `reminder.limitation` ở `vi`/`en`/`zh` | Chỉ sửa **sau khi** một thông báo thật sự bắn được với app đã đóng. Câu mới phải nói cả giới hạn horizon, **và phải đúng cả với người không cấu hình Supabase hay chưa đăng nhập** — với họ tầng 2 không tồn tại. Commit `63eaf1d` đã lỡ sửa câu này trước khi nghiệm thu, hứa "nạp lên đám mây" với cả người chạy offline; đã trả về câu cũ |
+
+### Triển khai để nghiệm thu
+
+Bốn bước dưới đây cần tài khoản Supabase của bạn và một trình duyệt thật, nên không cổng chặn nào làm thay được.
+
+1. **Dán lại `supabase_schema.sql`** vào SQL Editor. Chạy lại an toàn (`IF NOT EXISTS`, khối `DROP` nằm trong chú thích) và nó mang hai câu `ALTER … SET DEFAULT` mà bảng cũ cần.
+2. **Sinh khóa VAPID** một lần: `npx web-push generate-vapid-keys`. Khóa công khai vào biến `VITE_VAPID_PUBLIC_KEY` (`.env` và GitHub Variables — xem "Biến môi trường cho bản deploy"), rồi build lại.
+3. **Đặt secret cho Edge Function và deploy** (Supabase CLI, đã `supabase link`):
+
+   ```bash
+   supabase secrets set VAPID_PUBLIC_KEY=<công khai> VAPID_PRIVATE_KEY=<riêng tư> CRON_SECRET=<chuỗi ngẫu nhiên dài> VAPID_SUBJECT=mailto:<email của bạn>
+   supabase functions deploy push-reminder
+   ```
+
+   `VAPID_SUBJECT` không bắt buộc, nhưng dịch vụ push của Apple từ chối subject không liên lạc được — để mặc định `mailto:admin@example.com` thì Safari/iOS có thể im lặng.
+4. **Dán câu `cron.schedule` ở mục 5** vào SQL Editor, thay `<PROJECT_REF>` và `<CRON_SECRET>`. Không commit chuỗi đó.
+
+Thử nhanh trước khi chờ cron: gọi tay hàm với đúng header và xem JSON trả về có `"sent": 1` không. `401` là sai secret; `500` với `VAPID keys not configured` là bước 3 chưa xong.
+
+```bash
+curl -X POST https://<PROJECT_REF>.supabase.co/functions/v1/push-reminder -H "x-cron-secret: <CRON_SECRET>"
+```
+
+Rồi mới tới bốn điều kiện dưới — điều 1 là điều duy nhất chứng minh được gì.
 
 ### Định nghĩa xong cho tính năng này
 
 Ngoài mười một điều chung, tính năng này chỉ được đánh dấu xong khi:
 
 1. Đóng hẳn trình duyệt, để máy yên, và **nhận được một thông báo đúng giờ**. Không có bước này thì mọi thứ ở trên chỉ là mã trông hợp lý — đúng như Phase 2 với 284 test xanh và Đồng bộ Cloud chưa từng chạy.
-2. Thử với máy đặt múi giờ **không phải UTC**. Đây là lỗi mà bản hiện tại mắc phải, và nó không lộ ra ở bất kỳ máy nào chạy UTC.
+2. Thử với máy đặt múi giờ **không phải UTC**. Đây là lỗi mà bản đầu mắc phải, và nó không lộ ra ở bất kỳ máy nào chạy UTC. Phần thuần đã qua: `pushQueue`/`expand`/`reminder` xanh dưới `TZ=UTC`, `Asia/Ho_Chi_Minh`, `America/New_York`, `Pacific/Kiritimati` (UTC+14). Phần còn lại là thấy thông báo tới đúng giờ địa phương trên máy thật.
 3. Hủy một buổi đã nằm trong hàng đợi rồi xác nhận thông báo **không** bắn.
-4. `npm run verify` xanh với `check:cloud` báo 11 bảng.
+4. `npm run verify` xanh với `check:cloud` báo 11 bảng. ✅ Đạt.
 
 ## Trợ năng
 
@@ -1158,7 +1266,7 @@ Mỗi bài trong `src/db/__tests__/undo.test.ts` tương ứng với một lỗi
 | ~~Điều hướng bằng URL~~ | `#/week`, `#/payroll`… Nút Back hoạt động, bookmark được, lối tắt PWA trỏ thẳng vào từng màn hình. |
 | ~~Đồng bộ tự động~~ | Bốn kích hoạt, ba lớp chống chạy chồng. Cố ý KHÔNG chạy khi dữ liệu đổi — xem mục "Tự đồng bộ". |
 | ~~Xuất sang ứng dụng lịch~~ | `.ics` với `RRULE`, `EXDATE` và `RECURRENCE-ID`. Xem mục "Xuất sang ứng dụng lịch". |
-| Giải quyết xung đột ở mức TRƯỜNG | Hiện là "cả bản ghi nào mới hơn thì thắng". Hai máy sửa hai trường khác nhau của cùng một buổi thì một bên mất thay đổi. Cần lưu dấu thời gian theo từng trường — đắt, và chỉ đáng làm khi thật sự có hai người dùng chung. |
+| ~~Giải quyết xung đột ở mức TRƯỜNG~~ | Gộp ba bên với **bản gốc lưu ở máy** (`db.version(4)`, `syncBase`) thay vì dấu thời gian theo từng trường — không đổi lược đồ mây, không đường ghi nào phải nhớ đóng dấu. Chưa có bản gốc thì lùi về luật cũ. Xem "Gộp xung đột theo từng trường". |
 | ~~`clientName` thành thực thể có `id`~~ | Xong ở Phase 3 bằng `db.version(3)`. `Payment` neo vào `clientId` nên đổi tên không còn làm mồ côi khoản thu nào. Xem mục "`db.version(3)`". |
 | ~~Nhắc lịch khi đã đóng app~~ | Web Push với `reminder_queue` (client nạp `fire_at` instant UTC Z, Edge Function quét gửi theo cron 5m). Xem mục "Nhắc lịch và Web Push". |
 
