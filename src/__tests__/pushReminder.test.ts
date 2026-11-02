@@ -377,6 +377,18 @@ describe('processDueReminders — chẩn đoán được khi hỏng', () => {
   });
 });
 
+describe('processDueReminders — che endpoint không làm hỏng log', () => {
+  // `''.split('')` tách theo TỪNG KÝ TỰ: che một endpoint rỗng bằng phép thay
+  // chuỗi sẽ chèn "<endpoint>" vào giữa mọi chữ của thông điệp lỗi.
+  it('endpoint rỗng: thông điệp lỗi giữ nguyên', async () => {
+    const io = fakeIo({ s1: pushError(400) });
+
+    await processDueReminders([reminder()], [{ ...sub('s1'), endpoint: '' }], io.deps);
+
+    expect(io.logs[0].detail.message).toBe('Received unexpected response code');
+  });
+});
+
 describe('configureVapid', () => {
   it('thiếu khóa: báo đúng câu mà ACCEPTANCE A4 tra cứu', () => {
     expect(configureVapid(() => undefined, 'mailto:a@b.c', '', 'k')).toBe('VAPID keys not configured');

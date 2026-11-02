@@ -208,7 +208,9 @@ const MAX_LOGGED_TEXT = 300;
  * thể chứa nguyên URL, nên che bằng phép thay chuỗi chứ không tin vào định dạng.
  */
 function describeError(err: unknown, endpoint: string): { message: string; body?: string } {
-  const redact = (text: string) => text.split(endpoint).join('<endpoint>').slice(0, MAX_LOGGED_TEXT);
+  // `split('')` tách theo từng ký tự: endpoint rỗng thì không có gì để che.
+  const redact = (text: string) =>
+    (endpoint ? text.split(endpoint).join('<endpoint>') : text).slice(0, MAX_LOGGED_TEXT);
   const message = redact(err instanceof Error ? err.message : String(err));
   const body = (err as { body?: unknown } | null)?.body;
   return typeof body === 'string' && body ? { message, body: redact(body) } : { message };
