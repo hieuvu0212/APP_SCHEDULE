@@ -105,6 +105,11 @@ serve(async (req) => {
         title: reminder.title,
         body: reminder.body,
         url: reminder.url || './#/week',
+        // `reminder_queue.id` chính là `Occurrence.key`, cũng là `tag` mà nhắc lịch
+        // trong trang (`useReminders`) đặt. Có cùng tag thì thông báo đẩy THAY
+        // thông báo trong trang thay vì xếp chồng khi app đang mở. `sw.js` đọc
+        // trường này; payload cũ không có thì nó không đặt tag.
+        tag: reminder.id,
       };
 
       for (const sub of subs) {

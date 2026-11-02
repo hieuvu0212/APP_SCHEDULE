@@ -94,6 +94,12 @@ self.addEventListener('push', (event) => {
     body: data.body,
     icon: './icon-192.png',
     badge: './icon-192.png',
+    // Cùng `tag` với nhắc lịch trong trang (`useReminders` đặt `tag: r.key`,
+    // Edge Function gửi `reminder_queue.id` = `Occurrence.key`). Khi app đang mở
+    // cả hai tầng cùng bắn cho một buổi; trùng tag thì cái sau THAY cái trước
+    // thay vì xếp chồng. Không bịa tag mặc định khi payload thiếu: hai buổi khác
+    // nhau mà chung tag sẽ thay thế nhau và một lời nhắc biến mất.
+    tag: data.tag,
     data: { url: data.url || './' },
   };
 

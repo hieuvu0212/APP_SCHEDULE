@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  public/sw.js — bấm vào thông báo
+//  public/sw.js — bấm thông báo và nhận thông báo đẩy
 //
 //  Service worker là file JS thuần nằm ngoài `src/`, không đi qua bundler, và
 //  chạy trong một ngữ cảnh riêng (`self`, `clients`, `registration`) mà Vitest
@@ -15,6 +15,9 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import swSource from '../../public/sw.js?raw';
+// Edge Function là Deno, nằm ngoài sáu cổng và ngoài Vitest: không chạy được ở đây,
+// chỉ đọc được mã nguồn. Xem bài "hợp đồng payload" cuối file.
+import edgeFunctionSource from '../../supabase/functions/push-reminder/index.ts?raw';
 
 // Scope giống bản deploy thật trên GitHub Pages: app nằm trong thư mục con.
 const SCOPE = 'https://hieuvu0212.github.io/APP_SCHEDULE/';
@@ -37,10 +40,16 @@ function windowClient(url: string): FakeWindowClient {
 
 type Handler = (event: Record<string, unknown>) => void;
 
+interface ShownOptions {
+  body: string;
+  tag?: string;
+  data: { url: string };
+}
+
 /** Nạp sw.js vào một `self` giả và trả về cách bắn sự kiện vào nó */
 function loadServiceWorker(windowClients: FakeWindowClient[] = []) {
   const handlers = new Map<string, Handler>();
-  const showNotification = vi.fn(async () => undefined);
+  const showNotification = vi.fn(async (_title: string, _options: ShownOptions) => undefined);
   const openWindow = vi.fn(async () => null);
   const fakeClients = {
     claim: vi.fn(async () => undefined),
@@ -169,5 +178,60 @@ describe('notificationclick', () => {
     await sw.dispatch('notificationclick', click());
 
     expect(sw.openWindow).toHaveBeenCalledWith(SCOPE);
+  });
+});
+
+describe('push', () => {
+  // Lỗi gốc: tầng 1 (`useReminders`) gắn `tag: Occurrence.key`, còn thông báo
+  // đẩy không có tag, nên với app đang mở hai thông báo của cùng một buổi xếp
+  // chồng nhau. Có tag trùng thì cái sau thay cái trước.
+  it('chuyển tag của payload vào showNotification để thay thế thông báo tầng 1', async () => {
+    const sw = loadServiceWorker();
+    const payload = {
+      title: 'Toán lớp 9',
+      body: 'Bắt đầu lúc 18:00, còn 15 phút nữa.',
+      url: './#/week',
+      tag: 'rule:abc:2026-11-03',
+    };
+
+    await sw.dispatch('push', { data: { json: () => payload } });
+
+    expect(sw.showNotification).toHaveBeenCalledTimes(1);
+    const [title, options] = sw.showNotification.mock.calls[0];
+    expect(title).toBe('Toán lớp 9');
+    expect(options.tag).toBe('rule:abc:2026-11-03');
+    expect(options.body).toBe(payload.body);
+    expect(options.data.url).toBe('./#/week');
+  });
+
+  // Payload của hàng đã nằm sẵn trên hàng đợi trước khi Edge Function biết gửi
+  // tag. Bịa ra một tag mặc định (ví dụ chuỗi rỗng đã chuẩn hóa, hay tiêu đề)
+  // sẽ làm HAI buổi khác nhau thay thế nhau.
+  it('payload không có tag thì không bịa tag', async () => {
+    const sw = loadServiceWorker();
+
+    await sw.dispatch('push', { data: { json: () => ({ title: 'A', body: 'B' }) } });
+
+    const options = sw.showNotification.mock.calls[0][1];
+    expect(options.tag).toBeUndefined();
+  });
+
+  it('push không có dữ liệu: không hiện gì', async () => {
+    const sw = loadServiceWorker();
+
+    await sw.dispatch('push', { data: null });
+
+    expect(sw.showNotification).not.toHaveBeenCalled();
+  });
+});
+
+// `tag` là một sợi dây giữa HAI file không ai nối với nhau: Edge Function (Deno)
+// gửi, sw.js nhận. Bài `push` ở trên chứng minh phía nhận; không có gì chứng minh
+// phía gửi, nên xóa dòng `tag` khỏi Edge Function thì `verify` vẫn xanh và hai
+// tầng lại xếp chồng thông báo. Đây là phép đọc mã nguồn, không phải chạy hàm —
+// thô, nhưng là chỗ duy nhất một cổng chặn nhìn thấy được dòng đó.
+describe('hợp đồng payload với Edge Function', () => {
+  it('Edge Function đưa reminder.id vào payload làm tag', () => {
+    expect(edgeFunctionSource).toMatch(/\btag:\s*reminder\.id\b/);
   });
 });
