@@ -41,12 +41,13 @@ export async function syncReminderQueue(): Promise<void> {
 
     // Nếu người dùng tắt nhắc lịch, rút lại toàn bộ hàng chưa gửi trên mây
     if (!settings.remindersEnabled) {
-      await supabase
+      const { error: disableError } = await supabase
         .from('reminder_queue')
         .update({ deleted_at: new Date().toISOString() })
         .eq('user_id', user.id)
         .is('sent_at', null)
         .is('deleted_at', null);
+      if (disableError) console.error('Failed to withdraw reminder_queue rows:', disableError);
       return;
     }
 
@@ -99,9 +100,13 @@ export async function syncReminderQueue(): Promise<void> {
         .from('reminder_queue')
         .upsert(rows, { onConflict: 'user_id,id' });
 
+      // ⚠️ KHÔNG `return` ở đây. Bước 2 bên dưới là bước AN TOÀN: nó ngăn thông
+      // báo của một buổi đã hủy. Thoát sớm khi upsert lỗi thì một lần mạng chập
+      // chờn đúng lúc người dùng hủy buổi sẽ để hàng cũ nằm nguyên trên mây, và
+      // cron vẫn bắn nó. Đẩy hàng mới hỏng chỉ làm lỡ một lời nhắc; rút lại hỏng
+      // thì nhắc một buổi không còn tồn tại — nên bước sau phải chạy bất kể.
       if (upsertError) {
         console.error('Failed to upsert reminder_queue:', upsertError);
-        return;
       }
     }
 
@@ -120,11 +125,17 @@ export async function syncReminderQueue(): Promise<void> {
         .map((row) => row.id);
 
       if (toSoftDelete.length > 0) {
-        await supabase
+        const { error: withdrawError } = await supabase
           .from('reminder_queue')
           .update({ deleted_at: now })
           .eq('user_id', user.id)
+          // Cron có thể vừa gửi hàng này giữa lúc ta đọc và ghi; đã gửi thì là
+          // lịch sử, không rút.
+          .is('sent_at', null)
           .in('id', toSoftDelete);
+        // Hàng chưa rút vẫn nằm trong `existing` của lần nạp sau, nên lần sau
+        // tự thử lại — nhưng phải kêu lên, không nuốt im.
+        if (withdrawError) console.error('Failed to withdraw reminder_queue rows:', withdrawError);
       }
     }
   } catch (e) {
