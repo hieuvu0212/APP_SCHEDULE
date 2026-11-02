@@ -427,6 +427,9 @@ CREATE TABLE IF NOT EXISTS public.reminder_queue (
   id          text NOT NULL,
 
   fire_at     text NOT NULL,
+  -- Giờ vào buổi, ISO UTC Z. Hạn chót của lời nhắc: Edge Function không gửi,
+  -- không thử lại sau mốc này. Có thể NULL: hàng do bản app cũ nạp không có.
+  start_at    text,
   title       text NOT NULL,
   body        text NOT NULL,
   url         text,
@@ -446,6 +449,13 @@ CREATE TABLE IF NOT EXISTS public.reminder_queue (
 -- ALTER dưới đây vá những bảng đó, và chạy lại bao nhiêu lần cũng an toàn.
 ALTER TABLE public.push_subscriptions
   ALTER COLUMN created_at SET DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'));
+-- `start_at` thêm sau khi bảng đã có thể được dựng; `CREATE TABLE IF NOT
+-- EXISTS` không thêm cột vào bảng cũ. Thiếu cột này thì upsert của client vỡ
+-- (PGRST204) và Edge Function không SELECT được — nên phải dán lại file này
+-- TRƯỚC khi deploy hàm.
+ALTER TABLE public.reminder_queue
+  ADD COLUMN IF NOT EXISTS start_at text;
+
 ALTER TABLE public.reminder_queue
   ALTER COLUMN created_at SET DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'));
 

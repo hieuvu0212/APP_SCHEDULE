@@ -1026,6 +1026,7 @@ CREATE TABLE IF NOT EXISTS public.reminder_queue (
   id          text NOT NULL,          -- = Occurrence.key, tất định
 
   fire_at     text NOT NULL,          -- ISO 8601 UTC, LUÔN kết thúc bằng Z
+  start_at    text,                   -- giờ vào buổi, ISO UTC Z — hạn chót, xem mục 4
   title       text NOT NULL,          -- đã dịch sẵn ở client
   body        text NOT NULL,
   url         text,
@@ -1059,6 +1060,7 @@ Cộng `ALTER TABLE … ENABLE ROW LEVEL SECURITY` và policy `own_reminder_queu
 export interface QueuedReminder {
   id: string;      // = Occurrence.key — tất định, nạp lại chỉ đè lên chính nó
   fireAt: string;  // ISO 8601 UTC, kết thúc bằng Z
+  startAt: string; // giờ vào buổi, ISO 8601 UTC Z — hạn chót của lời nhắc
   startTime: string;
   title: string;
   minutesUntilStart: number;
@@ -1077,6 +1079,7 @@ Quy tắc:
 - Chỉ `status === 'SCHEDULED'`. Hủy, vắng mặt, đã hoàn thành đều loại — cùng ba lý do đã ghi ở `core/reminder.ts`.
 - Loại buổi đã qua (`startAbs <= now`) và buổi xa hơn `horizonDays`.
 - `fireAt = new Date(Math.max(nowMs, o.startAbs - leadMinutes * 60_000)).toISOString()`. Phép `Math.max` là bắt buộc: buổi cách hiện tại *ít hơn* `leadMinutes` phải bắn ngay, không phải mang một `fire_at` nằm trong quá khứ.
+- `startAt = new Date(o.startAbs).toISOString()` — **không** suy từ `fireAt`. Máy chủ cần giờ vào buổi để không gửi và không thử lại sau giờ đó (mục 4), mà nó không suy ra được: `fireAt` bằng giờ vào buổi trừ `leadMinutes`, `leadMinutes` chỉ client biết, và buổi sát giờ thì `fireAt` còn bị kẹp về `now`. Cột `start_at` thêm sau, nên bảng cũ cần câu `ADD COLUMN IF NOT EXISTS` trong `supabase_schema.sql` — **dán lại file schema trước khi deploy hàm**, thiếu cột thì upsert của client vỡ và hàm không `SELECT` được.
 - `id = o.key`, **không phải `newId()`**. Nạp lại hàng đợi năm lần trong một phiên phải cho ra đúng năm lần upsert đè lên cùng một hàng, không phải năm hàng và năm thông báo trùng.
 
 Ở đây `startAbs` **là** mốc đúng, vì hàm này chạy trên máy của người dùng — đúng cái máy mà "18:00" nghĩa là 18:00. Đó là toàn bộ lý do phép quy đổi nằm ở client chứ không ở Edge Function.
