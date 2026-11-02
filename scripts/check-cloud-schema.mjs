@@ -122,6 +122,62 @@ sql.split('\n').forEach((line, i) => {
   }
 });
 
+// ─── GRANT tường minh cho Data API ──────────────────────────────────────────
+//
+// Từ 30/10/2026 Supabase không còn tự cấp quyền Data API cho bảng mới ở schema
+// `public`. Bảng thiếu GRANT vẫn tạo được và so khớp cột vẫn xanh — chỉ đến khi
+// supabase-js gọi mới nhận `permission denied`, và ở dự án mới / preview branch
+// / `supabase db reset` thì ngay lần đồng bộ đầu tiên. Cổng này bịt khoảng mù đó.
+//
+// Bỏ chú thích `--` rồi mới tìm, để dòng GRANT đã tắt không được tính. Câu lệnh
+// có thể xuống dòng nên gom theo dấu `;`.
+//
+// Tách dòng theo `\r?\n`, KHÔNG phải `\n`: checkout trên Windows cho CRLF, mà
+// `.` trong JS không khớp `\r` nên `--.*$` bỏ sót mọi dòng chú thích — GRANT đã
+// tắt vẫn bị tính là còn hiệu lực, và cổng xanh trong khi bảng thiếu quyền.
+const GRANT_ROLES = ['authenticated', 'service_role'];
+const GRANT_PRIVS = ['select', 'insert', 'update', 'delete'];
+
+function parseGrants(source) {
+  const code = source
+    .split(/\r?\n/)
+    .map((l) => l.replace(/--.*$/, ''))
+    .join('\n');
+  /** table → role → Set(quyền) */
+  const grants = new Map();
+  const re = /GRANT\s+([^;]+?)\s+ON\s+(?:TABLE\s+)?([^;]+?)\s+TO\s+([^;]+?)\s*;/gi;
+  for (const m of code.matchAll(re)) {
+    const privs = m[1].split(',').map((p) => p.trim().toLowerCase());
+    const expanded = privs.includes('all') || privs.includes('all privileges') ? GRANT_PRIVS : privs;
+    const roles = m[3].split(',').map((r) => r.trim().toLowerCase());
+    for (const target of m[2].split(',')) {
+      const table = target.trim().replace(/^public\./i, '').toLowerCase();
+      const byRole = grants.get(table) ?? new Map();
+      for (const role of roles) {
+        const set = byRole.get(role) ?? new Set();
+        for (const p of expanded) set.add(p);
+        byRole.set(role, set);
+      }
+      grants.set(table, byRole);
+    }
+  }
+  return grants;
+}
+
+const grants = parseGrants(sql);
+for (const table of Object.keys(TABLE_TO_INTERFACE)) {
+  for (const role of GRANT_ROLES) {
+    const have = grants.get(table)?.get(role) ?? new Set();
+    const missing = GRANT_PRIVS.filter((p) => !have.has(p));
+    if (missing.length > 0) {
+      errors.push(
+        `${table}: thiếu GRANT ${missing.join(', ').toUpperCase()} cho \`${role}\` — Data API sẽ trả permission denied ` +
+          `(thêm: GRANT SELECT, INSERT, UPDATE, DELETE ON public.${table} TO authenticated, service_role;)`,
+      );
+    }
+  }
+}
+
 for (const [table, iface] of Object.entries(TABLE_TO_INTERFACE)) {
   const own = fieldsOf(types, iface);
   if (!own) {

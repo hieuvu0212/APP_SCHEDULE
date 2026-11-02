@@ -472,6 +472,36 @@ CREATE INDEX IF NOT EXISTS payments_sync_idx             ON public.payments     
 CREATE INDEX IF NOT EXISTS push_subscriptions_sync_idx   ON public.push_subscriptions   (user_id, updated_at);
 
 
+-- ─── Quyền truy cập Data API (GRANT) ───────────────────────────────────────
+--
+-- Từ 30/10/2026 Supabase thôi tự cấp quyền Data API cho bảng MỚI ở schema
+-- `public`. Thiếu GRANT thì supabase-js / PostgREST trả `permission denied`,
+-- kể cả với dự án mới, preview branch và `supabase db reset` — tức là mọi nơi
+-- dựng lại lược đồ từ file này. Bảng đã tồn tại giữ nguyên quyền cũ, nhưng
+-- GRANT chạy lại an toàn nên cứ viết đủ, đừng phân biệt bảng cũ/mới.
+--
+-- Bảng nào thêm vào file này thì thêm một dòng GRANT ở đây trong CÙNG lần thay
+-- đổi. `npm run check:cloud` canh việc đó.
+--
+-- Chỉ cấp cho `authenticated` và `service_role`, KHÔNG cấp cho `anon`: đây là
+-- dữ liệu riêng theo `user_id`, `anon` không có `auth.uid()` nên RLS bên dưới
+-- sẽ chặn mọi hàng; cấp quyền chỉ để rồi bị chặn là thêm bề mặt mà không được
+-- gì. `service_role` cần cho Edge Function `push-reminder` (nó bỏ qua RLS
+-- nhưng vẫn cần GRANT).
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.clients              TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.categories           TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.rules                TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.exceptions           TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.events               TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.salary_rules         TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.adjustments          TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.adjustment_templates TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.payments             TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.push_subscriptions   TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.reminder_queue       TO authenticated, service_role;
+
+
 -- ─── Row Level Security ────────────────────────────────────────────────────
 --
 -- `WITH CHECK` viết TƯỜNG MINH dù Postgres mặc định lấy lại biểu thức USING

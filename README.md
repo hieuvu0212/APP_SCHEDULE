@@ -266,7 +266,7 @@ Một tính năng chỉ được coi là xong khi **cả mười một dòng** d
 | 6 | Không dò lỗi bằng nội dung chuỗi | `status.includes('Lỗi')` hỏng ngay khi đổi ngôn ngữ |
 | 7 | Thiếu cấu hình là **trạng thái**, không phải ngoại lệ | Ném ở cấp module làm trắng cả màn hình |
 | 8 | Thao tác ghi có đường **hoàn tác**, hoặc hộp thoại nói rõ là không có | Quy ước có từ Phase 0 |
-| 9 | Bảng mới thì thêm vào `BACKUP_TABLES` **và** `supabase_schema.sql` | Thiếu chỗ nào thì dữ liệu bốc hơi ở chỗ đó. Hai ngoại lệ, cùng một lý do — **dẫn xuất được** từ dữ liệu đã có nên sao lưu chúng là sao lưu một cái bóng: bảng **chỉ sống trên mây** (`push_subscriptions`, `reminder_queue`) chỉ vào SQL; bảng **chỉ sống ở máy** mô tả quan hệ của máy đó với đám mây (`syncBase`) không vào chỗ nào — xem "Gộp xung đột theo từng trường" |
+| 9 | Bảng mới thì thêm vào `BACKUP_TABLES` **và** `supabase_schema.sql` — kèm `GRANT` tường minh ở đó: từ 30/10/2026 Supabase không còn tự cấp quyền Data API cho bảng mới ở `public`, thiếu thì supabase-js nhận `permission denied` (`check:cloud` canh) | Thiếu chỗ nào thì dữ liệu bốc hơi ở chỗ đó. Hai ngoại lệ, cùng một lý do — **dẫn xuất được** từ dữ liệu đã có nên sao lưu chúng là sao lưu một cái bóng: bảng **chỉ sống trên mây** (`push_subscriptions`, `reminder_queue`) chỉ vào SQL; bảng **chỉ sống ở máy** mô tả quan hệ của máy đó với đám mây (`syncBase`) không vào chỗ nào — xem "Gộp xung đột theo từng trường" |
 | 10 | Chú thích giải thích **vì sao**, không phải **cái gì** | Mã đã nói cái gì rồi |
 | 11 | README cập nhật **trong cùng lần thay đổi** | Xem bên dưới |
 
@@ -313,7 +313,7 @@ Cổng chặn chỉ hữu ích khi bạn biết nó **không** nhìn thấy gì.
 | Cổng | Thấy được | **Không** thấy được |
 |---|---|---|
 | `check:core` | Import React/Dexie trong `core/` | Mọi thứ khác |
-| `check:cloud` | Lệch cột giữa SQL và TypeScript; `DROP TABLE`/`TRUNCATE` không nằm trong chú thích | Lệch **kiểu** cột, ràng buộc, RLS |
+| `check:cloud` | Lệch cột giữa SQL và TypeScript; `DROP TABLE`/`TRUNCATE` không nằm trong chú thích; bảng thiếu `GRANT` tường minh cho `authenticated`/`service_role` | Lệch **kiểu** cột, ràng buộc, nội dung policy RLS; việc GRANT có thật sự được áp trên Supabase |
 | `check:i18n` | Khóa thiếu, chuỗi dự phòng inline | Khóa dựng động — nhưng xem ghi chú dưới bảng |
 | `lint` | Mã chết, biến thừa, vi phạm Fast Refresh | Tính đúng đắn |
 | `test` | Hành vi có bài test | Hành vi **không** có bài test |
