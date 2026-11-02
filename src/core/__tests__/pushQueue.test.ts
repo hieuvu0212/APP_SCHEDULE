@@ -67,6 +67,19 @@ describe('planReminderQueue', () => {
     expect(r.fireAt).toBe(new Date(2026, 8, 2, 17, 30).toISOString());
   });
 
+  // `startAt` là hạn chót mà Edge Function dùng để không bắn — và không thử lại —
+  // sau giờ vào buổi. Lấy nhầm `fireAt` (đã kẹp về `now`) thì buổi cách 5 phút
+  // mang hạn chót = lúc nạp, và lần gửi đầu tiên đã bị coi là quá hạn.
+  it('startAt là instant UTC của giờ vào buổi, không phải fireAt', () => {
+    const now = new Date(2026, 7, 30, 17, 55);
+    const occ = makeOccurrence({ startAbs: new Date(2026, 7, 30, 18, 0).getTime() });
+
+    const [r] = planReminderQueue([occ], 30, now);
+    expect(r.startAt).toMatch(/Z$/);
+    expect(r.startAt).toBe(new Date(2026, 7, 30, 18, 0).toISOString());
+    expect(r.startAt).not.toBe(r.fireAt);
+  });
+
   // Test 3: Buổi đã qua / ngoài horizon không vào hàng đợi
   it('buổi đã qua hoặc ngoài horizonDays bị loại bỏ', () => {
     const now = new Date(2026, 7, 30, 10, 0);

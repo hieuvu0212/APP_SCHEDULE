@@ -167,6 +167,7 @@ export async function syncReminderQueue(): Promise<void> {
         user_id: user.id,
         id: r.id,
         fire_at: r.fireAt,
+        start_at: r.startAt,
         title: r.title,
         body: i18n.t('reminder.body', {
           // Đếm từ lúc BẮN, không phải lúc nạp — xem `minutesBeforeStart`.

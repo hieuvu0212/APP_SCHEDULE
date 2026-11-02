@@ -21,6 +21,16 @@ export interface QueuedReminder {
   id: string;
   /** ISO 8601 UTC, LUÔN kết thúc bằng Z */
   fireAt: string;
+  /**
+   * Giờ vào buổi, ISO 8601 UTC kết thúc bằng Z.
+   *
+   * Edge Function cần nó để biết lúc nào một lời nhắc hết giá trị: gửi lỗi tạm
+   * thời thì nó thử lại ở lượt cron sau, nhưng KHÔNG được thử lại sau giờ vào
+   * buổi. Chỉ có `fireAt` thì máy chủ không biết giờ đó — `fireAt` bằng giờ vào
+   * buổi trừ `leadMinutes`, mà `leadMinutes` chỉ client biết, và với buổi sát giờ
+   * thì `fireAt` còn bị kẹp về `now`.
+   */
+  startAt: string;
   startTime: string;
   title: string;
   /**
@@ -65,6 +75,7 @@ export function planReminderQueue(
       return {
         id: o.key,
         fireAt: new Date(fireMs).toISOString(),
+        startAt: new Date(o.startAbs).toISOString(),
         startTime: o.startTime,
         title: o.title,
         // Đếm từ `fireMs`, KHÔNG từ `nowMs`. Xem chú thích của trường này.

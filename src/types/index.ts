@@ -47,6 +47,13 @@ export interface PushSubscriptionRecord extends BaseEntity {
 
 export interface ReminderQueueRecord extends BaseEntity {
   fireAt: string;
+  /**
+   * Giờ vào buổi, ISO 8601 UTC Z. Hạn chót của lời nhắc: Edge Function không
+   * gửi, không thử lại sau mốc này. Không bắt buộc vì hàng do bản app cũ nạp
+   * (trước khi có cột) không mang nó — khi đó máy chủ dùng hạn chót ước lượng
+   * theo `fireAt`.
+   */
+  startAt?: string;
   title: string;
   body: string;
   url?: string;

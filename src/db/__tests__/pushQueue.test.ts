@@ -158,6 +158,19 @@ describe('syncReminderQueue — nạp hàng đợi', () => {
     expect(new Date(row.fire_at as string).getTime()).toBe(toAbsolute('2026-08-30', '18:00') - 30 * 60_000);
   });
 
+  // Edge Function chỉ biết giờ vào buổi qua cột này. Thiếu nó thì máy chủ không
+  // phân biệt được "gửi lại vẫn kịp" với "buổi đã bắt đầu", và phải rơi về hạn
+  // chót ước lượng theo `fire_at`.
+  it('start_at là INSTANT UTC của giờ vào buổi', async () => {
+    await createEvent(single());
+
+    await syncReminderQueue();
+
+    const [row] = cloud.live();
+    expect(row.start_at).toMatch(/Z$/);
+    expect(new Date(row.start_at as string).getTime()).toBe(toAbsolute('2026-08-30', '18:00'));
+  });
+
   it('nạp lại nhiều lần không đẻ thêm hàng và không đè mất created_at', async () => {
     await createEvent(single());
 

@@ -46,13 +46,14 @@ Tiêu đề và ghi chú là **dữ liệu người dùng**, không đi qua i18n
 ### Next Tasks
 1. **Nghiệm thu Web Push trên máy thật** — bốn điều ở ["Định nghĩa xong cho tính năng này"](#định-nghĩa-xong-cho-tính-năng-này), điều 1–3 chưa làm. Cần trước đó: dán lại `supabase_schema.sql`, đặt `VITE_VAPID_PUBLIC_KEY` ở GitHub Variables, `supabase secrets set …`, `supabase functions deploy push-reminder`, chạy `cron.schedule` ([Triển khai để nghiệm thu](#triển-khai-để-nghiệm-thu)).
 2. **Chỉ sau khi nghiệm thu** mới sửa `reminder.limitation` ở `vi`/`en`/`zh` — câu hiện tại vẫn đang đúng, và câu mới phải nói cả giới hạn `HORIZON_DAYS`.
-3. **Quyết định còn mở** — Edge Function đánh `sent_at` cả khi gửi thất bại tạm thời (xem Known Issues): thử lại hay chấp nhận mất lời nhắc.
+3. ~~Quyết định còn mở: `sent_at` khi gửi thất bại tạm thời~~ — đã chọn **thử lại trong hạn chót** (`start_at` + `MAX_LATE_MS`), xem Known Issues và mục 4 của đặc tả. Còn chờ nghiệm thu trên máy thật như phần còn lại của Web Push.
 4. Dọn các nhánh đã gộp hết vào `main` (`test`, `feat/category-inference-push-fixes`, `claude/affectionate-beaver-506d4f` cùng worktree của nó; `backup/main-pre-phase3` giữ hay bỏ tùy bạn). Chưa xóa nhánh nào.
 
 ### Known Issues
 - *(Đã sửa trong mã, chờ xác nhận trên máy thật — ACCEPTANCE B3 lần 2)* **Hủy buổi rồi đóng app ngay thì thông báo của buổi đó vẫn bắn.** Hàng đợi chỉ được rút lại trong `syncReminderQueue()`, mà hàm đó chỉ chạy sau `syncWithCloud()`, và `syncWithCloud()` cố ý không chạy khi dữ liệu cục bộ đổi (`core/autoSync.ts`). Giờ `watchReminderQueue()` (gắn ở `SyncProvider`) gọi `syncReminderQueue()` có debounce 3 giây sau mỗi lần lịch hoặc cài đặt nhắc đổi. Điều cấm ở `autoSync.ts` không áp dụng vì `syncReminderQueue()` chỉ đọc Dexie và ghi lên mây, không có cạnh quay về nên không dựng lại vòng lặp. Có test (`db/__tests__/pushQueue.test.ts`, đã tái tạo từng lỗi để thấy đỏ). Còn một khoảng hở nhỏ không sửa được ở client: tắt máy/đóng app trong **3 giây** đầu sau khi hủy.
-- **Edge Function đánh `sent_at` cả khi mọi lần gửi thất bại tạm thời** (HTTP 429/5xx, lỗi mạng): lời nhắc đó mất, cron không thử lại. *(Đọc mã.)* Chưa sửa vì cách sửa kéo theo một quyết định: thử lại thì có thể bắn "còn 30 phút" cho buổi đã bắt đầu, mà hàng đợi chỉ giữ `fire_at` chứ không giữ giờ vào buổi.
-- Bấm vào thông báo chỉ chuyển sang tab đang mở khi tab đó đang ở `#/week`: `public/sw.js` so cả đoạn `#…` của URL, nên ở màn hình khác nó mở thêm một cửa sổ. Lúc app đang mở, nhắc lịch trong trang (tầng 1) và Web Push (tầng 2) cũng có thể cùng hiện, vì thông báo đẩy không mang `tag`.
+- *(Đã sửa trong mã, chờ xác nhận trên máy thật)* **Edge Function đánh `sent_at` cả khi mọi lần gửi thất bại tạm thời** (HTTP 429/5xx, lỗi mạng), nên lời nhắc đó mất. Không sửa được bằng hàng đợi cũ: thử lại có thể bắn "còn 30 phút" cho buổi đã bắt đầu, mà hàng đợi chỉ giữ `fire_at`. Giờ client nạp thêm `start_at` (giờ vào buổi), và `process.ts` để nguyên hàng cho lượt cron sau khi **không thiết bị nào nhận được và có lỗi tạm thời**, miễn là chưa qua hạn chót = `min(start_at, fire_at + 10 phút)`. Mốc 10 phút có vì câu "còn N phút" đã dịch sẵn ở client. Cùng lần đó: TTL = số giây tới hạn chót (web-push mặc định 4 tuần, nên máy tắt lúc bắn thì nhận lời nhắc vài ngày sau), `urgency: 'high'`, `timeout` 10 giây, và ngân sách 100 giây mỗi lượt để hai lượt cron không chồng nhau và gửi trùng. Có test (`src/__tests__/pushReminder.test.ts`, 15 đột biến đều bắt được). **Đánh đổi đã chọn:** gửi được tới một thiết bị mà thiết bị kia lỗi tạm thời thì coi là xong (thiết bị kia lỡ lời nhắc) — gửi lại cả hàng thì thiết bị đã nhận nhận hai lần, còn theo dõi từng thiết bị cần thêm một bảng.
+- *(Đã sửa trong mã, chờ xác nhận trên máy thật — B1.7 chỉ thử khi app đã đóng, chưa có bước nào cho tab đang mở ở màn hình khác)* **Bấm vào thông báo ở màn hình khác ngoài Tuần thì mở thêm một cửa sổ.** `public/sw.js` từng so cả đoạn `#…` của URL (`client.url === targetUrl`), nên chỉ tab đang ở `#/week` được dùng lại. Giờ nó tìm cửa sổ cùng origin và nằm trong scope của app (bỏ qua hash), `focus()` rồi `navigate()` tới URL đích; chỉ `openWindow` khi không có cửa sổ nào. Có test (`src/__tests__/serviceWorker.test.ts`, đã gỡ từng điều kiện để thấy đỏ). Còn một điều chưa kiểm chứng được bằng máy: `WindowClient.navigate()` bị từ chối với tab chưa do service worker kiểm soát — khi đó tab chỉ được đưa lên chứ không đổi màn hình.
+- *(Đã sửa trong mã, chờ xác nhận trên máy thật)* **Lúc app đang mở, nhắc lịch trong trang (tầng 1) và Web Push (tầng 2) cùng hiện cho một buổi.** Tầng 1 đặt `tag: Occurrence.key` còn thông báo đẩy không mang `tag`. Giờ Edge Function đưa `tag: reminder.id` (= `Occurrence.key`) vào payload và `push` handler trong `public/sw.js` truyền nó vào `showNotification`, nên cái sau thay cái trước. Có test cho phía `sw.js`; phía Edge Function (Deno) không chạy được trong Vitest nên chỉ có một bài đọc mã nguồn xác nhận dòng `tag: reminder.id` còn đó — nó không chứng minh hàm chạy đúng. **Chưa kiểm chứng:** việc trình duyệt có thật sự thay thông báo `new Notification()` của trang bằng thông báo `showNotification()` của service worker khi trùng tag hay không. Theo spec thì có thể (thông báo xếp vào một danh sách theo origin), nhưng đây là điều chưa ai thấy ở đây và các trình duyệt cài đặt không đồng đều; Chrome trên Android thì không cho trang gọi `new Notification()` nên ở đó chỉ còn tầng 2 và vốn không trùng.
 - *(Đã đóng)* Lỗi "tên TRỘN Hán–Latin trùng id" (`小明 minh` / `大明 minh` cùng ra `client--minh`, người thứ hai nhận `newId()` ngẫu nhiên mỗi lần gõ) đã sửa **mà không đổi hàm sinh id chính**: nhánh trùng giờ dùng `collisionClientId()` tất định, và tìm theo tên trước để vẫn trỏ về bản ghi cũ từng mang id ngẫu nhiên. Những bản đã lỡ nhân đôi từ trước vẫn dọn bằng **Gộp đối tượng trùng** ở Cài đặt.
 
 ### Security Status
@@ -317,7 +318,7 @@ Cổng chặn chỉ hữu ích khi bạn biết nó **không** nhìn thấy gì.
 | `check:i18n` | Khóa thiếu, chuỗi dự phòng inline | Khóa dựng động — nhưng xem ghi chú dưới bảng |
 | `lint` | Mã chết, biến thừa, vi phạm Fast Refresh | Tính đúng đắn |
 | `test` | Hành vi có bài test | Hành vi **không** có bài test |
-| `typecheck` | Sai kiểu trong `.ts`/`.tsx` **dưới `src/`** | File `.sql`, `.json`, `.yml` — TypeScript không đọc chúng. Và `supabase/functions/` — xem ngay dưới |
+| `typecheck` | Sai kiểu trong `.ts`/`.tsx` **dưới `src/`** | File `.sql`, `.json`, `.yml` — TypeScript không đọc chúng. Và `supabase/functions/`, trừ `process.ts` — xem ngay dưới |
 
 Dòng cuối là dòng đắt giá nhất. Ba trong bốn lỗi P0/P1 của Phase 2 nằm ngoài file TypeScript:
 
@@ -327,11 +328,13 @@ Dòng cuối là dòng đắt giá nhất. Ba trong bốn lỗi P0/P1 của Phas
 
 #### `supabase/functions/` nằm ngoài TẤT CẢ sáu cổng
 
-`tsconfig.app.json` khai `"include": ["src"]`. Nên `tsc -b` **chưa bao giờ đọc một dòng nào** trong `supabase/functions/`, và nó không thể đọc: mã ở đó chạy trên Deno, dùng `Deno.env` và import qua URL — cho TypeScript của ứng dụng nhìn vào chỉ tổ ra một trang lỗi không sửa được.
+`tsconfig.app.json` khai `"include": ["src"]`. Nên cho tới khi tách `process.ts` ra (xem cuối mục), `tsc -b` **chưa bao giờ đọc một dòng nào** trong `supabase/functions/`, và nó không thể đọc `index.ts`: mã ở đó chạy trên Deno, dùng `Deno.env` và import qua URL — cho TypeScript của ứng dụng nhìn vào chỉ tổ ra một trang lỗi không sửa được.
 
 `oxlint` có quét thư mục đó (không nằm trong `ignorePatterns`), nhưng oxlint không có thông tin kiểu, nên nó bắt được biến thừa chứ không bắt được `ev.start_time` so với một mốc sai múi giờ. Không bài test nào chạm tới. Kết quả: **`npm run verify` xanh trọn vẹn trong khi Edge Function so giờ UTC với giờ trôi nổi và không bao giờ bắn đúng lúc.**
 
 Đây là lý do đặc tả ở mục "Nhắc lịch và Web Push" bắt phần quyết định phải nằm ở `core/`, và để lại cho Edge Function đúng phần I/O không có gì để sai. Không phải vì như thế đẹp hơn — mà vì đó là cách duy nhất để một cổng chặn nào đó nhìn thấy nó.
+
+**Phần quyết định CÒN LẠI của Edge Function nằm ở `push-reminder/process.ts`** — gửi cho ai, lỗi nào thì xóa subscription, khi nào đánh `sent_at`. File đó là TypeScript thuần, **không import gì** (một import qua URL là Vitest hết nạp được, một `Deno.*` là `tsc` báo lỗi), nhận I/O qua tham số. `src/__tests__/pushReminder.test.ts` import nó, nên Vitest chạy nó thật và `tsc -b` kiểm kiểu nó — file được `src/` import thì nằm trong chương trình của `tsc` dù đứng ngoài `include`. `index.ts` chỉ còn nối dây: đọc env, hai câu truy vấn, gọi `web-push`. **Nó vẫn nằm ngoài sáu cổng** (chỉ có một bài đọc mã nguồn xác nhận nó gọi `processDueReminders`), nên đừng đặt quyết định nào vào đó.
 
 `check:i18n` chứng minh giá trị ngay trong lần chạy đầu tiên: nó tìm ra `print.bandLabel` — một khóa thiếu ở **cả ba** bộ ngôn ngữ từ Phase 1, khiến ô góc trên-trái của bảng lịch trong file PDF và PNG xuất ra in thẳng chuỗi thô `print.bandLabel`. Lỗi đó nằm trong sản phẩm nhiều tuần: nó không làm hỏng gì, không ném lỗi, chỉ hiện sai trên một tệp mà người dùng gửi cho người khác.
 
@@ -1025,6 +1028,7 @@ CREATE TABLE IF NOT EXISTS public.reminder_queue (
   id          text NOT NULL,          -- = Occurrence.key, tất định
 
   fire_at     text NOT NULL,          -- ISO 8601 UTC, LUÔN kết thúc bằng Z
+  start_at    text,                   -- giờ vào buổi, ISO UTC Z — hạn chót, xem mục 4
   title       text NOT NULL,          -- đã dịch sẵn ở client
   body        text NOT NULL,
   url         text,
@@ -1058,6 +1062,7 @@ Cộng `ALTER TABLE … ENABLE ROW LEVEL SECURITY` và policy `own_reminder_queu
 export interface QueuedReminder {
   id: string;      // = Occurrence.key — tất định, nạp lại chỉ đè lên chính nó
   fireAt: string;  // ISO 8601 UTC, kết thúc bằng Z
+  startAt: string; // giờ vào buổi, ISO 8601 UTC Z — hạn chót của lời nhắc
   startTime: string;
   title: string;
   minutesUntilStart: number;
@@ -1076,6 +1081,7 @@ Quy tắc:
 - Chỉ `status === 'SCHEDULED'`. Hủy, vắng mặt, đã hoàn thành đều loại — cùng ba lý do đã ghi ở `core/reminder.ts`.
 - Loại buổi đã qua (`startAbs <= now`) và buổi xa hơn `horizonDays`.
 - `fireAt = new Date(Math.max(nowMs, o.startAbs - leadMinutes * 60_000)).toISOString()`. Phép `Math.max` là bắt buộc: buổi cách hiện tại *ít hơn* `leadMinutes` phải bắn ngay, không phải mang một `fire_at` nằm trong quá khứ.
+- `startAt = new Date(o.startAbs).toISOString()` — **không** suy từ `fireAt`. Máy chủ cần giờ vào buổi để không gửi và không thử lại sau giờ đó (mục 4), mà nó không suy ra được: `fireAt` bằng giờ vào buổi trừ `leadMinutes`, `leadMinutes` chỉ client biết, và buổi sát giờ thì `fireAt` còn bị kẹp về `now`. Cột `start_at` thêm sau, nên bảng cũ cần câu `ADD COLUMN IF NOT EXISTS` trong `supabase_schema.sql` — **dán lại file schema trước khi deploy hàm**, thiếu cột thì upsert của client vỡ và hàm không `SELECT` được.
 - `id = o.key`, **không phải `newId()`**. Nạp lại hàng đợi năm lần trong một phiên phải cho ra đúng năm lần upsert đè lên cùng một hàng, không phải năm hàng và năm thông báo trùng.
 
 Ở đây `startAbs` **là** mốc đúng, vì hàm này chạy trên máy của người dùng — đúng cái máy mà "18:00" nghĩa là 18:00. Đó là toàn bộ lý do phép quy đổi nằm ở client chứ không ở Edge Function.
@@ -1128,7 +1134,12 @@ Bỏ **hoàn toàn** nhánh nhận `subscription` + `payload` từ thân request
    ```
 
    Khóa chính là `(user_id, id)`, mà `id = hash(endpoint)`. Cùng một trình duyệt đăng nhập hai tài khoản cho ra **cùng `id`** dưới hai `user_id`. Thiếu vế `user_id` thì một lỗi 410 của người này xóa luôn đăng ký của người kia.
-5. Đánh `sent_at` cho các hàng đã xử lý — kể cả hàng không có subscription nào, nếu không chúng nằm lại vĩnh viễn và mỗi lần cron chạy lại quét qua.
+5. Đánh `sent_at` cho các hàng đã xử lý — kể cả hàng không có subscription nào, nếu không chúng nằm lại vĩnh viễn và mỗi lần cron chạy lại quét qua. **Trừ một trường hợp:** không thiết bị nào nhận được và có ít nhất một lỗi tạm thời (408, 429, 5xx, lỗi mạng) thì để nguyên hàng cho lượt sau.
+6. **Hạn chót** = `min(start_at, fire_at + MAX_LATE_MS)` (10 phút). Qua hạn chót thì không gửi nữa, đánh `sent_at` để hàng rời hàng đợi. Hai mốc vì hai lý do: sau giờ vào buổi thì "còn 15 phút" là sai hẳn; trễ quá xa `fire_at` thì câu đã dịch sẵn cũng sai, và nó chặn luôn việc bắn dồn lời nhắc cũ sau khi hàm ngừng vài giờ. Chỉ `fire_at` thì không đủ: báo trước chọn được là 5 phút, cron chạy 5 phút một lần, nên mọi hạn chót tính từ `fire_at` đủ dài để thử lại được một lần đều lố giờ vào buổi — vì thế mới có cột `start_at`.
+7. `TTL` = số giây tới hạn chót, `urgency: 'high'`, `timeout` 10 giây (socket). Lượt chạy dừng nhận hàng mới sau 100 giây; phần còn lại để nguyên cho lượt sau.
+8. Mọi câu ghi CSDL đều đọc `error` (supabase-js trả lỗi chứ không ném), mọi lần gửi lỗi đều ghi một dòng log có mã HTTP — **không** có endpoint, vì endpoint cộng khóa VAPID là gửi được tới máy đó. Khóa VAPID cấu hình qua `configureVapid()`: web-push ném ngay khi khóa sai định dạng, gọi trần ở cấp module thì hàm không khởi động được.
+
+Toàn bộ bước 4–7 nằm ở `process.ts` (xem "`supabase/functions/` nằm ngoài TẤT CẢ sáu cổng"), không ở `index.ts`.
 
 Không cần `try/catch` quanh từng thứ để "cho chắc": lỗi ở bước 2 nên trả `500` và để cron thử lại lần sau; chỉ lỗi gửi *từng subscription* mới được nuốt, vì một endpoint hỏng không được chặn 499 endpoint còn lại.
 
@@ -1174,7 +1185,7 @@ Rồi kiểm `x-cron-secret` đối chiếu `Deno.env.get('CRON_SECRET')` ngay d
 | Chỗ | Việc |
 |---|---|
 | `public/sw.js` | Thêm `pushsubscriptionchange` — trình duyệt xoay endpoint thì hàng trong `push_subscriptions` thành rác, và nó chỉ được dọn khi có một lần gửi thất bại 410 |
-| `public/sw.js` — `notificationclick` | `client.url === event.notification.data.url` so URL tuyệt đối với `'./#/week'`, **không bao giờ khớp**, nên luôn mở cửa sổ mới thay vì chuyển sang tab đang mở. So bằng `new URL(data.url, self.registration.scope).href` |
+| `public/sw.js` — `notificationclick` | `client.url === event.notification.data.url` so URL tuyệt đối với `'./#/week'`, **không bao giờ khớp**, nên luôn mở cửa sổ mới thay vì chuyển sang tab đang mở. Bản sửa đầu (`new URL(data.url, self.registration.scope).href`) mới chỉ đúng URL tuyệt đối; nó vẫn so cả đoạn `#…`, nên chỉ tab đang ở `#/week` khớp. Bản hiện tại nhận cửa sổ của app bằng origin + scope rồi `focus()` + `navigate()` — xem Known Issues |
 | `savePushSubscription()` và `syncReminderQueue()` | `created_at: now` ghi đè mốc tạo gốc ở mỗi lần upsert. Cho cột một `DEFAULT` rồi bỏ trường đó khỏi payload. ⚠️ Bảng đã dựng **trước** khi có `DEFAULT` không được `CREATE TABLE IF NOT EXISTS` vá — upsert bỏ `created_at` sẽ vỡ `NOT NULL` ngay lần INSERT đầu. Hai câu `ALTER … SET DEFAULT` trong `supabase_schema.sql` lo việc đó, nên **phải dán lại file schema** |
 | `src/core/__tests__/push.test.ts` | Bài test hiện tại kiểm `fnv1a32` tất định — thứ `clientId.test.ts` đã phủ kỹ hơn. Không lỗi push nào làm nó đỏ được (vi phạm điều 3 và 4). Thay bằng `pushQueue.test.ts` ở mục 2 |
 | `reminder.limitation` ở `vi`/`en`/`zh` | Chỉ sửa **sau khi** một thông báo thật sự bắn được với app đã đóng. Câu mới phải nói cả giới hạn horizon, **và phải đúng cả với người không cấu hình Supabase hay chưa đăng nhập** — với họ tầng 2 không tồn tại. Commit `63eaf1d` đã lỡ sửa câu này trước khi nghiệm thu, hứa "nạp lên đám mây" với cả người chạy offline; đã trả về câu cũ |
@@ -1195,7 +1206,7 @@ Bốn bước dưới đây cần tài khoản Supabase của bạn và một tr
    `VAPID_SUBJECT` không bắt buộc, nhưng dịch vụ push của Apple từ chối subject không liên lạc được — để mặc định `mailto:admin@example.com` thì Safari/iOS có thể im lặng.
 4. **Dán câu `cron.schedule` ở mục 5** vào SQL Editor, thay `<PROJECT_REF>` và `<CRON_SECRET>`. Không commit chuỗi đó.
 
-Thử nhanh trước khi chờ cron: gọi tay hàm với đúng header và xem JSON trả về có `"sent": 1` không. `401` là sai secret; `500` với `VAPID keys not configured` là bước 3 chưa xong.
+Thử nhanh trước khi chờ cron: gọi tay hàm với đúng header và xem JSON trả về có `"sent": 1` không. `401` là sai secret; `500` với `VAPID keys not configured` là bước 3 chưa xong; `500` nhắc tới cột `start_at` là chưa dán lại schema (bước 1). `500` với `VAPID configuration invalid: …` là khóa hoặc subject sai định dạng. `retried` > 0 là có hàng để lại vì lỗi tạm thời, `expired` > 0 là có hàng bỏ vì quá hạn chót, `deferred` > 0 là hết ngân sách thời gian; `failures` đếm lỗi gửi theo mã HTTP (`403` là khóa VAPID lệch với khóa đã build vào app), `dbErrors` đếm câu ghi CSDL lỗi. Chi tiết từng lỗi ở log của hàm trên dashboard, đã che endpoint — xem bảng tra cứu ở `ACCEPTANCE_WEB_PUSH.md` mục A4.
 
 ```bash
 curl -X POST https://<PROJECT_REF>.supabase.co/functions/v1/push-reminder -H "x-cron-secret: <CRON_SECRET>"
@@ -1255,6 +1266,8 @@ Danh sách này tồn tại để lần sau không phải tranh luận lại. M�
 | `db/` | IndexedDB thật trong bộ nhớ qua `fake-indexeddb`. **Không mock Dexie.** |
 | `db/sync` | IndexedDB thật + một `CloudTransport` giả. Không chạm mạng. |
 | Component | `@testing-library/react`. Ưu tiên chặn tái phát các lỗi đã từng lọt. |
+| Edge Function | `supabase/functions/push-reminder/process.ts` chạy thật trong `src/__tests__/pushReminder.test.ts` với I/O giả (gửi, đánh `sent_at`, xóa subscription). `index.ts` là Deno nên không chạy được ở đây. |
+| `public/sw.js` | File JS thuần ngoài `src/`, không qua bundler. `src/__tests__/serviceWorker.test.ts` nạp nó bằng `?raw` + `new Function` với `self`/`clients`/`registration` giả (không dùng `node:vm`: `tsconfig.app.json` không kéo kiểu của Node vào `src/`), rồi bắn sự kiện `notificationclick` và `push` vào. |
 
 Bộ test ở `core/` **không bắt được** ba lỗi lọt lưới gần đây — ô số nằm trong `<label>`, cột biểu đồ cao 0px, bộ lọc nhắc lịch. Không phải vì chúng yếu, mà vì chúng nhìn sai chỗ. Test component tồn tại để bịt đúng khoảng mù đó, nên mỗi bài nên tương ứng với một lỗi thật chứ không phải phủ cho đủ.
 

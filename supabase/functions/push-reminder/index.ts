@@ -1,6 +1,12 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import webpush from 'npm:web-push';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import {
+  configureVapid,
+  processDueReminders,
+  type DueReminder,
+  type PushSubscriptionRow,
+} from './process.ts';
 
 const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY') || '';
 const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY') || '';
@@ -8,17 +14,15 @@ const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY') || '';
 // định chỉ là chỗ giữ chỗ — đặt `VAPID_SUBJECT` thật bằng `supabase secrets set`.
 const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') || 'mailto:admin@example.com';
 
-if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-}
-
-interface PushSubscriptionData {
-  id: string;
-  user_id: string;
-  endpoint: string;
-  p256dh: string;
-  auth: string;
-}
+// Không gọi `setVapidDetails` trần ở đây: khóa sai định dạng làm nó ném ngay lúc
+// nạp module, và hàm không khởi động được. `configureVapid` trả câu lỗi để bước
+// dừng sớm bên dưới trả về — xem chú thích trong process.ts.
+const VAPID_ERROR = configureVapid(
+  (subject, publicKey, privateKey) => webpush.setVapidDetails(subject, publicKey, privateKey),
+  VAPID_SUBJECT,
+  VAPID_PUBLIC_KEY,
+  VAPID_PRIVATE_KEY,
+);
 
 serve(async (req) => {
   if (req.method !== 'POST') {
@@ -32,15 +36,15 @@ serve(async (req) => {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  // ⚠️ DỪNG SỚM KHI THIẾU KHÓA VAPID — ĐỪNG ĐỂ CHẠY TIẾP.
+  // ⚠️ DỪNG SỚM KHI THIẾU HOẶC SAI KHÓA VAPID — ĐỪNG ĐỂ CHẠY TIẾP.
   //
-  // Thiếu khóa thì `setVapidDetails` ở trên không chạy, mọi lần gửi đều ném
-  // lỗi, nhưng bước 5 vẫn đánh `sent_at` cho từng hàng. Hàng đợi rút cạn mà
-  // không một thông báo nào tới nơi, và cron nhận về HTTP 200 — hỏng hoàn
-  // toàn im lặng, đúng loại lỗi tệ nhất. Cấu hình sai phải kêu lên.
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+  // Thiếu khóa thì `setVapidDetails` không chạy, mọi lần gửi đều ném lỗi, và
+  // các hàng bị đánh `sent_at` hoặc xoay vòng tới hạn chót. Hàng đợi rút cạn mà
+  // không một thông báo nào tới nơi, và cron nhận về HTTP 200 — hỏng hoàn toàn
+  // im lặng, đúng loại lỗi tệ nhất. Cấu hình sai phải kêu lên.
+  if (VAPID_ERROR) {
     return new Response(
-      JSON.stringify({ success: false, error: 'VAPID keys not configured' }),
+      JSON.stringify({ success: false, error: VAPID_ERROR }),
       { status: 500, headers: { 'Content-Type': 'application/json' } },
     );
   }
@@ -55,7 +59,7 @@ serve(async (req) => {
     // 2. Quét hàng đợi reminder_queue: fire_at <= now, chưa gửi, chưa bị xóa
     const { data: dueReminders, error: queueError } = await supabaseClient
       .from('reminder_queue')
-      .select('id, user_id, title, body, url, fire_at')
+      .select('id, user_id, title, body, url, fire_at, start_at')
       .lte('fire_at', nowIso)
       .is('sent_at', null)
       .is('deleted_at', null)
@@ -71,7 +75,17 @@ serve(async (req) => {
 
     if (!dueReminders || dueReminders.length === 0) {
       return new Response(
-        JSON.stringify({ success: true, processed: 0, sent: 0, errors: 0 }),
+        JSON.stringify({
+          success: true,
+          processed: 0,
+          sent: 0,
+          errors: 0,
+          retried: 0,
+          expired: 0,
+          deferred: 0,
+          dbErrors: 0,
+          failures: {},
+        }),
         { headers: { 'Content-Type': 'application/json' } },
       );
     }
@@ -88,66 +102,39 @@ serve(async (req) => {
       throw subError;
     }
 
-    const userSubs = new Map<string, PushSubscriptionData[]>();
-    for (const sub of (subscriptions || []) as PushSubscriptionData[]) {
-      const list = userSubs.get(sub.user_id) ?? [];
-      list.push(sub);
-      userSubs.set(sub.user_id, list);
-    }
-
-    let sentCount = 0;
-    let errorCount = 0;
-
-    // 4. Gửi thông báo tới từng subscription
-    for (const reminder of dueReminders) {
-      const subs = userSubs.get(reminder.user_id) ?? [];
-      const payload = {
-        title: reminder.title,
-        body: reminder.body,
-        url: reminder.url || './#/week',
-      };
-
-      for (const sub of subs) {
-        const pushSub = {
-          endpoint: sub.endpoint,
-          keys: {
-            p256dh: sub.p256dh,
-            auth: sub.auth,
-          },
-        };
-
-        try {
-          await webpush.sendNotification(pushSub, JSON.stringify(payload));
-          sentCount++;
-        } catch (err: unknown) {
-          errorCount++;
-          // Nếu endpoint hỏng (410 Gone / 404 Not Found), xóa mềm với đủ cả hai vế khóa
-          const statusCode = (err as { statusCode?: number }).statusCode;
-          if (statusCode === 410 || statusCode === 404) {
-            await supabaseClient
-              .from('push_subscriptions')
-              .update({ deleted_at: nowIso })
-              .eq('user_id', sub.user_id)
-              .eq('id', sub.id);
-          }
-        }
-      }
-
-      // 5. Đánh dấu sent_at cho hàng đợi đã xử lý (kể cả user không có subscription)
-      await supabaseClient
-        .from('reminder_queue')
-        .update({ sent_at: nowIso })
-        .eq('user_id', reminder.user_id)
-        .eq('id', reminder.id);
-    }
+    // 4–5. Gửi và đánh `sent_at`: toàn bộ quyết định nằm ở process.ts, nơi
+    // `tsc` và Vitest nhìn thấy được. Ở đây chỉ nối dây vào Supabase và web-push.
+    const summary = await processDueReminders(
+      dueReminders as DueReminder[],
+      (subscriptions ?? []) as PushSubscriptionRow[],
+      {
+        send: (sub, payload, options) =>
+          webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            payload,
+            options,
+          ),
+        markSent: (reminder, sentAt) =>
+          supabaseClient
+            .from('reminder_queue')
+            .update({ sent_at: sentAt })
+            .eq('user_id', reminder.user_id)
+            .eq('id', reminder.id),
+        // Xóa mềm với đủ cả hai vế khóa: cùng một trình duyệt đăng nhập hai tài
+        // khoản cho ra cùng `id` dưới hai `user_id`.
+        softDeleteSubscription: (sub, deletedAt) =>
+          supabaseClient
+            .from('push_subscriptions')
+            .update({ deleted_at: deletedAt })
+            .eq('user_id', sub.user_id)
+            .eq('id', sub.id),
+        now: () => Date.now(),
+        log: (message, detail) => console.error(message, JSON.stringify(detail)),
+      },
+    );
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        processed: dueReminders.length,
-        sent: sentCount,
-        errors: errorCount,
-      }),
+      JSON.stringify({ success: true, ...summary }),
       { headers: { 'Content-Type': 'application/json' } },
     );
   } catch (err: unknown) {
