@@ -61,10 +61,17 @@ curl.exe -X POST https://<PROJECT_REF>.supabase.co/functions/v1/push-reminder -H
 | JSON có `"success":true` | Hàm sống, secret đúng |
 | `401` | Sai `CRON_SECRET` |
 | `500` + `VAPID keys not configured` | Chưa xong `supabase secrets set` |
+| `500` + `VAPID configuration invalid: …` | Khóa hoặc `VAPID_SUBJECT` sai định dạng — thường do dán thừa dấu nháy/khoảng trắng, hoặc subject không bắt đầu bằng `mailto:`/`https:`. Câu sau dấu `:` là của web-push, không chứa giá trị khóa |
 | `404` | Chưa deploy hàm |
 | `500` nhắc tới `start_at` | Chưa dán lại schema (A3, bước đầu) |
 | `"retried": N` | N hàng để lại cho lượt sau vì lỗi tạm thời (429/5xx/mạng) |
 | `"expired": N` | N hàng bỏ, không gửi, vì đã qua hạn chót = sớm hơn trong hai mốc: giờ vào buổi và `fire_at` + 10 phút |
+| `"failures": {"403": N}` (hoặc `401`) | Khóa VAPID trên Supabase **khác** khóa `VITE_VAPID_PUBLIC_KEY` đã build vào app. Sửa cho khớp, rồi tắt/bật lại thông báo trong app để trình duyệt đăng ký lại |
+| `"failures": {"410": N}` (hoặc `404`) | Đăng ký push của trình duyệt đã chết; hàm tự xóa mềm nó. Bật lại thông báo trong app để đăng ký mới |
+| `"failures": {"network": N}` | Hàm không tới được dịch vụ push (mạng, timeout); hàng được thử lại ở lượt sau nếu còn trong hạn |
+| `"dbErrors": N` | Ghi vào CSDL lỗi (đánh `sent_at`, xóa subscription) — xem log |
+
+Chi tiết từng lỗi (mã HTTP, id hàng, id đăng ký — **không** có endpoint) nằm ở Supabase → *Edge Functions → push-reminder → Logs*.
 
 Kiểm cron có chạy không (SQL Editor), sau khi qua ít nhất 5 phút:
 

@@ -106,6 +106,8 @@ export interface ProcessDeps {
   markSent(reminder: DueReminder, sentAt: string): PromiseLike<DbResult>;
   softDeleteSubscription(sub: PushSubscriptionRow, deletedAt: string): PromiseLike<DbResult>;
   now(): number;
+  /** Log của Edge Function hiện trên dashboard Supabase. KHÔNG truyền endpoint vào đây */
+  log(message: string, detail: Record<string, unknown>): void;
 }
 
 export interface ProcessSummary {
@@ -121,6 +123,14 @@ export interface ProcessSummary {
   expired: number;
   /** Số hàng chưa xem vì hết `RUN_BUDGET_MS` */
   deferred: number;
+  /** Số câu ghi vào CSDL (đánh sent_at, xóa mềm subscription) trả về lỗi */
+  dbErrors: number;
+  /**
+   * Lỗi gửi đếm theo mã HTTP; `network` khi không có phản hồi. Để lần gọi tay ở
+   * ACCEPTANCE A4 nói được 403 (khóa VAPID lệch) khác 410 (endpoint chết) khác
+   * lỗi mạng — `errors: 3` thì không nói được gì.
+   */
+  failures: Record<string, number>;
 }
 
 /**
@@ -164,6 +174,46 @@ export function buildPayload(reminder: DueReminder): PushPayload {
   };
 }
 
+/**
+ * Cấu hình khóa VAPID, trả câu lỗi thay vì ném.
+ *
+ * ⚠️ web-push ném NGAY khi khóa hoặc subject sai định dạng (dán thừa dấu nháy
+ * hay khoảng trắng, subject không phải `mailto:`/`https:`). Gọi ở cấp module mà
+ * không bắt thì hàm không khởi động được và Supabase chỉ trả một lỗi boot chung
+ * chung — khối "dừng sớm khi thiếu khóa" ở index.ts chỉ bắt được khóa THIẾU,
+ * không bắt được khóa SAI. Thông điệp của web-push không chứa giá trị khóa.
+ */
+export function configureVapid(
+  set: (subject: string, publicKey: string, privateKey: string) => unknown,
+  subject: string,
+  publicKey: string,
+  privateKey: string,
+): string | null {
+  if (!publicKey || !privateKey) return 'VAPID keys not configured';
+  try {
+    set(subject, publicKey, privateKey);
+    return null;
+  } catch (err) {
+    return `VAPID configuration invalid: ${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
+const MAX_LOGGED_TEXT = 300;
+
+/**
+ * Thông điệp và thân phản hồi của lỗi gửi, để log — đã che endpoint.
+ *
+ * Endpoint là bearer: có nó cộng khóa VAPID là gửi được thông báo tới máy đó,
+ * và log của Edge Function hiện trên dashboard. Thông điệp lỗi của tầng mạng có
+ * thể chứa nguyên URL, nên che bằng phép thay chuỗi chứ không tin vào định dạng.
+ */
+function describeError(err: unknown, endpoint: string): { message: string; body?: string } {
+  const redact = (text: string) => text.split(endpoint).join('<endpoint>').slice(0, MAX_LOGGED_TEXT);
+  const message = redact(err instanceof Error ? err.message : String(err));
+  const body = (err as { body?: unknown } | null)?.body;
+  return typeof body === 'string' && body ? { message, body: redact(body) } : { message };
+}
+
 export function statusCodeOf(err: unknown): number | undefined {
   const status = (err as { statusCode?: unknown } | null)?.statusCode;
   return typeof status === 'number' ? status : undefined;
@@ -181,9 +231,29 @@ export async function processDueReminders(
     byUser.set(sub.user_id, list);
   }
 
-  const summary: ProcessSummary = { processed: 0, sent: 0, errors: 0, retried: 0, expired: 0, deferred: 0 };
+  const summary: ProcessSummary = {
+    processed: 0,
+    sent: 0,
+    errors: 0,
+    retried: 0,
+    expired: 0,
+    deferred: 0,
+    dbErrors: 0,
+    failures: {},
+  };
   const startedAt = deps.now();
   const iso = () => new Date(deps.now()).toISOString();
+
+  // supabase-js TRẢ lỗi chứ không ném. Bỏ qua `error` thì đánh sent_at hỏng mà
+  // không ai biết, và lượt sau gửi lại lời nhắc đã tới nơi (cùng `tag` nên nó
+  // thay thế chứ không xếp chồng, nhưng vẫn kêu thêm một lần).
+  const markSent = async (reminder: DueReminder) => {
+    const { error } = await deps.markSent(reminder, iso());
+    if (error) {
+      summary.dbErrors++;
+      deps.log('reminder_queue: mark sent failed', { reminder: reminder.id, error });
+    }
+  };
 
   for (let i = 0; i < reminders.length; i++) {
     if (deps.now() - startedAt >= RUN_BUDGET_MS) {
@@ -200,7 +270,7 @@ export async function processDueReminders(
     if (nowMs >= deadline) {
       // Bỏ hẳn: đánh sent_at để hàng rời hàng đợi, nhưng không gửi.
       summary.expired++;
-      await deps.markSent(reminder, iso());
+      await markSent(reminder);
       continue;
     }
 
@@ -227,12 +297,26 @@ export async function processDueReminders(
         // Chỉ lỗi của TỪNG subscription mới được nuốt: một endpoint hỏng không
         // được chặn những endpoint còn lại.
         summary.errors++;
+        const status = statusCodeOf(err);
         const failure = classifyPushError(err);
+        const key = status === undefined ? 'network' : String(status);
+        summary.failures[key] = (summary.failures[key] ?? 0) + 1;
+        deps.log('push send failed', {
+          reminder: reminder.id,
+          subscription: sub.id,
+          status: status ?? null,
+          failure,
+          ...describeError(err, sub.endpoint),
+        });
         if (failure === 'transient') transient = true;
         if (failure === 'gone') {
           // Câu update phải có cả hai vế khóa — xem `softDeleteSubscription`
           // ở index.ts và README, mục "Edge Function viết lại".
-          await deps.softDeleteSubscription(sub, iso());
+          const { error } = await deps.softDeleteSubscription(sub, iso());
+          if (error) {
+            summary.dbErrors++;
+            deps.log('push_subscriptions: soft delete failed', { subscription: sub.id, error });
+          }
         }
       }
     }
@@ -248,7 +332,7 @@ export async function processDueReminders(
 
     // Đánh `sent_at` cho cả hàng không có subscription nào, nếu không chúng
     // nằm lại vĩnh viễn và mỗi lần cron chạy lại quét qua.
-    await deps.markSent(reminder, iso());
+    await markSent(reminder);
   }
 
   return summary;

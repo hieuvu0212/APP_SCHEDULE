@@ -2,6 +2,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import webpush from 'npm:web-push';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import {
+  configureVapid,
   processDueReminders,
   type DueReminder,
   type PushSubscriptionRow,
@@ -13,9 +14,15 @@ const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY') || '';
 // định chỉ là chỗ giữ chỗ — đặt `VAPID_SUBJECT` thật bằng `supabase secrets set`.
 const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') || 'mailto:admin@example.com';
 
-if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-}
+// Không gọi `setVapidDetails` trần ở đây: khóa sai định dạng làm nó ném ngay lúc
+// nạp module, và hàm không khởi động được. `configureVapid` trả câu lỗi để bước
+// dừng sớm bên dưới trả về — xem chú thích trong process.ts.
+const VAPID_ERROR = configureVapid(
+  (subject, publicKey, privateKey) => webpush.setVapidDetails(subject, publicKey, privateKey),
+  VAPID_SUBJECT,
+  VAPID_PUBLIC_KEY,
+  VAPID_PRIVATE_KEY,
+);
 
 serve(async (req) => {
   if (req.method !== 'POST') {
@@ -29,15 +36,15 @@ serve(async (req) => {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  // ⚠️ DỪNG SỚM KHI THIẾU KHÓA VAPID — ĐỪNG ĐỂ CHẠY TIẾP.
+  // ⚠️ DỪNG SỚM KHI THIẾU HOẶC SAI KHÓA VAPID — ĐỪNG ĐỂ CHẠY TIẾP.
   //
-  // Thiếu khóa thì `setVapidDetails` ở trên không chạy, mọi lần gửi đều ném
-  // lỗi, nhưng bước 5 vẫn đánh `sent_at` cho từng hàng. Hàng đợi rút cạn mà
-  // không một thông báo nào tới nơi, và cron nhận về HTTP 200 — hỏng hoàn
-  // toàn im lặng, đúng loại lỗi tệ nhất. Cấu hình sai phải kêu lên.
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+  // Thiếu khóa thì `setVapidDetails` không chạy, mọi lần gửi đều ném lỗi, và
+  // các hàng bị đánh `sent_at` hoặc xoay vòng tới hạn chót. Hàng đợi rút cạn mà
+  // không một thông báo nào tới nơi, và cron nhận về HTTP 200 — hỏng hoàn toàn
+  // im lặng, đúng loại lỗi tệ nhất. Cấu hình sai phải kêu lên.
+  if (VAPID_ERROR) {
     return new Response(
-      JSON.stringify({ success: false, error: 'VAPID keys not configured' }),
+      JSON.stringify({ success: false, error: VAPID_ERROR }),
       { status: 500, headers: { 'Content-Type': 'application/json' } },
     );
   }
@@ -68,7 +75,17 @@ serve(async (req) => {
 
     if (!dueReminders || dueReminders.length === 0) {
       return new Response(
-        JSON.stringify({ success: true, processed: 0, sent: 0, errors: 0, retried: 0, expired: 0, deferred: 0 }),
+        JSON.stringify({
+          success: true,
+          processed: 0,
+          sent: 0,
+          errors: 0,
+          retried: 0,
+          expired: 0,
+          deferred: 0,
+          dbErrors: 0,
+          failures: {},
+        }),
         { headers: { 'Content-Type': 'application/json' } },
       );
     }
@@ -112,6 +129,7 @@ serve(async (req) => {
             .eq('user_id', sub.user_id)
             .eq('id', sub.id),
         now: () => Date.now(),
+        log: (message, detail) => console.error(message, JSON.stringify(detail)),
       },
     );
 

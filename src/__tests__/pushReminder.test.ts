@@ -15,6 +15,7 @@ import {
   MAX_LATE_MS,
   RUN_BUDGET_MS,
   SEND_TIMEOUT_MS,
+  configureVapid,
   processDueReminders,
   type DueReminder,
   type PushPayload,
@@ -56,10 +57,15 @@ const networkError = () => new Error('getaddrinfo ENOTFOUND push.example');
  * thì ném lỗi gì; `msPerSend` cho đồng hồ chạy theo mỗi lần gửi, để thử ngân
  * sách thời gian.
  */
-function fakeIo(failWith: Record<string, unknown> = {}, msPerSend = 0) {
+function fakeIo(
+  failWith: Record<string, unknown> = {},
+  msPerSend = 0,
+  dbErrors: { markSent?: unknown; softDelete?: unknown } = {},
+) {
   const sends: Array<{ sub: string; payload: PushPayload; options: SendOptions }> = [];
   const marked: string[] = [];
   const deleted: Array<{ user_id: string; id: string }> = [];
+  const logs: Array<{ message: string; detail: Record<string, unknown> }> = [];
   const clock = { t: NOW };
 
   const deps = {
@@ -69,17 +75,20 @@ function fakeIo(failWith: Record<string, unknown> = {}, msPerSend = 0) {
       sends.push({ sub: s.id, payload: JSON.parse(payload) as PushPayload, options });
     },
     markSent: async (r: DueReminder) => {
+      if (dbErrors.markSent) return { error: dbErrors.markSent };
       marked.push(r.id);
       return { error: null };
     },
     softDeleteSubscription: async (s: PushSubscriptionRow) => {
+      if (dbErrors.softDelete) return { error: dbErrors.softDelete };
       deleted.push({ user_id: s.user_id, id: s.id });
       return { error: null };
     },
     now: () => clock.t,
+    log: (message: string, detail: Record<string, unknown>) => logs.push({ message, detail }),
   };
 
-  return { deps, sends, marked, deleted, clock };
+  return { deps, sends, marked, deleted, logs, clock };
 }
 
 describe('processDueReminders — gửi', () => {
@@ -309,6 +318,93 @@ describe('processDueReminders — ngân sách thời gian', () => {
   });
 });
 
+describe('processDueReminders — chẩn đoán được khi hỏng', () => {
+  // supabase-js TRẢ lỗi chứ không ném. Bỏ qua `error` thì đánh sent_at hỏng mà
+  // không ai biết, và lượt sau gửi lại lời nhắc đã tới nơi.
+  it('đánh sent_at lỗi: đếm vào dbErrors, ghi log, vẫn xử lý hàng tiếp theo', async () => {
+    const io = fakeIo({}, 0, { markSent: { message: 'timeout' } });
+
+    const summary = await processDueReminders([reminder({ id: 'a' }), reminder({ id: 'b' })], [sub('s1')], io.deps);
+
+    expect(summary.dbErrors).toBe(2);
+    expect(io.sends).toHaveLength(2);
+    expect(io.logs.map((l) => l.detail.reminder)).toEqual(['a', 'b']);
+  });
+
+  it('xóa mềm subscription lỗi: đếm vào dbErrors và ghi log', async () => {
+    const io = fakeIo({ s1: pushError(410) }, 0, { softDelete: { message: 'denied' } });
+
+    const summary = await processDueReminders([reminder()], [sub('s1')], io.deps);
+
+    expect(summary.dbErrors).toBe(1);
+    expect(io.logs.some((l) => l.detail.subscription === 's1' && l.message.includes('subscription'))).toBe(true);
+  });
+
+  // Khi nghiệm thu không ra thông báo, `"errors": 3` không nói được gì. 403 là
+  // khóa VAPID lệch, 410 là endpoint chết, "network" là máy chủ không tới được
+  // push service — ba việc phải làm khác nhau.
+  it('đếm lỗi gửi theo mã: failures = { "403": 1, network: 1 }', async () => {
+    const io = fakeIo({ s1: pushError(403), s2: networkError() });
+
+    const summary = await processDueReminders([reminder()], [sub('s1'), sub('s2')], io.deps);
+
+    expect(summary.failures).toEqual({ '403': 1, network: 1 });
+  });
+
+  it('mỗi lần gửi lỗi ghi một dòng log có mã lỗi, hàng và thiết bị', async () => {
+    const io = fakeIo({ s1: pushError(403) });
+
+    await processDueReminders([reminder()], [sub('s1')], io.deps);
+
+    expect(io.logs).toHaveLength(1);
+    expect(io.logs[0].detail).toMatchObject({ reminder: 'rule:abc:2026-11-03', subscription: 's1', status: 403 });
+  });
+
+  // Endpoint là bearer: ai có nó và khóa VAPID là gửi được thông báo tới máy đó.
+  // Log của Edge Function hiện trên dashboard, không được mang nó.
+  it('log không bao giờ chứa endpoint, kể cả khi thông điệp lỗi có nó', async () => {
+    const s1 = sub('s1');
+    const err = Object.assign(new Error(`Received unexpected response code from ${s1.endpoint}`), {
+      statusCode: 400,
+      body: `invalid subscription ${s1.endpoint}`,
+    });
+    const io = fakeIo({ s1: err });
+
+    await processDueReminders([reminder()], [s1], io.deps);
+
+    expect(JSON.stringify(io.logs)).not.toContain(s1.endpoint);
+    expect(JSON.stringify(io.logs)).toContain('invalid subscription');
+  });
+});
+
+describe('configureVapid', () => {
+  it('thiếu khóa: báo đúng câu mà ACCEPTANCE A4 tra cứu', () => {
+    expect(configureVapid(() => undefined, 'mailto:a@b.c', '', 'k')).toBe('VAPID keys not configured');
+  });
+
+  // web-push ném ngay khi khóa sai định dạng (dán thừa dấu nháy, subject không
+  // phải mailto:/https:). Gọi ở cấp module mà không bắt thì hàm không khởi động
+  // được và Supabase chỉ trả một lỗi boot chung chung.
+  it('khóa sai định dạng: trả lỗi đọc được thay vì ném', () => {
+    const set = () => {
+      throw new Error('Vapid public key should be 65 bytes long when decoded.');
+    };
+
+    expect(configureVapid(set, 'mailto:a@b.c', 'pub', 'priv')).toBe(
+      'VAPID configuration invalid: Vapid public key should be 65 bytes long when decoded.',
+    );
+  });
+
+  it('hợp lệ: gọi setVapidDetails đúng thứ tự tham số và trả null', () => {
+    const calls: string[][] = [];
+
+    const result = configureVapid((...args: string[]) => calls.push(args), 'mailto:a@b.c', 'pub', 'priv');
+
+    expect(result).toBeNull();
+    expect(calls).toEqual([['mailto:a@b.c', 'pub', 'priv']]);
+  });
+});
+
 // Toàn bộ test ở trên vô nghĩa nếu index.ts thôi gọi process.ts mà tự viết lại
 // vòng gửi. Đây là phép đọc mã nguồn, không phải chạy hàm — thô, nhưng là chỗ
 // duy nhất một cổng chặn thấy được index.ts.
@@ -316,5 +412,9 @@ describe('index.ts nối dây vào process.ts', () => {
   it('import processDueReminders từ ./process.ts và gọi nó', () => {
     expect(indexSource).toMatch(/from '\.\/process\.ts'/);
     expect(indexSource).toMatch(/\bprocessDueReminders\(/);
+  });
+
+  it('cấu hình VAPID qua configureVapid, không gọi setVapidDetails trần ở cấp module', () => {
+    expect(indexSource).toMatch(/\bconfigureVapid\(/);
   });
 });

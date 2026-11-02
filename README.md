@@ -1137,6 +1137,7 @@ Bỏ **hoàn toàn** nhánh nhận `subscription` + `payload` từ thân request
 5. Đánh `sent_at` cho các hàng đã xử lý — kể cả hàng không có subscription nào, nếu không chúng nằm lại vĩnh viễn và mỗi lần cron chạy lại quét qua. **Trừ một trường hợp:** không thiết bị nào nhận được và có ít nhất một lỗi tạm thời (408, 429, 5xx, lỗi mạng) thì để nguyên hàng cho lượt sau.
 6. **Hạn chót** = `min(start_at, fire_at + MAX_LATE_MS)` (10 phút). Qua hạn chót thì không gửi nữa, đánh `sent_at` để hàng rời hàng đợi. Hai mốc vì hai lý do: sau giờ vào buổi thì "còn 15 phút" là sai hẳn; trễ quá xa `fire_at` thì câu đã dịch sẵn cũng sai, và nó chặn luôn việc bắn dồn lời nhắc cũ sau khi hàm ngừng vài giờ. Chỉ `fire_at` thì không đủ: báo trước chọn được là 5 phút, cron chạy 5 phút một lần, nên mọi hạn chót tính từ `fire_at` đủ dài để thử lại được một lần đều lố giờ vào buổi — vì thế mới có cột `start_at`.
 7. `TTL` = số giây tới hạn chót, `urgency: 'high'`, `timeout` 10 giây (socket). Lượt chạy dừng nhận hàng mới sau 100 giây; phần còn lại để nguyên cho lượt sau.
+8. Mọi câu ghi CSDL đều đọc `error` (supabase-js trả lỗi chứ không ném), mọi lần gửi lỗi đều ghi một dòng log có mã HTTP — **không** có endpoint, vì endpoint cộng khóa VAPID là gửi được tới máy đó. Khóa VAPID cấu hình qua `configureVapid()`: web-push ném ngay khi khóa sai định dạng, gọi trần ở cấp module thì hàm không khởi động được.
 
 Toàn bộ bước 4–7 nằm ở `process.ts` (xem "`supabase/functions/` nằm ngoài TẤT CẢ sáu cổng"), không ở `index.ts`.
 
@@ -1205,7 +1206,7 @@ Bốn bước dưới đây cần tài khoản Supabase của bạn và một tr
    `VAPID_SUBJECT` không bắt buộc, nhưng dịch vụ push của Apple từ chối subject không liên lạc được — để mặc định `mailto:admin@example.com` thì Safari/iOS có thể im lặng.
 4. **Dán câu `cron.schedule` ở mục 5** vào SQL Editor, thay `<PROJECT_REF>` và `<CRON_SECRET>`. Không commit chuỗi đó.
 
-Thử nhanh trước khi chờ cron: gọi tay hàm với đúng header và xem JSON trả về có `"sent": 1` không. `401` là sai secret; `500` với `VAPID keys not configured` là bước 3 chưa xong; `500` nhắc tới cột `start_at` là chưa dán lại schema (bước 1). `retried` > 0 là có hàng để lại vì lỗi tạm thời, `expired` > 0 là có hàng bỏ vì quá hạn chót, `deferred` > 0 là hết ngân sách thời gian.
+Thử nhanh trước khi chờ cron: gọi tay hàm với đúng header và xem JSON trả về có `"sent": 1` không. `401` là sai secret; `500` với `VAPID keys not configured` là bước 3 chưa xong; `500` nhắc tới cột `start_at` là chưa dán lại schema (bước 1). `500` với `VAPID configuration invalid: …` là khóa hoặc subject sai định dạng. `retried` > 0 là có hàng để lại vì lỗi tạm thời, `expired` > 0 là có hàng bỏ vì quá hạn chót, `deferred` > 0 là hết ngân sách thời gian; `failures` đếm lỗi gửi theo mã HTTP (`403` là khóa VAPID lệch với khóa đã build vào app), `dbErrors` đếm câu ghi CSDL lỗi. Chi tiết từng lỗi ở log của hàm trên dashboard, đã che endpoint — xem bảng tra cứu ở `ACCEPTANCE_WEB_PUSH.md` mục A4.
 
 ```bash
 curl -X POST https://<PROJECT_REF>.supabase.co/functions/v1/push-reminder -H "x-cron-secret: <CRON_SECRET>"
