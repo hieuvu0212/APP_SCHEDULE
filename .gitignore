@@ -53,3 +53,6 @@ supabase/.temp/
 *.njsproj
 *.sln
 *.sw?
+
+# Bản đóng gói skill để bán, không được lên repo công khai (xem commit chore)
+skill-dist/
