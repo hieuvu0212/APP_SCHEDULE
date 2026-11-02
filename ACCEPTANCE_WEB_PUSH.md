@@ -109,7 +109,7 @@ Máy này của bạn đang báo múi giờ UTC+7, nên B1 *đã là* một lầ
 
 ### B3. Điều 3 — hủy buổi đã nằm trong hàng đợi
 
-Làm **hai lần**, vì lần hai kiểm chứng đúng khe hở đã biết (README, Known Issues):
+Làm **hai lần**, vì lần hai kiểm chứng bản vá cho khe hở "hủy rồi đóng app" (README, Known Issues):
 
 **Lần 1 — hủy rồi đồng bộ (kỳ vọng: không bắn)**
 
@@ -118,11 +118,15 @@ Làm **hai lần**, vì lần hai kiểm chứng đúng khe hở đã biết (RE
 3. [ ] Hàng đó phải có `deleted_at` khác rỗng.
 4. [ ] Đóng hẳn trình duyệt (như B1.4), chờ qua `fire_at` + 5 phút. **Không được có thông báo.**
 
-**Lần 2 — hủy rồi đóng app ngay, không đồng bộ (đang nghi là lỗi thật)**
+**Lần 2 — hủy rồi đóng app, không bấm đồng bộ (kỳ vọng: không bắn)**
+
+Đây là khe hở đã vá bằng `watchReminderQueue()` (hàng đợi tự rút lại **3 giây** sau khi lịch đổi). Bước này xác nhận bản vá chạy với Supabase thật.
 
 1. [ ] Tạo buổi mới, **Đồng bộ ngay**, xác nhận hàng có trong hàng đợi.
-2. [ ] Hủy buổi, **đóng app ngay** (đừng bấm đồng bộ, đừng đợi).
-3. [ ] Chờ qua `fire_at` + 5 phút. **Ghi lại có thông báo hay không**, và `deleted_at` của hàng. Có thông báo = xác nhận khe hở đã mô tả; hãy báo lại để quyết định hướng sửa (README → Next Tasks mục 3).
+2. [ ] Hủy buổi, **đừng bấm đồng bộ**. Đợi **10 giây** rồi mới đóng app (3 giây debounce cộng thời gian mạng).
+3. [ ] Trong `reminder_queue`, hàng đó phải có `deleted_at` khác rỗng dù bạn không bấm gì.
+4. [ ] Chờ qua `fire_at` + 5 phút. **Không được có thông báo.** Nếu có, ghi lại `deleted_at` của hàng và báo lại.
+5. [ ] *(Tùy chọn, để biết giới hạn)* Lặp lại nhưng đóng app trong vòng 1 giây sau khi hủy. Thông báo có thể bắn, vì app đóng trước khi kịp gọi mạng — khoảng hở này không vá được ở client.
 
 ### B4. Kiểm lại sau cùng
 

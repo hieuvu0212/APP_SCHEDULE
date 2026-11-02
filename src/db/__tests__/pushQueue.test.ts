@@ -17,7 +17,7 @@ import { createEvent, updateEvent } from '../repo/events';
 import { createRule } from '../repo/rules';
 import { setOccurrenceStatus, upsertException } from '../repo/exceptions';
 import { saveSettings } from '../repo/settings';
-import { syncReminderQueue } from '../pushQueue';
+import { syncReminderQueue, watchReminderQueue } from '../pushQueue';
 import { toAbsolute } from '../../core/time';
 
 const USER = 'user-1';
@@ -35,6 +35,7 @@ vi.mock('../cloud', () => ({
 function fakeSupabase() {
   const rows = new Map<string, Row>(); // khóa = `${user_id}|${id}`
   let upsertFails = false;
+  let userCalls = 0;
 
   const key = (r: Row) => `${r.user_id}|${r.id}`;
 
@@ -61,7 +62,12 @@ function fakeSupabase() {
   }
 
   const client = {
-    auth: { getUser: async () => ({ data: { user: { id: USER } } }) },
+    auth: {
+      getUser: async () => {
+        userCalls++;
+        return { data: { user: { id: USER } } };
+      },
+    },
     from(table: string) {
       if (table !== 'reminder_queue') throw new Error(`bảng lạ: ${table}`);
       return {
@@ -104,6 +110,8 @@ function fakeSupabase() {
     breakUpsert: () => {
       upsertFails = true;
     },
+    /** Số lần `syncReminderQueue` đã chạy tới bước hỏi người dùng */
+    runs: () => userCalls,
   };
 }
 
@@ -171,6 +179,90 @@ describe('syncReminderQueue — nạp hàng đợi', () => {
 
     expect(cloud.byId(`single:${id}`)?.sent_at).not.toBeNull();
     expect(cloud.live()).toHaveLength(0);
+  });
+});
+
+/** Chờ một điều kiện với đồng hồ THẬT (chỉ `Date` bị giả, setTimeout vẫn chạy). */
+async function until(cond: () => boolean, ms = 2000): Promise<boolean> {
+  const t0 = performance.now();
+  while (performance.now() - t0 < ms) {
+    if (cond()) return true;
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  return cond();
+}
+
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+describe('watchReminderQueue — hủy buổi rồi đóng app ngay, không chờ đồng bộ', () => {
+  // Lỗi gốc: hàng đợi chỉ được rút lại sau `syncWithCloud()`, mà hàm đó cố ý
+  // KHÔNG chạy khi dữ liệu cục bộ đổi. Hủy buổi rồi đóng app trước lần đồng bộ
+  // kế tiếp thì hàng cũ nằm nguyên trên mây tới giờ bắn. `syncReminderQueue`
+  // chỉ ĐỌC Dexie và ghi lên mây nên theo dõi thay đổi để gọi nó không dựng lại
+  // vòng lặp mà core/autoSync.ts cảnh báo.
+  it('hủy một buổi → hàng bị rút mà KHÔNG ai gọi syncWithCloud', async () => {
+    const id = await createEvent(single());
+    await syncReminderQueue();
+    expect(cloud.live()).toHaveLength(1);
+
+    const stop = watchReminderQueue(20);
+    try {
+      await pause(30); // qua lượt phát đầu tiên của liveQuery
+      await updateEvent(id, { status: 'CANCELLED' });
+
+      expect(await until(() => cloud.live().length === 0)).toBe(true);
+      expect(cloud.byId(`single:${id}`)?.deleted_at).toBeTruthy();
+    } finally {
+      stop();
+    }
+  });
+
+  it('thêm buổi mới cũng được nạp lên mà không cần đồng bộ', async () => {
+    const stop = watchReminderQueue(20);
+    try {
+      await pause(30);
+      await createEvent(single());
+      expect(await until(() => cloud.live().length === 1)).toBe(true);
+    } finally {
+      stop();
+    }
+  });
+
+  it('năm lần ghi liên tiếp chỉ gộp thành MỘT lượt chạy (không bão request)', async () => {
+    const stop = watchReminderQueue(60);
+    try {
+      await pause(30);
+      const before = cloud.runs();
+      for (let i = 0; i < 5; i++) await createEvent(single({ title: `B${i}`, startTime: `1${i + 1}:00` }));
+
+      expect(await until(() => cloud.live().length === 5)).toBe(true);
+      await pause(150); // đủ để một lượt thừa (nếu có) lộ ra
+      expect(cloud.runs() - before).toBe(1);
+    } finally {
+      stop();
+    }
+  });
+
+  it('mở theo dõi mà chưa ai ghi gì thì không gọi mạng', async () => {
+    await createEvent(single());
+    const stop = watchReminderQueue(20);
+    try {
+      await pause(120);
+      expect(cloud.runs()).toBe(0);
+    } finally {
+      stop();
+    }
+  });
+
+  it('sau stop() ghi dữ liệu không kéo theo lượt chạy nào', async () => {
+    const stop = watchReminderQueue(20);
+    await pause(30);
+    stop();
+
+    await createEvent(single());
+    await pause(120);
+
+    expect(cloud.runs()).toBe(0);
   });
 });
 

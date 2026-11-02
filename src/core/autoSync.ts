@@ -26,6 +26,12 @@
 //
 //  Bốn cái đó phủ đúng nhu cầu thật ("giữ các máy khớp nhau") mà không cần
 //  biết gì về việc ai vừa ghi cái gì.
+//
+//  Ngoại lệ có chủ đích, và vì sao nó không dựng lại vòng lặp: hàng đợi Web Push
+//  (`watchReminderQueue` ở db/pushQueue.ts) THEO DÕI dữ liệu cục bộ đổi. Nó được
+//  phép vì chỉ ĐỌC Dexie rồi ghi lên mây — không có chiều kéo về, nên không có
+//  cạnh nào quay lại làm dữ liệu cục bộ đổi. Đừng lấy nó làm cớ thêm kích hoạt
+//  này cho `syncWithCloud()`: hàm đó vẫn kéo về.
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Vì sao tầng trên đang hỏi. Chỉ dùng để ghi log và cho test đọc được ý định. */
