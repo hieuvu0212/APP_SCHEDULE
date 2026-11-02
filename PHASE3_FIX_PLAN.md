@@ -4,9 +4,11 @@
 > Trạng thái xuất phát: nhánh `test`, commit `f254b70`. Bốn trên sáu cổng chặn đang đỏ.
 >
 > **✅ ĐÃ THI CÔNG XONG (A–F).** Sáu trên sáu cổng chặn xanh, 525 bài test qua.
-> Hai việc *không* nằm trong kế hoạch này và vẫn còn mở, đã ghi ở README mục
-> "Trạng thái dự án": Web Push mới có khung chưa nối, và tên thuần chữ Hán
-> chưa sinh được id tất định.
+> Hai việc *không* nằm trong kế hoạch này, lúc đó còn mở: Web Push mới có khung
+> chưa nối, và tên thuần chữ Hán chưa sinh được id tất định. **Cả hai đã được xử
+> lý sau đó** — id tất định cho mọi hệ chữ viết, Web Push mã đã xong. Trạng thái
+> hiện tại (và phần Web Push còn chờ nghiệm thu trên máy thật) nằm ở README mục
+> "Trạng thái dự án", không phải ở đây.
 
 ---
 

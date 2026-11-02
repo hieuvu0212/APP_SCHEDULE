@@ -34,13 +34,26 @@ Tiêu đề và ghi chú là **dữ liệu người dùng**, không đi qua i18n
 - **Đồng bộ gộp xung đột theo TỪNG TRƯỜNG** (`db.version(4)`, bảng `syncBase` chỉ ở máy) — hai máy sửa hai trường khác nhau của cùng một bản ghi thì cả hai thay đổi sống sót. Xem "Gộp xung đột theo từng trường".
 
 ### In Progress
-- **Web Push — mã đã xong, CHƯA nghiệm thu.** Bảng `push_subscriptions` và `reminder_queue` kèm RLS, `savePushSubscription()`, `syncReminderQueue()`, Edge Function quét gửi, `config.toml` + `CRON_SECRET`, `check:cloud` canh 11/11 bảng. Còn thiếu đúng bốn bước ở ["Định nghĩa xong cho tính năng này"](#định-nghĩa-xong-cho-tính-năng-này) — và bước đầu tiên là bước duy nhất chứng minh được điều gì: **đóng hẳn trình duyệt và nhận về một thông báo đúng giờ.** Phase 2 đi qua toàn bộ cổng chặn với 284 test xanh trong khi tính năng chưa từng chạy; dòng này ở lại In Progress cho tới khi có người thấy thông báo hiện lên thật.
+- *(Không có việc dở trong mã.)* Mọi thứ còn lại cần người thật trên máy thật, hoặc một quyết định thiết kế — xem "Awaiting acceptance" và "Next Tasks" ngay dưới.
+
+### Awaiting acceptance
+- **Web Push — mã đã xong, CHƯA nghiệm thu.** Bảng `push_subscriptions` và `reminder_queue` kèm RLS, `savePushSubscription()`, `syncReminderQueue()`, Edge Function quét gửi, `config.toml` + `CRON_SECRET`, `check:cloud` canh 11/11 bảng. Còn thiếu đúng bốn bước ở ["Định nghĩa xong cho tính năng này"](#định-nghĩa-xong-cho-tính-năng-này) — và bước đầu tiên là bước duy nhất chứng minh được điều gì: **đóng hẳn trình duyệt và nhận về một thông báo đúng giờ.** Phase 2 đi qua toàn bộ cổng chặn với 284 test xanh trong khi tính năng chưa từng chạy; dòng này ở lại mục này, không sang Completed, cho tới khi có người thấy thông báo hiện lên thật.
+
+**Đã kiểm chứng bằng máy (2026-11-02, nhánh `chore/release-readiness`):** `npm run verify` xanh cả sáu cổng, `npm run build` qua, 600 test qua dưới `TZ=UTC`, `Asia/Ho_Chi_Minh`, `America/New_York` và `Pacific/Kiritimati`. Lần đó thêm `db/__tests__/pushQueue.test.ts` — trước đó `db/pushQueue.ts`, nơi duy nhất quyết định một buổi đã hủy có bị bắn hay không, chưa có bài test nào — và sửa một lỗi nó bắt được: upsert lỗi thì bước rút lại hàng của buổi đã hủy bị bỏ qua.
+
+**Chưa có bằng chứng nào:** một thông báo thật tới nơi khi app đã đóng; Edge Function chạy thật (nó là Deno, nằm ngoài sáu cổng và ngoài Vitest); `pg_cron` gọi được hàm; `fire_at` đúng giờ trên máy không đặt UTC.
 
 ### Next Tasks
-- *(Theo quyết định của người dùng)*
+1. **Nghiệm thu Web Push trên máy thật** — bốn điều ở ["Định nghĩa xong cho tính năng này"](#định-nghĩa-xong-cho-tính-năng-này), điều 1–3 chưa làm. Cần trước đó: dán lại `supabase_schema.sql`, đặt `VITE_VAPID_PUBLIC_KEY` ở GitHub Variables, `supabase secrets set …`, `supabase functions deploy push-reminder`, chạy `cron.schedule` ([Triển khai để nghiệm thu](#triển-khai-để-nghiệm-thu)).
+2. **Chỉ sau khi nghiệm thu** mới sửa `reminder.limitation` ở `vi`/`en`/`zh` — câu hiện tại vẫn đang đúng, và câu mới phải nói cả giới hạn `HORIZON_DAYS`.
+3. **Quyết định thiết kế đang chờ** — hủy buổi rồi đóng app ngay (xem Known Issues). Hướng đề xuất: gọi `syncReminderQueue()` có debounce sau khi người dùng ghi, **không** gọi `syncWithCloud()`. `syncReminderQueue()` chỉ đọc Dexie và ghi lên mây, nên không dựng lại vòng lặp mà `core/autoSync.ts` cảnh báo.
+4. Dọn các nhánh đã gộp hết vào `main` (`test`, `feat/category-inference-push-fixes`, `claude/affectionate-beaver-506d4f` cùng worktree của nó; `backup/main-pre-phase3` giữ hay bỏ tùy bạn). Chưa xóa nhánh nào.
 
 ### Known Issues
-- *(Không có)*. Lỗi "tên TRỘN Hán–Latin trùng id" (`小明 minh` / `大明 minh` cùng ra `client--minh`, người thứ hai nhận `newId()` ngẫu nhiên mỗi lần gõ) đã sửa **mà không đổi hàm sinh id chính**: nhánh trùng giờ dùng `collisionClientId()` tất định, và tìm theo tên trước để vẫn trỏ về bản ghi cũ từng mang id ngẫu nhiên. Những bản đã lỡ nhân đôi từ trước vẫn dọn bằng **Gộp đối tượng trùng** ở Cài đặt.
+- **Hủy buổi rồi đóng app ngay thì thông báo của buổi đó vẫn có thể bắn.** *(Đọc mã, chưa tái tạo trên máy thật.)* Hàng đợi chỉ được rút lại trong `syncReminderQueue()`, mà hàm đó chỉ chạy sau `syncWithCloud()`, và `syncWithCloud()` chỉ có bốn kích hoạt (mở app, tab được xem lại, có mạng lại, hết 10 phút) — cố ý không có "dữ liệu cục bộ đổi". Còn app mở thì lần đồng bộ kế tiếp sửa được; đóng app trước đó thì hàng cũ nằm nguyên tới giờ bắn. Bản thân phần rút hàng thì đã có test.
+- **Edge Function đánh `sent_at` cả khi mọi lần gửi thất bại tạm thời** (HTTP 429/5xx, lỗi mạng): lời nhắc đó mất, cron không thử lại. *(Đọc mã.)* Chưa sửa vì cách sửa kéo theo một quyết định: thử lại thì có thể bắn "còn 30 phút" cho buổi đã bắt đầu, mà hàng đợi chỉ giữ `fire_at` chứ không giữ giờ vào buổi.
+- Bấm vào thông báo chỉ chuyển sang tab đang mở khi tab đó đang ở `#/week`: `public/sw.js` so cả đoạn `#…` của URL, nên ở màn hình khác nó mở thêm một cửa sổ. Lúc app đang mở, nhắc lịch trong trang (tầng 1) và Web Push (tầng 2) cũng có thể cùng hiện, vì thông báo đẩy không mang `tag`.
+- *(Đã đóng)* Lỗi "tên TRỘN Hán–Latin trùng id" (`小明 minh` / `大明 minh` cùng ra `client--minh`, người thứ hai nhận `newId()` ngẫu nhiên mỗi lần gõ) đã sửa **mà không đổi hàm sinh id chính**: nhánh trùng giờ dùng `collisionClientId()` tất định, và tìm theo tên trước để vẫn trỏ về bản ghi cũ từng mang id ngẫu nhiên. Những bản đã lỡ nhân đôi từ trước vẫn dọn bằng **Gộp đối tượng trùng** ở Cài đặt.
 
 ### Security Status
 - Tích hợp RLS (nếu cấu hình Supabase).
@@ -1196,7 +1209,7 @@ Ngoài mười một điều chung, tính năng này chỉ được đánh dấu
 
 1. Đóng hẳn trình duyệt, để máy yên, và **nhận được một thông báo đúng giờ**. Không có bước này thì mọi thứ ở trên chỉ là mã trông hợp lý — đúng như Phase 2 với 284 test xanh và Đồng bộ Cloud chưa từng chạy.
 2. Thử với máy đặt múi giờ **không phải UTC**. Đây là lỗi mà bản đầu mắc phải, và nó không lộ ra ở bất kỳ máy nào chạy UTC. Phần thuần đã qua: `pushQueue`/`expand`/`reminder` xanh dưới `TZ=UTC`, `Asia/Ho_Chi_Minh`, `America/New_York`, `Pacific/Kiritimati` (UTC+14). Phần còn lại là thấy thông báo tới đúng giờ địa phương trên máy thật.
-3. Hủy một buổi đã nằm trong hàng đợi rồi xác nhận thông báo **không** bắn.
+3. Hủy một buổi đã nằm trong hàng đợi rồi xác nhận thông báo **không** bắn. Phần rút hàng ở `db/pushQueue.ts` đã có test tự động (`db/__tests__/pushQueue.test.ts`, Supabase giả); chưa thử với Supabase thật, và còn một khe hở khi đóng app ngay sau khi hủy — xem Known Issues.
 4. `npm run verify` xanh với `check:cloud` báo 11 bảng. ✅ Đạt.
 
 ## Trợ năng
@@ -1286,3 +1299,4 @@ Tiêu đề, ghi chú, địa điểm và tên học sinh là **dữ liệu ngư
 |---|---|
 | `REVIEW_Personal_Schedule_System.md` | 30+ lỗi tìm được trong kế hoạch gốc, phân theo mức nghiêm trọng |
 | `PHASE0_Dac_ta_thi_cong.md` | Mô hình lương hai chế độ + schema chốt + 8 bước dựng nền móng |
+| `ACCEPTANCE_WEB_PUSH.md` | Checklist từng bước để nghiệm thu Web Push trên máy thật + cấu hình GitHub/Supabase |
