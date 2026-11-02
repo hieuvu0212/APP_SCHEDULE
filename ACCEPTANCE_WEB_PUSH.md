@@ -32,7 +32,7 @@ npx web-push generate-vapid-keys
 
 ### A3. Supabase — dự án của bạn
 
-- [ ] **SQL Editor:** dán **toàn bộ** `supabase_schema.sql` rồi Run. Chạy lại an toàn. Bắt buộc dán lại kể cả khi đã dán trước đây: file mang các câu `ALTER … SET DEFAULT` mà bảng cũ cần.
+- [ ] **SQL Editor:** dán **toàn bộ** `supabase_schema.sql` rồi Run. Chạy lại an toàn. Bắt buộc dán lại kể cả khi đã dán trước đây: file mang các câu `ALTER … SET DEFAULT` và `ADD COLUMN IF NOT EXISTS start_at` mà bảng cũ cần. **Làm bước này TRƯỚC khi deploy hàm:** hàm mới `SELECT` cột `start_at`, thiếu cột thì mọi lượt chạy trả `500`, và app cũng không nạp được hàng đợi.
 - [ ] **Database → Extensions:** bật `pg_cron` và `pg_net`.
 - [ ] Đặt secret cho Edge Function (Supabase CLI đã `supabase link`). Chuỗi `CRON_SECRET` sinh ngẫu nhiên, dài (ví dụ 40+ ký tự), tự bạn tạo:
 
@@ -62,6 +62,9 @@ curl.exe -X POST https://<PROJECT_REF>.supabase.co/functions/v1/push-reminder -H
 | `401` | Sai `CRON_SECRET` |
 | `500` + `VAPID keys not configured` | Chưa xong `supabase secrets set` |
 | `404` | Chưa deploy hàm |
+| `500` nhắc tới `start_at` | Chưa dán lại schema (A3, bước đầu) |
+| `"retried": N` | N hàng để lại cho lượt sau vì lỗi tạm thời (429/5xx/mạng) |
+| `"expired": N` | N hàng bỏ, không gửi, vì đã qua hạn chót = sớm hơn trong hai mốc: giờ vào buổi và `fire_at` + 10 phút |
 
 Kiểm cron có chạy không (SQL Editor), sau khi qua ít nhất 5 phút:
 

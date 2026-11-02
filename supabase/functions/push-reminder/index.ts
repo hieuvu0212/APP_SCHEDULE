@@ -52,7 +52,7 @@ serve(async (req) => {
     // 2. Quét hàng đợi reminder_queue: fire_at <= now, chưa gửi, chưa bị xóa
     const { data: dueReminders, error: queueError } = await supabaseClient
       .from('reminder_queue')
-      .select('id, user_id, title, body, url, fire_at')
+      .select('id, user_id, title, body, url, fire_at, start_at')
       .lte('fire_at', nowIso)
       .is('sent_at', null)
       .is('deleted_at', null)
@@ -68,7 +68,7 @@ serve(async (req) => {
 
     if (!dueReminders || dueReminders.length === 0) {
       return new Response(
-        JSON.stringify({ success: true, processed: 0, sent: 0, errors: 0 }),
+        JSON.stringify({ success: true, processed: 0, sent: 0, errors: 0, retried: 0, expired: 0, deferred: 0 }),
         { headers: { 'Content-Type': 'application/json' } },
       );
     }
@@ -91,10 +91,11 @@ serve(async (req) => {
       dueReminders as DueReminder[],
       (subscriptions ?? []) as PushSubscriptionRow[],
       {
-        send: (sub, payload) =>
+        send: (sub, payload, options) =>
           webpush.sendNotification(
             { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
             payload,
+            options,
           ),
         markSent: (reminder, sentAt) =>
           supabaseClient
