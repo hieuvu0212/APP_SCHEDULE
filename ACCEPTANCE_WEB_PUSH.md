@@ -1,8 +1,8 @@
 # Nghiệm thu Web Push — việc chỉ người thật làm được
 
-> Viết ngày 2026-11-02. Đây là checklist, không phải đặc tả: đặc tả nằm ở README, mục
+> Viết ngày 2026-11-02. Đây là checklist, không phải đặc tả: đặc tả nằm ở docs/ENGINEERING.md, mục
 > "Nhắc lịch và Web Push". Mọi thứ máy làm được (sáu cổng chặn, 600 test dưới 4 múi giờ,
-> build) đã xanh. **Điều 1–3 của ["Định nghĩa xong cho tính năng này"](README.md#định-nghĩa-xong-cho-tính-năng-này)
+> build) đã xanh. **Điều 1–3 của ["Định nghĩa xong cho tính năng này"](docs/ENGINEERING.md#định-nghĩa-xong-cho-tính-năng-này)
 > chưa ai làm, và không cổng chặn nào làm thay được.**
 >
 > Đừng dán khóa riêng tư, `CRON_SECRET` hay anon key vào chat, issue hay commit.
@@ -48,7 +48,7 @@ npx web-push generate-vapid-keys
   ```
 
   `supabase/config.toml` đã đặt `verify_jwt = false`; bảo vệ thật là header `x-cron-secret`.
-- [ ] **SQL Editor:** dán câu `cron.schedule` ở README mục "Bộ lập lịch" (mục 5), thay `<PROJECT_REF>` và `<CRON_SECRET>`. **Không commit câu này** — nó chứa secret thật.
+- [ ] **SQL Editor:** dán câu `cron.schedule` ở docs/ENGINEERING.md mục "Bộ lập lịch" (mục 5), thay `<PROJECT_REF>` và `<CRON_SECRET>`. **Không commit câu này** — nó chứa secret thật.
 
 ### A4. Thử hàm bằng tay trước khi chờ cron
 
@@ -119,7 +119,7 @@ Máy này của bạn đang báo múi giờ UTC+7, nên B1 *đã là* một lầ
 
 ### B3. Điều 3 — hủy buổi đã nằm trong hàng đợi
 
-Làm **hai lần**, vì lần hai kiểm chứng bản vá cho khe hở "hủy rồi đóng app" (README, Known Issues):
+Làm **hai lần**, vì lần hai kiểm chứng bản vá cho khe hở "hủy rồi đóng app" (docs/ENGINEERING.md, mục "Lỗi đã đóng"):
 
 **Lần 1 — hủy rồi đồng bộ (kỳ vọng: không bắn)**
 

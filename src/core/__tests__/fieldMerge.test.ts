@@ -192,7 +192,7 @@ describe('stampAfter', () => {
 
   it('dấu thiếu mili-giây: +1 ms thì SO CHUỖI lại nhỏ hơn, phải nhảy tiếp', () => {
     // '…:00.001Z' < '…:00Z' vì '.' (0x2E) < 'Z' (0x5A). Đúng loại bẫy so chuỗi
-    // mà README cảnh báo ở mục "Ai thắng".
+    // mà docs/ENGINEERING.md cảnh báo ở mục "Ai thắng".
     const noMillis = '2026-03-01T00:00:00Z';
     const out = stampAfter(T0, noMillis);
     expect(isNewer(out, noMillis)).toBe(true);

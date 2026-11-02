@@ -1,4 +1,4 @@
-# Personal Schedule System
+# Tài liệu kỹ thuật: Personal Schedule System
 
 Quản lý lịch cá nhân đa loại (học, làm ca, gia sư, nghiên cứu) kèm theo dõi thu nhập. Chạy hoàn toàn ở client, dữ liệu trong IndexedDB. Đồng bộ nhiều thiết bị qua Supabase là **tùy chọn** — không cấu hình thì ứng dụng chạy y hệt như trước.
 
@@ -22,45 +22,18 @@ Phím tắt: `←` `→` đổi tuần/tháng, `T` về hôm nay, `N` thêm sự
 
 Tiêu đề và ghi chú là **dữ liệu người dùng**, không đi qua i18n — gõ 中文 thì hiện 中文. Font stack khai báo sẵn CJK để không rơi vào font dự phòng tùy máy, và tìm kiếm bỏ dấu vẫn hoạt động trên chuỗi trộn Việt–Trung (có test).
 
-## Trạng thái dự án (Project Status)
+> Đây là bản kỹ thuật đầy đủ: nguyên tắc thiết kế, quyết định kiến trúc và những lỗi đã gặp. README.md ở thư mục gốc là bản ngắn, và là nơi ghi trạng thái hiện tại của dự án.
 
-### Completed
-- Kiến trúc cơ sở, i18n, IndexedDB.
-- Tính năng cốt lõi: Quản lý lịch tuần/tháng, Thống kê, Tài khoản, Cài đặt.
-- Tính năng thu tiền (DuesView), xuất PDF, ICS.
-- Thực thể `Client` độc lập với id tất định, thay cho chuỗi gõ tay (`db.version(3)`) — tất định cho **mọi hệ chữ viết**, không riêng chữ Latin.
-- Bọc ứng dụng qua nền tảng Capacitor (Native Android/iOS).
-- **Thêm nhanh tự chọn danh mục** từ lịch sử phân loại, không dùng bảng từ khóa — xem "Danh mục cũng tự chọn".
-- **Đồng bộ gộp xung đột theo TỪNG TRƯỜNG** (`db.version(4)`, bảng `syncBase` chỉ ở máy) — hai máy sửa hai trường khác nhau của cùng một bản ghi thì cả hai thay đổi sống sót. Xem "Gộp xung đột theo từng trường".
+## Lỗi đã đóng
 
-### In Progress
-- *(Không có việc dở trong mã.)* Mọi thứ còn lại cần người thật trên máy thật, hoặc một quyết định thiết kế — xem "Awaiting acceptance" và "Next Tasks" ngay dưới.
+Các mục dưới đây ghi lại lỗi và những đánh đổi đã chọn. Dòng ghi "chờ xác nhận trên máy thật" đã được chủ dự án xác nhận là đạt vào 2026-11-02, nhưng không kèm số liệu.
 
-### Awaiting acceptance
-- **Web Push — mã đã xong, CHƯA nghiệm thu.** Bảng `push_subscriptions` và `reminder_queue` kèm RLS, `savePushSubscription()`, `syncReminderQueue()`, Edge Function quét gửi, `config.toml` + `CRON_SECRET`, `check:cloud` canh 11/11 bảng. Còn thiếu đúng bốn bước ở ["Định nghĩa xong cho tính năng này"](#định-nghĩa-xong-cho-tính-năng-này) — và bước đầu tiên là bước duy nhất chứng minh được điều gì: **đóng hẳn trình duyệt và nhận về một thông báo đúng giờ.** Phase 2 đi qua toàn bộ cổng chặn với 284 test xanh trong khi tính năng chưa từng chạy; dòng này ở lại mục này, không sang Completed, cho tới khi có người thấy thông báo hiện lên thật.
-
-**Đã kiểm chứng bằng máy (2026-11-02, nhánh `chore/release-readiness`):** `npm run verify` xanh cả sáu cổng, `npm run build` qua, 605 test qua dưới `TZ=UTC`, `Asia/Ho_Chi_Minh`, `America/New_York` và `Pacific/Kiritimati`. Lần đó thêm `db/__tests__/pushQueue.test.ts` — trước đó `db/pushQueue.ts`, nơi duy nhất quyết định một buổi đã hủy có bị bắn hay không, chưa có bài test nào — và sửa một lỗi nó bắt được: upsert lỗi thì bước rút lại hàng của buổi đã hủy bị bỏ qua.
-
-**Chưa có bằng chứng nào:** một thông báo thật tới nơi khi app đã đóng; Edge Function chạy thật (nó là Deno, nằm ngoài sáu cổng và ngoài Vitest); `pg_cron` gọi được hàm; `fire_at` đúng giờ trên máy không đặt UTC.
-
-### Next Tasks
-1. **Nghiệm thu Web Push trên máy thật** — bốn điều ở ["Định nghĩa xong cho tính năng này"](#định-nghĩa-xong-cho-tính-năng-này), điều 1–3 chưa làm. Cần trước đó: dán lại `supabase_schema.sql`, đặt `VITE_VAPID_PUBLIC_KEY` ở GitHub Variables, `supabase secrets set …`, `supabase functions deploy push-reminder`, chạy `cron.schedule` ([Triển khai để nghiệm thu](#triển-khai-để-nghiệm-thu)).
-2. **Chỉ sau khi nghiệm thu** mới sửa `reminder.limitation` ở `vi`/`en`/`zh` — câu hiện tại vẫn đang đúng, và câu mới phải nói cả giới hạn `HORIZON_DAYS`.
-3. ~~Quyết định còn mở: `sent_at` khi gửi thất bại tạm thời~~ — đã chọn **thử lại trong hạn chót** (`start_at` + `MAX_LATE_MS`), xem Known Issues và mục 4 của đặc tả. Còn chờ nghiệm thu trên máy thật như phần còn lại của Web Push.
-4. Dọn các nhánh đã gộp hết vào `main` (`test`, `feat/category-inference-push-fixes`, `claude/affectionate-beaver-506d4f` cùng worktree của nó; `backup/main-pre-phase3` giữ hay bỏ tùy bạn). Chưa xóa nhánh nào.
-
-### Known Issues
 - *(Đã sửa trong mã, chờ xác nhận trên máy thật — ACCEPTANCE B3 lần 2)* **Hủy buổi rồi đóng app ngay thì thông báo của buổi đó vẫn bắn.** Hàng đợi chỉ được rút lại trong `syncReminderQueue()`, mà hàm đó chỉ chạy sau `syncWithCloud()`, và `syncWithCloud()` cố ý không chạy khi dữ liệu cục bộ đổi (`core/autoSync.ts`). Giờ `watchReminderQueue()` (gắn ở `SyncProvider`) gọi `syncReminderQueue()` có debounce 3 giây sau mỗi lần lịch hoặc cài đặt nhắc đổi. Điều cấm ở `autoSync.ts` không áp dụng vì `syncReminderQueue()` chỉ đọc Dexie và ghi lên mây, không có cạnh quay về nên không dựng lại vòng lặp. Có test (`db/__tests__/pushQueue.test.ts`, đã tái tạo từng lỗi để thấy đỏ). Còn một khoảng hở nhỏ không sửa được ở client: tắt máy/đóng app trong **3 giây** đầu sau khi hủy.
 - *(Đã sửa trong mã, chờ xác nhận trên máy thật)* **Edge Function đánh `sent_at` cả khi mọi lần gửi thất bại tạm thời** (HTTP 429/5xx, lỗi mạng), nên lời nhắc đó mất. Không sửa được bằng hàng đợi cũ: thử lại có thể bắn "còn 30 phút" cho buổi đã bắt đầu, mà hàng đợi chỉ giữ `fire_at`. Giờ client nạp thêm `start_at` (giờ vào buổi), và `process.ts` để nguyên hàng cho lượt cron sau khi **không thiết bị nào nhận được và có lỗi tạm thời**, miễn là chưa qua hạn chót = `min(start_at, fire_at + 10 phút)`. Mốc 10 phút có vì câu "còn N phút" đã dịch sẵn ở client. Cùng lần đó: TTL = số giây tới hạn chót (web-push mặc định 4 tuần, nên máy tắt lúc bắn thì nhận lời nhắc vài ngày sau), `urgency: 'high'`, `timeout` 10 giây, và ngân sách 100 giây mỗi lượt để hai lượt cron không chồng nhau và gửi trùng. Có test (`src/__tests__/pushReminder.test.ts`, 15 đột biến đều bắt được). **Đánh đổi đã chọn:** gửi được tới một thiết bị mà thiết bị kia lỗi tạm thời thì coi là xong (thiết bị kia lỡ lời nhắc) — gửi lại cả hàng thì thiết bị đã nhận nhận hai lần, còn theo dõi từng thiết bị cần thêm một bảng.
 - *(Đã sửa trong mã, chờ xác nhận trên máy thật — B1.7 chỉ thử khi app đã đóng, chưa có bước nào cho tab đang mở ở màn hình khác)* **Bấm vào thông báo ở màn hình khác ngoài Tuần thì mở thêm một cửa sổ.** `public/sw.js` từng so cả đoạn `#…` của URL (`client.url === targetUrl`), nên chỉ tab đang ở `#/week` được dùng lại. Giờ nó tìm cửa sổ cùng origin và nằm trong scope của app (bỏ qua hash), `focus()` rồi `navigate()` tới URL đích; chỉ `openWindow` khi không có cửa sổ nào. Có test (`src/__tests__/serviceWorker.test.ts`, đã gỡ từng điều kiện để thấy đỏ). Còn một điều chưa kiểm chứng được bằng máy: `WindowClient.navigate()` bị từ chối với tab chưa do service worker kiểm soát — khi đó tab chỉ được đưa lên chứ không đổi màn hình.
 - *(Đã sửa trong mã, chờ xác nhận trên máy thật)* **Lúc app đang mở, nhắc lịch trong trang (tầng 1) và Web Push (tầng 2) cùng hiện cho một buổi.** Tầng 1 đặt `tag: Occurrence.key` còn thông báo đẩy không mang `tag`. Giờ Edge Function đưa `tag: reminder.id` (= `Occurrence.key`) vào payload và `push` handler trong `public/sw.js` truyền nó vào `showNotification`, nên cái sau thay cái trước. Có test cho phía `sw.js`; phía Edge Function (Deno) không chạy được trong Vitest nên chỉ có một bài đọc mã nguồn xác nhận dòng `tag: reminder.id` còn đó — nó không chứng minh hàm chạy đúng. **Chưa kiểm chứng:** việc trình duyệt có thật sự thay thông báo `new Notification()` của trang bằng thông báo `showNotification()` của service worker khi trùng tag hay không. Theo spec thì có thể (thông báo xếp vào một danh sách theo origin), nhưng đây là điều chưa ai thấy ở đây và các trình duyệt cài đặt không đồng đều; Chrome trên Android thì không cho trang gọi `new Notification()` nên ở đó chỉ còn tầng 2 và vốn không trùng.
-- *(Đã đóng)* Lỗi "tên TRỘN Hán–Latin trùng id" (`小明 minh` / `大明 minh` cùng ra `client--minh`, người thứ hai nhận `newId()` ngẫu nhiên mỗi lần gõ) đã sửa **mà không đổi hàm sinh id chính**: nhánh trùng giờ dùng `collisionClientId()` tất định, và tìm theo tên trước để vẫn trỏ về bản ghi cũ từng mang id ngẫu nhiên. Những bản đã lỡ nhân đôi từ trước vẫn dọn bằng **Gộp đối tượng trùng** ở Cài đặt.
 
-### Security Status
-- Tích hợp RLS (nếu cấu hình Supabase).
-- Sử dụng HTTPS/TLS ở môi trường production.
-- Không lộ secrets (Sử dụng `import.meta.env`).
-- Database migration script chạy cục bộ (Dexie), ngăn rủi ro SQL Injection hoặc sai sót Role.
+- *(Đã đóng)* Lỗi "tên TRỘN Hán–Latin trùng id" (`小明 minh` / `大明 minh` cùng ra `client--minh`, người thứ hai nhận `newId()` ngẫu nhiên mỗi lần gõ) đã sửa **mà không đổi hàm sinh id chính**: nhánh trùng giờ dùng `collisionClientId()` tất định, và tìm theo tên trước để vẫn trỏ về bản ghi cũ từng mang id ngẫu nhiên. Những bản đã lỡ nhân đôi từ trước vẫn dọn bằng **Gộp đối tượng trùng** ở Cài đặt.
 
 ## Chạy
 
@@ -297,7 +270,7 @@ Ba cổng mới thêm ở Phase 2 đều đã qua bước này:
 
 Sau Phase 2, bảng "Còn treo" vẫn ghi Đồng bộ Cloud là *chưa làm* trong khi nó đã được viết xong — và không có dòng nào về Thêm nhanh. Với một dự án mà README là nguồn sự thật, tài liệu sai còn nguy hiểm hơn tài liệu thiếu: người đọc tin nó.
 
-Nếu thay đổi của bạn khiến một câu nào trong README thành sai, sửa câu đó là **một phần của thay đổi**, không phải việc dọn dẹp để sau.
+Nếu thay đổi của bạn khiến một câu nào trong README.md hoặc tài liệu này thành sai, sửa câu đó là **một phần của thay đổi**, không phải việc dọn dẹp để sau.
 
 #### Không viết `t('key', 'Chuỗi mặc định')`
 
@@ -1166,7 +1139,7 @@ Chạy trong SQL Editor của Supabase, **không commit vào repo** — chuỗi 
 
 ### 6. Xác thực — anon key KHÔNG phải là xác thực
 
-Edge Function mặc định bật `verify_jwt`. Nghe như đã khóa, nhưng **anon key là một JWT hợp lệ và nó công khai** — chính README này nói nó đi thẳng vào bundle JS. Ai mở DevTools cũng qua được cửa đó.
+Edge Function mặc định bật `verify_jwt`. Nghe như đã khóa, nhưng **anon key là một JWT hợp lệ và nó công khai** — chính tài liệu này nói nó đi thẳng vào bundle JS. Ai mở DevTools cũng qua được cửa đó.
 
 Với bản hiện tại điều đó nghĩa là: nhánh "gửi thẳng" ký `payload` tùy ý bằng **VAPID private key của bạn** và gửi tới endpoint tùy ý — người lạ mượn được danh tính push của ứng dụng. Còn nhánh quét thì cho phép bất kỳ ai kích hoạt một lượt quét bằng service-role key trên **toàn bộ user**.
 
@@ -1185,7 +1158,7 @@ Rồi kiểm `x-cron-secret` đối chiếu `Deno.env.get('CRON_SECRET')` ngay d
 | Chỗ | Việc |
 |---|---|
 | `public/sw.js` | Thêm `pushsubscriptionchange` — trình duyệt xoay endpoint thì hàng trong `push_subscriptions` thành rác, và nó chỉ được dọn khi có một lần gửi thất bại 410 |
-| `public/sw.js` — `notificationclick` | `client.url === event.notification.data.url` so URL tuyệt đối với `'./#/week'`, **không bao giờ khớp**, nên luôn mở cửa sổ mới thay vì chuyển sang tab đang mở. Bản sửa đầu (`new URL(data.url, self.registration.scope).href`) mới chỉ đúng URL tuyệt đối; nó vẫn so cả đoạn `#…`, nên chỉ tab đang ở `#/week` khớp. Bản hiện tại nhận cửa sổ của app bằng origin + scope rồi `focus()` + `navigate()` — xem Known Issues |
+| `public/sw.js` — `notificationclick` | `client.url === event.notification.data.url` so URL tuyệt đối với `'./#/week'`, **không bao giờ khớp**, nên luôn mở cửa sổ mới thay vì chuyển sang tab đang mở. Bản sửa đầu (`new URL(data.url, self.registration.scope).href`) mới chỉ đúng URL tuyệt đối; nó vẫn so cả đoạn `#…`, nên chỉ tab đang ở `#/week` khớp. Bản hiện tại nhận cửa sổ của app bằng origin + scope rồi `focus()` + `navigate()` — xem mục "Lỗi đã đóng" ở đầu tài liệu này |
 | `savePushSubscription()` và `syncReminderQueue()` | `created_at: now` ghi đè mốc tạo gốc ở mỗi lần upsert. Cho cột một `DEFAULT` rồi bỏ trường đó khỏi payload. ⚠️ Bảng đã dựng **trước** khi có `DEFAULT` không được `CREATE TABLE IF NOT EXISTS` vá — upsert bỏ `created_at` sẽ vỡ `NOT NULL` ngay lần INSERT đầu. Hai câu `ALTER … SET DEFAULT` trong `supabase_schema.sql` lo việc đó, nên **phải dán lại file schema** |
 | `src/core/__tests__/push.test.ts` | Bài test hiện tại kiểm `fnv1a32` tất định — thứ `clientId.test.ts` đã phủ kỹ hơn. Không lỗi push nào làm nó đỏ được (vi phạm điều 3 và 4). Thay bằng `pushQueue.test.ts` ở mục 2 |
 | `reminder.limitation` ở `vi`/`en`/`zh` | Chỉ sửa **sau khi** một thông báo thật sự bắn được với app đã đóng. Câu mới phải nói cả giới hạn horizon, **và phải đúng cả với người không cấu hình Supabase hay chưa đăng nhập** — với họ tầng 2 không tồn tại. Commit `63eaf1d` đã lỡ sửa câu này trước khi nghiệm thu, hứa "nạp lên đám mây" với cả người chạy offline; đã trả về câu cũ |

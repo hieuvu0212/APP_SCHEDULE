@@ -363,9 +363,9 @@
     "exportPdf": "Xuất PDF",
     "generating": "Đang tạo…",
     "failed": "Không tạo được PDF: {{message}}",
-    "fontMissing": "Thiếu file font trong public/fonts/. Xem hướng dẫn trong README.",
+    "fontMissing": "Thiếu file font trong public/fonts/. Xem hướng dẫn trong docs/ENGINEERING.md.",
     "fontFormat": "File {{url}} không phải font hợp lệ — đọc được: {{found}}. Kiểm tra ba chỗ: file có nằm trong public/fonts/ không, có phải bản .ttf trong thư mục static không (đừng dùng bản variable hay file .zip), và kích thước có hợp lý không (~500 KB cho Noto Sans, ~10 MB cho Noto Sans SC).",
-    "cjkFontMissing": "Lịch tuần này có chữ Hán, kana, Hangul hoặc emoji, cần thêm font NotoSansSC-Regular.ttf trong public/fonts/ (xem README). Trong lúc chờ, dùng nút In rồi chọn “Lưu dưới dạng PDF” — trình duyệt dùng font hệ thống nên hiện đúng.",
+    "cjkFontMissing": "Lịch tuần này có chữ Hán, kana, Hangul hoặc emoji, cần thêm font NotoSansSC-Regular.ttf trong public/fonts/ (xem docs/ENGINEERING.md). Trong lúc chờ, dùng nút In rồi chọn “Lưu dưới dạng PDF” — trình duyệt dùng font hệ thống nên hiện đúng.",
     "exportPng": "Xuất PNG",
     "bandLabel": "Buổi"
   },
@@ -470,7 +470,7 @@
       "unknown": "Đồng bộ thất bại."
     },
     "autoSync": "Tự đồng bộ",
-    "autoSyncHint": "Đồng bộ khi mở ứng dụng, khi quay lại tab, và khi có mạng trở lại. KHÔNG chạy mỗi lần bạn sửa lịch — xem README để biết vì sao.",
+    "autoSyncHint": "Đồng bộ khi mở ứng dụng, khi quay lại tab, và khi có mạng trở lại. KHÔNG chạy mỗi lần bạn sửa lịch — xem docs/ENGINEERING.md để biết vì sao.",
     "lastSync": "Đồng bộ lần cuối: {{when}}",
     "neverSynced": "Chưa đồng bộ lần nào trên máy này."
   },

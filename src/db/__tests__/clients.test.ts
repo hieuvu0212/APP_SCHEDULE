@@ -2,7 +2,7 @@
 //  ensureClient — gõ lại cùng một tên phải trỏ về cùng một đối tượng
 //
 //  Chạy trên IndexedDB thật (fake-indexeddb). Mỗi bài ứng với lỗi "Tên TRỘN
-//  Hán–Latin có thể trùng id" từng ghi ở Known Issues của README.
+//  Hán–Latin có thể trùng id" từng ghi ở mục "Lỗi đã đóng" của docs/ENGINEERING.md.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { beforeEach, describe, expect, it } from 'vitest';

@@ -31,7 +31,7 @@
 //  4. VẮNG MẶT → `null` khi đẩy lên.  ← QUAN TRỌNG NHẤT, ĐỌC KỸ
 //
 //     Khôi phục từ Thùng rác XÓA HẲN thuộc tính `deletedAt` (Dexie hiểu
-//     `undefined` là lệnh xóa thuộc tính — README nói rõ). Nên payload đẩy lên
+//     `undefined` là lệnh xóa thuộc tính — docs/ENGINEERING.md nói rõ). Nên payload đẩy lên
 //     không có khóa `deleted_at` nào cả.
 //
 //     PostgREST dựng danh sách cột từ HỢP các khóa của cả lô, rồi sinh

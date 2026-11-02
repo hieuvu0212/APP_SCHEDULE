@@ -51,7 +51,7 @@ jobs:
 
       - run: npm run lint
       - run: npm test
-      # `tsc -b`, KHÔNG phải `tsc --noEmit` — xem phần cảnh báo trong README.
+      # `tsc -b`, KHÔNG phải `tsc --noEmit` — xem phần cảnh báo trong docs/ENGINEERING.md.
       - run: npm run typecheck
 
       # ⚠️ VITE_* PHẢI CÓ MẶT Ở BƯỚC BUILD, KHÔNG PHẢI LÚC CHẠY.

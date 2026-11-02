@@ -10,7 +10,7 @@
 //  ⚠️ NHÁNH LATIN Ở DƯỚI ĐÃ ĐÓNG BĂNG. `db.version(3)` chạy trên máy thật rồi;
 //  `rules`, `events` và `payments` đang neo vào đúng những id nó sinh ra. Đổi
 //  một byte trong nhánh đó là làm mồ côi dữ liệu của người đang dùng, và không
-//  vá lại được bằng `version(4)` — xem README, mục "db.version(3)".
+//  vá lại được bằng `version(4)` — xem docs/ENGINEERING.md, mục "db.version(3)".
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { normalizeText } from './filter';
@@ -63,7 +63,7 @@ export function fnv1a32(input: string): string {
  *
  * Không có nhánh băm thì `小明` cho ra chuỗi rỗng → `null` → `ensureClient()`
  * dùng `newId()` → **mỗi lần gõ lại tên đó là thêm một đối tượng nữa**. Ứng
- * dụng có tiếng Trung trong i18n và README hứa "gõ 中文 thì hiện 中文", nên
+ * dụng có tiếng Trung trong i18n và docs/ENGINEERING.md hứa "gõ 中文 thì hiện 中文", nên
  * đây không phải trường hợp hiếm gặp ở góc màn hình.
  *
  * ⚠️ DẤU `_` TRONG `client-h_` LÀ CÓ CHỦ ĐÍCH. Nhánh Latin lọc bỏ mọi ký tự

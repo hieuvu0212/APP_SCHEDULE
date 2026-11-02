@@ -40,7 +40,7 @@ for (const file of walk(ROOT)) {
 if (hits.length > 0) {
   console.error('❌ VỠ RANH GIỚI — core/ đang import React hoặc Dexie:\n');
   console.error(hits.join('\n'));
-  console.error('\nchi tiết vì sao: xem phần "Quy tắc bất di bất dịch" trong README.');
+  console.error('\nchi tiết vì sao: xem phần "Quy tắc bất di bất dịch" trong docs/ENGINEERING.md.');
   process.exit(1);
 }
 

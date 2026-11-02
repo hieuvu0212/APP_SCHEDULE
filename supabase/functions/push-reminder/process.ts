@@ -5,7 +5,7 @@
 //
 //  `index.ts` chạy trên Deno: `Deno.env`, import qua URL, `npm:web-push`.
 //  `tsc -b` của ứng dụng không đọc được nó, Vitest không chạy được nó — nên nó
-//  nằm ngoài cả sáu cổng chặn (README, "`supabase/functions/` nằm ngoài TẤT CẢ
+//  nằm ngoài cả sáu cổng chặn (docs/ENGINEERING.md, "`supabase/functions/` nằm ngoài TẤT CẢ
 //  sáu cổng"). Mọi lỗi ở đó chỉ lộ ra trên Supabase thật.
 //
 //  File này giữ mọi thứ CÓ THỂ sai — gửi cho ai, khi nào đánh `sent_at`, lỗi
@@ -313,7 +313,7 @@ export async function processDueReminders(
         if (failure === 'transient') transient = true;
         if (failure === 'gone') {
           // Câu update phải có cả hai vế khóa — xem `softDeleteSubscription`
-          // ở index.ts và README, mục "Edge Function viết lại".
+          // ở index.ts và docs/ENGINEERING.md, mục "Edge Function viết lại".
           const { error } = await deps.softDeleteSubscription(sub, iso());
           if (error) {
             summary.dbErrors++;

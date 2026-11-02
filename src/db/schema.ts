@@ -179,7 +179,7 @@ export class ScheduleDB extends Dexie {
     //
     //  ⚠️ KHÔNG nằm trong BACKUP_TABLES, KHÔNG nằm trong supabase_schema.sql.
     //  Nó là trạng thái của MỘT máy với đám mây, dẫn xuất được — mất nó thì
-    //  chỉ lùi về luật "bên mới hơn thắng" cho tới lần đồng bộ kế tiếp. README
+    //  chỉ lùi về luật "bên mới hơn thắng" cho tới lần đồng bộ kế tiếp. docs/ENGINEERING.md
     //  mục "Gộp xung đột theo từng trường" giải thích vì sao.
     // ─────────────────────────────────────────────────────────────────────
     this.version(4).stores({

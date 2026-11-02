@@ -31,7 +31,7 @@ Sử dụng hàng ngày trên cả điện thoại (mobile web) và máy tính. 
 
 ## Evidence on Hand
 - Cấu trúc thư mục hiện tại.
-- README.md chứa toàn bộ nguyên tắc thiết kế, các quyết định kiến trúc và bài học rút ra.
+- docs/ENGINEERING.md chứa toàn bộ nguyên tắc thiết kế, các quyết định kiến trúc và bài học rút ra.
 
 ## Product Principles
 1. Không bắt buộc tài khoản (No mandatory login gates).

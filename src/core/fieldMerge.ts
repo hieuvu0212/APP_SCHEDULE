@@ -26,7 +26,7 @@
 //  ⚠️ VẮNG MẶT, `undefined` VÀ `null` LÀ MỘT.
 //
 //  Khôi phục từ Thùng rác XÓA HẲN thuộc tính `deletedAt` (phép biến đổi thứ
-//  tư trong README); bản kéo từ đám mây thì đã đổi `null` thành vắng mặt; còn
+//  tư trong docs/ENGINEERING.md); bản kéo từ đám mây thì đã đổi `null` thành vắng mặt; còn
 //  bản ghi cũ có thể mang `deletedAt: undefined`. Ba hình dạng, một ý nghĩa.
 //  So bằng `===` thì "khôi phục" trông như một thay đổi ở cả hai phía, xung
 //  đột giả nổ ra, và bên `updatedAt` muộn hơn có thể XÓA LẠI bản ghi vừa được

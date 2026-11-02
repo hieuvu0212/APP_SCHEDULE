@@ -363,9 +363,9 @@
     "exportPdf": "导出 PDF",
     "generating": "生成中…",
     "failed": "无法生成 PDF：{{message}}",
-    "fontMissing": "public/fonts/ 中缺少字体文件。请参阅 README。",
+    "fontMissing": "public/fonts/ 中缺少字体文件。请参阅 docs/ENGINEERING.md。",
     "fontFormat": "{{url}} 不是有效的字体文件——读取到：{{found}}。请检查三点：文件是否在 public/fonts/ 中、是否是 static 文件夹里的 .ttf（不要用可变字体或 .zip），以及大小是否合理（Noto Sans 约 500 KB，Noto Sans SC 约 10 MB）。",
-    "cjkFontMissing": "本周日程含有汉字、假名、谚文或表情符号，需要在 public/fonts/ 中放入 NotoSansSC-Regular.ttf（参见 README）。在此之前，请改用“打印”并选择“另存为 PDF”——浏览器使用系统字体，可以正确显示。",
+    "cjkFontMissing": "本周日程含有汉字、假名、谚文或表情符号，需要在 public/fonts/ 中放入 NotoSansSC-Regular.ttf（参见 docs/ENGINEERING.md）。在此之前，请改用“打印”并选择“另存为 PDF”——浏览器使用系统字体，可以正确显示。",
     "exportPng": "导出 PNG",
     "bandLabel": "时段"
   },
@@ -470,7 +470,7 @@
       "unknown": "同步失败。"
     },
     "autoSync": "自动同步",
-    "autoSyncHint": "在打开应用、回到标签页、以及网络恢复时同步。不会在每次编辑后运行 — 原因见 README。",
+    "autoSyncHint": "在打开应用、回到标签页、以及网络恢复时同步。不会在每次编辑后运行 — 原因见 docs/ENGINEERING.md。",
     "lastSync": "上次同步：{{when}}",
     "neverSynced": "本机尚未同步过。"
   },

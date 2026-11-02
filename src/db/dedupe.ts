@@ -177,7 +177,7 @@ export async function mergeEntity(
       }
       for (const id of mergeIds) {
         // `undefined` là lệnh XÓA THUỘC TÍNH với Dexie — đó là cách gỡ
-        // tombstone. Xem README, mục Hoàn tác.
+        // tombstone. Xem docs/ENGINEERING.md, mục Hoàn tác.
         await entityTable.update(id, { deletedAt: undefined, updatedAt: back });
       }
     });
