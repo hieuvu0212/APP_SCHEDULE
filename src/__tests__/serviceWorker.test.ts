@@ -15,9 +15,6 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import swSource from '../../public/sw.js?raw';
-// Edge Function là Deno, nằm ngoài sáu cổng và ngoài Vitest: không chạy được ở đây,
-// chỉ đọc được mã nguồn. Xem bài "hợp đồng payload" cuối file.
-import edgeFunctionSource from '../../supabase/functions/push-reminder/index.ts?raw';
 
 // Scope giống bản deploy thật trên GitHub Pages: app nằm trong thư mục con.
 const SCOPE = 'https://hieuvu0212.github.io/APP_SCHEDULE/';
@@ -225,13 +222,5 @@ describe('push', () => {
   });
 });
 
-// `tag` là một sợi dây giữa HAI file không ai nối với nhau: Edge Function (Deno)
-// gửi, sw.js nhận. Bài `push` ở trên chứng minh phía nhận; không có gì chứng minh
-// phía gửi, nên xóa dòng `tag` khỏi Edge Function thì `verify` vẫn xanh và hai
-// tầng lại xếp chồng thông báo. Đây là phép đọc mã nguồn, không phải chạy hàm —
-// thô, nhưng là chỗ duy nhất một cổng chặn nhìn thấy được dòng đó.
-describe('hợp đồng payload với Edge Function', () => {
-  it('Edge Function đưa reminder.id vào payload làm tag', () => {
-    expect(edgeFunctionSource).toMatch(/\btag:\s*reminder\.id\b/);
-  });
-});
+// Phía GỬI của `tag` (Edge Function) có bài riêng ở pushReminder.test.ts, chạy
+// thật trên process.ts — trước đây chỉ là một phép regex trên index.ts.

@@ -1,6 +1,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import webpush from 'npm:web-push';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import {
+  processDueReminders,
+  type DueReminder,
+  type PushSubscriptionRow,
+} from './process.ts';
 
 const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY') || '';
 const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY') || '';
@@ -10,14 +15,6 @@ const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') || 'mailto:admin@example.com
 
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-}
-
-interface PushSubscriptionData {
-  id: string;
-  user_id: string;
-  endpoint: string;
-  p256dh: string;
-  auth: string;
 }
 
 serve(async (req) => {
@@ -88,71 +85,37 @@ serve(async (req) => {
       throw subError;
     }
 
-    const userSubs = new Map<string, PushSubscriptionData[]>();
-    for (const sub of (subscriptions || []) as PushSubscriptionData[]) {
-      const list = userSubs.get(sub.user_id) ?? [];
-      list.push(sub);
-      userSubs.set(sub.user_id, list);
-    }
-
-    let sentCount = 0;
-    let errorCount = 0;
-
-    // 4. Gửi thông báo tới từng subscription
-    for (const reminder of dueReminders) {
-      const subs = userSubs.get(reminder.user_id) ?? [];
-      const payload = {
-        title: reminder.title,
-        body: reminder.body,
-        url: reminder.url || './#/week',
-        // `reminder_queue.id` chính là `Occurrence.key`, cũng là `tag` mà nhắc lịch
-        // trong trang (`useReminders`) đặt. Có cùng tag thì thông báo đẩy THAY
-        // thông báo trong trang thay vì xếp chồng khi app đang mở. `sw.js` đọc
-        // trường này; payload cũ không có thì nó không đặt tag.
-        tag: reminder.id,
-      };
-
-      for (const sub of subs) {
-        const pushSub = {
-          endpoint: sub.endpoint,
-          keys: {
-            p256dh: sub.p256dh,
-            auth: sub.auth,
-          },
-        };
-
-        try {
-          await webpush.sendNotification(pushSub, JSON.stringify(payload));
-          sentCount++;
-        } catch (err: unknown) {
-          errorCount++;
-          // Nếu endpoint hỏng (410 Gone / 404 Not Found), xóa mềm với đủ cả hai vế khóa
-          const statusCode = (err as { statusCode?: number }).statusCode;
-          if (statusCode === 410 || statusCode === 404) {
-            await supabaseClient
-              .from('push_subscriptions')
-              .update({ deleted_at: nowIso })
-              .eq('user_id', sub.user_id)
-              .eq('id', sub.id);
-          }
-        }
-      }
-
-      // 5. Đánh dấu sent_at cho hàng đợi đã xử lý (kể cả user không có subscription)
-      await supabaseClient
-        .from('reminder_queue')
-        .update({ sent_at: nowIso })
-        .eq('user_id', reminder.user_id)
-        .eq('id', reminder.id);
-    }
+    // 4–5. Gửi và đánh `sent_at`: toàn bộ quyết định nằm ở process.ts, nơi
+    // `tsc` và Vitest nhìn thấy được. Ở đây chỉ nối dây vào Supabase và web-push.
+    const summary = await processDueReminders(
+      dueReminders as DueReminder[],
+      (subscriptions ?? []) as PushSubscriptionRow[],
+      {
+        send: (sub, payload) =>
+          webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            payload,
+          ),
+        markSent: (reminder, sentAt) =>
+          supabaseClient
+            .from('reminder_queue')
+            .update({ sent_at: sentAt })
+            .eq('user_id', reminder.user_id)
+            .eq('id', reminder.id),
+        // Xóa mềm với đủ cả hai vế khóa: cùng một trình duyệt đăng nhập hai tài
+        // khoản cho ra cùng `id` dưới hai `user_id`.
+        softDeleteSubscription: (sub, deletedAt) =>
+          supabaseClient
+            .from('push_subscriptions')
+            .update({ deleted_at: deletedAt })
+            .eq('user_id', sub.user_id)
+            .eq('id', sub.id),
+        now: () => Date.now(),
+      },
+    );
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        processed: dueReminders.length,
-        sent: sentCount,
-        errors: errorCount,
-      }),
+      JSON.stringify({ success: true, ...summary }),
       { headers: { 'Content-Type': 'application/json' } },
     );
   } catch (err: unknown) {

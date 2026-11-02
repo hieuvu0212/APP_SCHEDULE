@@ -318,7 +318,7 @@ Cổng chặn chỉ hữu ích khi bạn biết nó **không** nhìn thấy gì.
 | `check:i18n` | Khóa thiếu, chuỗi dự phòng inline | Khóa dựng động — nhưng xem ghi chú dưới bảng |
 | `lint` | Mã chết, biến thừa, vi phạm Fast Refresh | Tính đúng đắn |
 | `test` | Hành vi có bài test | Hành vi **không** có bài test |
-| `typecheck` | Sai kiểu trong `.ts`/`.tsx` **dưới `src/`** | File `.sql`, `.json`, `.yml` — TypeScript không đọc chúng. Và `supabase/functions/` — xem ngay dưới |
+| `typecheck` | Sai kiểu trong `.ts`/`.tsx` **dưới `src/`** | File `.sql`, `.json`, `.yml` — TypeScript không đọc chúng. Và `supabase/functions/`, trừ `process.ts` — xem ngay dưới |
 
 Dòng cuối là dòng đắt giá nhất. Ba trong bốn lỗi P0/P1 của Phase 2 nằm ngoài file TypeScript:
 
@@ -328,11 +328,13 @@ Dòng cuối là dòng đắt giá nhất. Ba trong bốn lỗi P0/P1 của Phas
 
 #### `supabase/functions/` nằm ngoài TẤT CẢ sáu cổng
 
-`tsconfig.app.json` khai `"include": ["src"]`. Nên `tsc -b` **chưa bao giờ đọc một dòng nào** trong `supabase/functions/`, và nó không thể đọc: mã ở đó chạy trên Deno, dùng `Deno.env` và import qua URL — cho TypeScript của ứng dụng nhìn vào chỉ tổ ra một trang lỗi không sửa được.
+`tsconfig.app.json` khai `"include": ["src"]`. Nên cho tới khi tách `process.ts` ra (xem cuối mục), `tsc -b` **chưa bao giờ đọc một dòng nào** trong `supabase/functions/`, và nó không thể đọc `index.ts`: mã ở đó chạy trên Deno, dùng `Deno.env` và import qua URL — cho TypeScript của ứng dụng nhìn vào chỉ tổ ra một trang lỗi không sửa được.
 
 `oxlint` có quét thư mục đó (không nằm trong `ignorePatterns`), nhưng oxlint không có thông tin kiểu, nên nó bắt được biến thừa chứ không bắt được `ev.start_time` so với một mốc sai múi giờ. Không bài test nào chạm tới. Kết quả: **`npm run verify` xanh trọn vẹn trong khi Edge Function so giờ UTC với giờ trôi nổi và không bao giờ bắn đúng lúc.**
 
 Đây là lý do đặc tả ở mục "Nhắc lịch và Web Push" bắt phần quyết định phải nằm ở `core/`, và để lại cho Edge Function đúng phần I/O không có gì để sai. Không phải vì như thế đẹp hơn — mà vì đó là cách duy nhất để một cổng chặn nào đó nhìn thấy nó.
+
+**Phần quyết định CÒN LẠI của Edge Function nằm ở `push-reminder/process.ts`** — gửi cho ai, lỗi nào thì xóa subscription, khi nào đánh `sent_at`. File đó là TypeScript thuần, **không import gì** (một import qua URL là Vitest hết nạp được, một `Deno.*` là `tsc` báo lỗi), nhận I/O qua tham số. `src/__tests__/pushReminder.test.ts` import nó, nên Vitest chạy nó thật và `tsc -b` kiểm kiểu nó — file được `src/` import thì nằm trong chương trình của `tsc` dù đứng ngoài `include`. `index.ts` chỉ còn nối dây: đọc env, hai câu truy vấn, gọi `web-push`. **Nó vẫn nằm ngoài sáu cổng** (chỉ có một bài đọc mã nguồn xác nhận nó gọi `processDueReminders`), nên đừng đặt quyết định nào vào đó.
 
 `check:i18n` chứng minh giá trị ngay trong lần chạy đầu tiên: nó tìm ra `print.bandLabel` — một khóa thiếu ở **cả ba** bộ ngôn ngữ từ Phase 1, khiến ô góc trên-trái của bảng lịch trong file PDF và PNG xuất ra in thẳng chuỗi thô `print.bandLabel`. Lỗi đó nằm trong sản phẩm nhiều tuần: nó không làm hỏng gì, không ném lỗi, chỉ hiện sai trên một tệp mà người dùng gửi cho người khác.
 
@@ -1259,6 +1261,7 @@ Danh sách này tồn tại để lần sau không phải tranh luận lại. M�
 | `db/` | IndexedDB thật trong bộ nhớ qua `fake-indexeddb`. **Không mock Dexie.** |
 | `db/sync` | IndexedDB thật + một `CloudTransport` giả. Không chạm mạng. |
 | Component | `@testing-library/react`. Ưu tiên chặn tái phát các lỗi đã từng lọt. |
+| Edge Function | `supabase/functions/push-reminder/process.ts` chạy thật trong `src/__tests__/pushReminder.test.ts` với I/O giả (gửi, đánh `sent_at`, xóa subscription). `index.ts` là Deno nên không chạy được ở đây. |
 | `public/sw.js` | File JS thuần ngoài `src/`, không qua bundler. `src/__tests__/serviceWorker.test.ts` nạp nó bằng `?raw` + `new Function` với `self`/`clients`/`registration` giả (không dùng `node:vm`: `tsconfig.app.json` không kéo kiểu của Node vào `src/`), rồi bắn sự kiện `notificationclick` và `push` vào. |
 
 Bộ test ở `core/` **không bắt được** ba lỗi lọt lưới gần đây — ô số nằm trong `<label>`, cột biểu đồ cao 0px, bộ lọc nhắc lịch. Không phải vì chúng yếu, mà vì chúng nhìn sai chỗ. Test component tồn tại để bịt đúng khoảng mù đó, nên mỗi bài nên tương ứng với một lỗi thật chứ không phải phủ cho đủ.
